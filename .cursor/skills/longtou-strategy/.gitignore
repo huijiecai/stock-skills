@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# 虚拟环境
+.venv/
+venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 配置文件（包含token）
+config.py
+
+# 临时文件
+*.log
+*.tmp
+.DS_Store
+
+# 数据缓存
+data_cache/
+*.pkl
+*.csv
