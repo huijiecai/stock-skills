@@ -38,9 +38,9 @@ class LongtouScreener:
             description = "连板高度≥3板 → 只做身位龙"
             focus = ["龙头弱转强", "补涨分离"]
         else:
-            state = "震荡"
-            description = "市场震荡，机会不明显"
-            focus = ["机构趋势"]
+            state = "震荡观望"
+            description = "市场震荡，等待情绪拐点"
+            focus = ["观望为主"]
         
         return {
             '状态': state,

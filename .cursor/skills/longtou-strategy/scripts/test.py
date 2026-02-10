@@ -7,8 +7,10 @@
 import sys
 import os
 
-# 添加模块路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 添加模块路径（test.py现在在scripts目录下，需要向上一级）
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.insert(0, parent_dir)
 
 def test_logic_matcher():
     """测试逻辑匹配器"""

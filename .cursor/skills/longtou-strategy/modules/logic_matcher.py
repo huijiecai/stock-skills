@@ -19,13 +19,12 @@ class LogicMatcher:
             config_path: 逻辑库配置文件路径
         """
         if config_path is None:
-            # 默认路径
+            # 默认路径：skill根目录的 logics.yaml
             current_dir = os.path.dirname(os.path.abspath(__file__))
             config_path = os.path.join(
                 current_dir, 
                 "..", 
-                "logic_library", 
-                "current_logics.yaml"
+                "logics.yaml"
             )
         
         self.config_path = config_path
