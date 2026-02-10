@@ -24,15 +24,23 @@ longtou-strategy/
 │   ├── execution-guide.md        # 执行代码指南
 │   ├── output-format.md          # 输出格式规范
 │   └── logic-management.md       # 逻辑库管理指南
+├── data/                         # 🗂️ 数据缓存目录（自动生成）
+│   ├── 20260210/                 # 按日期分文件夹
+│   │   ├── limit_up_stocks.json
+│   │   ├── continuous_limit_up.json
+│   │   ├── stock_concepts.json   # ⭐ 核心：股票概念缓存
+│   │   └── em_hot_rank.json
+│   └── latest -> 20260210/       # 软链接指向最新
 ├── modules/                      # 核心模块（可复用的Python包）
 │   ├── __init__.py
 │   ├── config.py.template        # Token配置模板
 │   ├── config.py                 # Token配置（不提交）
-│   ├── data_fetcher.py           # 数据获取
+│   ├── data_fetcher.py           # 数据获取（优先读缓存）
 │   ├── logic_matcher.py          # 逻辑匹配
 │   ├── screener.py               # 筛选器
 │   └── market_analyzer.py        # 市场分析
 └── scripts/                      # 🔧 可执行脚本
+    ├── fetch_daily_data.py       # ⭐ 每日数据拉取脚本
     └── test.py                   # 测试脚本
 ```
 
@@ -78,7 +86,22 @@ TUSHARE_TOKEN = "你的token"
 
 获取Token：https://tushare.pro/register
 
-### 3. 测试
+### 3. 拉取每日数据
+
+**⭐ 每天早盘前（8:00-8:30）运行一次**，拉取当日数据并缓存：
+
+```bash
+# 确保在skill目录下
+cd .cursor/skills/longtou-strategy
+python scripts/fetch_daily_data.py
+```
+
+**为什么需要这一步？**
+- 避免Tushare频率限制（每次查询概念都要等待）
+- 大幅提升SKILL执行速度（秒级响应）
+- 数据缓存在 `data/YYYYMMDD/` 目录
+
+### 4. 测试
 
 ```bash
 # 确保在skill目录下
@@ -86,7 +109,7 @@ cd .cursor/skills/longtou-strategy
 python scripts/test.py
 ```
 
-### 4. 使用SKILL
+### 5. 使用SKILL
 
 在Cursor中调用：
 
@@ -104,11 +127,12 @@ python scripts/test.py
 |------|------|------|
 | 早盘筛选 | ✅ | 筛选人气榜前30，匹配逻辑库 |
 | 逻辑匹配 | ✅ | 基于Tushare概念匹配热点逻辑 |
-| 市场状态判断 | ✅ | 冰点修复 or 增量主升 |
-| 人气排名 | ✅ | 基于连板数、涨停时间、龙虎榜 |
+| 市场状态判断 | ✅ | 冰点修复 or 增量主升 or 震荡观望 |
+| 人气排名 | ✅ | 连板+时间+龙虎榜+东财人气（四维共振）|
 | 地位判断 | ✅ | 龙头/补涨/首板 |
 | 逻辑库管理 | ✅ | 手动维护YAML配置 |
 | 个股分析 | ✅ | 分析特定股票 |
+| **数据缓存** | ✅ | **每日拉取一次，避免频率限制** |
 
 ### 计划功能（第二版）
 
@@ -117,6 +141,40 @@ python scripts/test.py
 - ⏳ 微信推送
 - ⏳ Web可视化界面
 - ⏳ 历史复盘功能
+
+---
+
+## ⚙️ 每日工作流程
+
+### 推荐工作流
+
+```
+【早上8:00-8:30】拉取数据
+  ↓
+python scripts/fetch_daily_data.py
+  ↓
+【早上8:30-9:30】盘前筛选
+  ↓
+/longtou-strategy 筛选今日自选股
+  ↓
+【盘中】根据需要分析个股
+  ↓
+/longtou-strategy 分析 横店影视
+  ↓
+【收盘后】每周或主线切换时更新逻辑库
+  ↓
+/longtou-strategy 更新逻辑库
+```
+
+### 数据拉取的优势
+
+**架构改进**：
+- **旧方案**：每次筛选都调用API → 慢、容易被限流、每只股票重复查询
+- **新方案**：早盘拉取一次缓存 → 快、稳定、股票概念数据每天只查询1次
+
+**性能对比**：
+- 拉取30只股票概念：旧方案 ~15秒，新方案 ~0.5秒（缓存命中）
+- Tushare API压力：旧方案每次筛选30次调用，新方案每日仅1次批量拉取
 
 ---
 
@@ -413,7 +471,32 @@ pip install -r requirements.txt
 - 每日消耗约 5-10 积分
 - 可通过完成任务获取更多积分
 
-### Q3: 路径错误
+### Q3: Tushare IP限制
+
+**问题**：`您的IP数量超限，最大数量为2个！`
+
+**原因**：
+- Tushare限制每个token最多在2个IP上使用
+- 如果在多台机器或网络切换（如VPN、移动网络、办公室WiFi），容易触发
+
+**解决方案**：
+
+**方案1：在固定机器上运行**（推荐）
+```bash
+# 在同一台电脑、同一网络环境下运行数据拉取脚本
+python scripts/fetch_daily_data.py
+```
+
+**方案2：降级模式**（兜底）
+- 脚本会自动检测IP限制，保存已成功拉取的部分数据
+- 未成功的概念数据会在筛选时通过实时API获取（速度稍慢）
+- 不影响核心功能使用
+
+**方案3：等待IP清理**
+- Tushare会定期清理IP记录（通常24小时）
+- 或联系Tushare客服申请重置
+
+### Q4: 路径错误
 
 **问题**：找不到 `logics.yaml`
 

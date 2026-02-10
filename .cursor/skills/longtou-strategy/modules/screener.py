@@ -16,6 +16,64 @@ class LongtouScreener:
     def __init__(self):
         self.fetcher = DataFetcher()
         self.matcher = LogicMatcher()
+        self.em_hot_rank_cache = None  # 缓存东财人气榜
+    
+    def get_em_hot_rank(self) -> Dict[str, int]:
+        """
+        获取东方财富人气榜（优先缓存）
+        
+        Returns:
+            Dict[str, int]: {股票代码: 排名}
+        """
+        if self.em_hot_rank_cache is not None:
+            return self.em_hot_rank_cache
+        
+        # 1. 尝试从缓存读取
+        import os
+        import json
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        data_dir = os.path.join(os.path.dirname(current_dir), "data")
+        today = datetime.now().strftime("%Y%m%d")
+        cache_path = os.path.join(data_dir, today, "em_hot_rank.json")
+        
+        if os.path.exists(cache_path):
+            try:
+                with open(cache_path, 'r', encoding='utf-8') as f:
+                    cache_data = json.load(f)
+                    import pandas as pd
+                    df = pd.DataFrame(cache_data)
+                    
+                    rank_dict = {}
+                    for idx, row in df.iterrows():
+                        code = str(row['代码'])
+                        if code.startswith('SH') or code.startswith('SZ'):
+                            code = code[2:]
+                        rank_dict[code] = idx + 1
+                    
+                    self.em_hot_rank_cache = rank_dict
+                    print(f"📦 从缓存读取东方财富人气榜：{len(rank_dict)} 只股票")
+                    return rank_dict
+            except Exception as e:
+                print(f"⚠️  缓存加载失败：{e}")
+        
+        # 2. 缓存不存在，调用API
+        try:
+            import akshare as ak
+            df = ak.stock_hot_rank_em()
+            
+            rank_dict = {}
+            for idx, row in df.iterrows():
+                code = str(row['代码'])
+                if code.startswith('SH') or code.startswith('SZ'):
+                    code = code[2:]
+                rank_dict[code] = idx + 1
+            
+            self.em_hot_rank_cache = rank_dict
+            print(f"✅ 从API获取东方财富人气榜：{len(rank_dict)} 只股票")
+            return rank_dict
+        except Exception as e:
+            print(f"⚠️  获取东方财富人气榜失败：{e}")
+            return {}
     
     def analyze_market_state(self, limit_down_count: int, max_continuous: int) -> Dict:
         """
@@ -55,9 +113,12 @@ class LongtouScreener:
                                    stock_name: str,
                                    limit_up_time: str,
                                    continuous_days: int,
-                                   in_dragon_tiger: bool) -> int:
+                                   in_dragon_tiger: bool,
+                                   em_hot_rank: int = None) -> int:
         """
-        计算人气排名（简化版，基于规则打分）
+        计算人气排名（融合多维度：连板+时间+资金+散户关注）
+        
+        股票的本质是识别合力：利好、人气、形态、资金等多维度共振
         
         Args:
             stock_code: 股票代码
@@ -65,16 +126,17 @@ class LongtouScreener:
             limit_up_time: 涨停时间
             continuous_days: 连板天数
             in_dragon_tiger: 是否在龙虎榜
+            em_hot_rank: 东方财富人气排名（散户关注度）
             
         Returns:
             int: 人气分数（越高越好）
         """
         score = 0
         
-        # 1. 连板天数贡献（连板越多，人气越高）
+        # 1. 连板天数贡献（权重最高，代表资金持续认可）
         score += continuous_days * 20
         
-        # 2. 涨停时间贡献（越早涨停，人气越高）
+        # 2. 涨停时间贡献（早盘强度，代表资金进攻性）
         try:
             time_str = limit_up_time.replace(":", "")
             time_int = int(time_str)
@@ -89,9 +151,21 @@ class LongtouScreener:
         except:
             score += 5
         
-        # 3. 龙虎榜贡献
+        # 3. 龙虎榜贡献（大资金关注）
         if in_dragon_tiger:
             score += 25
+        
+        # 4. 东方财富人气贡献（散户关注度，形成合力的关键）
+        # 散户关注 + 资金做多 = 最强共振 = 赚钱效应
+        if em_hot_rank is not None:
+            if em_hot_rank <= 10:
+                score += 50  # TOP10：散户高度关注，容易形成持续主升
+            elif em_hot_rank <= 30:
+                score += 30  # TOP30：散户较关注，有承接盘
+            elif em_hot_rank <= 50:
+                score += 15  # TOP50：有一定关注
+            elif em_hot_rank <= 100:
+                score += 5   # TOP100：弱关注
         
         return score
     
@@ -219,6 +293,9 @@ class LongtouScreener:
         if not dragon_tiger_df.empty and '代码' in dragon_tiger_df.columns:
             dragon_tiger_codes = set(dragon_tiger_df['代码'].astype(str).str.zfill(6))
         
+        # Step 4.5: 获取东方财富人气榜（新增）
+        em_hot_rank = self.get_em_hot_rank()
+        
         # Step 5: 遍历涨停股票，计算人气分数
         print("\n【Step 3】计算人气排名...")
         stocks_with_score = []
@@ -234,9 +311,12 @@ class LongtouScreener:
             # 是否在龙虎榜
             in_dragon_tiger = code in dragon_tiger_codes
             
-            # 计算人气分数
+            # 获取东财人气排名
+            em_rank = em_hot_rank.get(code, None)
+            
+            # 计算人气分数（融合多维度）
             score = self.calculate_popularity_rank(
-                code, name, limit_up_time, continuous_days, in_dragon_tiger
+                code, name, limit_up_time, continuous_days, in_dragon_tiger, em_rank
             )
             
             stocks_with_score.append({
@@ -245,6 +325,7 @@ class LongtouScreener:
                 '连板数': continuous_days,
                 '首板时间': limit_up_time,
                 '龙虎榜': in_dragon_tiger,
+                '东财排名': em_rank,  # 新增
                 '人气分数': score,
                 'raw_data': row
             })
@@ -255,15 +336,16 @@ class LongtouScreener:
         print(f"人气榜前{top_n}只股票：")
         for i, stock in enumerate(stocks_with_score[:top_n], 1):
             code = stock['代码']
+            em_rank_str = f"东财#{stock['东财排名']}" if stock['东财排名'] else ""
             # 获取详细涨停信息
             if code in zt_info_dict:
                 info = zt_info_dict[code]
                 lianban = info['连板数']
                 total_zt = info['总涨停次数']
                 zhangfu = info['涨跌幅']
-                print(f"  {i}. {stock['名称']} - {lianban}连板(近期{total_zt}次涨停) - 今日+{zhangfu:.1f}% - 分数{stock['人气分数']}")
+                print(f"  {i}. {stock['名称']} - {lianban}连板(近期{total_zt}次涨停) - 今日+{zhangfu:.1f}% - 分数{stock['人气分数']} {em_rank_str}")
             else:
-                print(f"  {i}. {stock['名称']} - 连板{stock['连板数']}天 - 分数{stock['人气分数']}")
+                print(f"  {i}. {stock['名称']} - 连板{stock['连板数']}天 - 分数{stock['人气分数']} {em_rank_str}")
         
         # Step 6: 筛选人气榜前N只
         top_stocks = stocks_with_score[:top_n]

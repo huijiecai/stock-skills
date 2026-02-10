@@ -28,7 +28,7 @@ modules/config.py
 *.tmp
 .DS_Store
 
-# 数据缓存
-data_cache/
+# 数据缓存（每日生成，不提交）
+data/
 *.pkl
 *.csv

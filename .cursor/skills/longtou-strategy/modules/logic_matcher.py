@@ -52,10 +52,10 @@ class LogicMatcher:
     
     def match_logic(self, stock_concepts: List[str]) -> Optional[Dict]:
         """
-        匹配股票逻辑
+        匹配股票逻辑（支持行业和概念）
         
         Args:
-            stock_concepts: 股票概念列表
+            stock_concepts: 股票概念列表（可能包含行业）
             
         Returns:
             Dict: 匹配到的逻辑信息，如果没有匹配返回None
@@ -67,8 +67,16 @@ class LogicMatcher:
         for logic in self.logics:
             logic_concepts = logic.get('相关概念', [])
             
-            # 检查是否有概念匹配
-            matched_concepts = set(stock_concepts) & set(logic_concepts)
+            # 检查是否有概念匹配（包括行业）
+            # 支持模糊匹配：如"文化传媒"可以匹配到"影视传媒"逻辑
+            matched_concepts = []
+            for stock_concept in stock_concepts:
+                for logic_concept in logic_concepts:
+                    # 精确匹配或包含匹配
+                    if stock_concept == logic_concept or \
+                       stock_concept in logic_concept or \
+                       logic_concept in stock_concept:
+                        matched_concepts.append(logic_concept)
             
             if matched_concepts:
                 # 返回匹配结果
@@ -84,7 +92,7 @@ class LogicMatcher:
                     '驱动类型': logic.get('驱动类型'),
                     '推荐模式': logic.get('推荐模式', []),
                     '风险提示': logic.get('风险提示'),
-                    '匹配概念': list(matched_concepts),
+                    '匹配概念': list(set(matched_concepts)),  # 去重
                     '受益股票': logic.get('受益股票', {})
                 }
         
