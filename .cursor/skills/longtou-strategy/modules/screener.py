@@ -178,8 +178,24 @@ class LongtouScreener:
         # Step 2: 分析市场状态
         print("\n【Step 2】分析市场状态...")
         max_continuous = 0
-        if not continuous_df.empty and '连板数' in continuous_df.columns:
-            max_continuous = continuous_df['连板数'].max()
+        if not continuous_df.empty:
+            # akshare的连板数在"涨停统计"列，格式为"30/18"
+            # 第一个数：一段时间内涨停总次数
+            # 第二个数：当前连续涨停天数（这才是真正的连板数）
+            if '涨停统计' in continuous_df.columns:
+                def parse_zt_stat(stat):
+                    try:
+                        parts = str(stat).split('/')
+                        if len(parts) == 2:
+                            return int(parts[1])  # 取第二个数（连续涨停天数）
+                        return 1
+                    except:
+                        return 1
+                continuous_df['连板数'] = continuous_df['涨停统计'].apply(parse_zt_stat)
+                continuous_df['总涨停次数'] = continuous_df['涨停统计'].apply(
+                    lambda x: int(str(x).split('/')[0]) if '/' in str(x) else 1
+                )
+                max_continuous = continuous_df['连板数'].max()
         
         market_state = self.analyze_market_state(limit_down_count, max_continuous)
         print(f"市场状态：{market_state['状态']}")
@@ -187,10 +203,16 @@ class LongtouScreener:
         
         # Step 3: 构建连板字典
         continuous_dict = {}
-        if not continuous_df.empty:
+        zt_info_dict = {}  # 新增：存储完整涨停信息
+        if not continuous_df.empty and '连板数' in continuous_df.columns:
             for _, row in continuous_df.iterrows():
                 code = str(row.get('代码', '')).zfill(6)
                 continuous_dict[code] = int(row.get('连板数', 1))
+                zt_info_dict[code] = {
+                    '连板数': int(row.get('连板数', 1)),
+                    '总涨停次数': int(row.get('总涨停次数', 1)),
+                    '涨跌幅': float(row.get('涨跌幅', 0))
+                }
         
         # Step 4: 构建龙虎榜字典
         dragon_tiger_codes = set()
@@ -232,7 +254,16 @@ class LongtouScreener:
         
         print(f"人气榜前{top_n}只股票：")
         for i, stock in enumerate(stocks_with_score[:top_n], 1):
-            print(f"  {i}. {stock['名称']} - 连板{stock['连板数']}天 - 分数{stock['人气分数']}")
+            code = stock['代码']
+            # 获取详细涨停信息
+            if code in zt_info_dict:
+                info = zt_info_dict[code]
+                lianban = info['连板数']
+                total_zt = info['总涨停次数']
+                zhangfu = info['涨跌幅']
+                print(f"  {i}. {stock['名称']} - {lianban}连板(近期{total_zt}次涨停) - 今日+{zhangfu:.1f}% - 分数{stock['人气分数']}")
+            else:
+                print(f"  {i}. {stock['名称']} - 连板{stock['连板数']}天 - 分数{stock['人气分数']}")
         
         # Step 6: 筛选人气榜前N只
         top_stocks = stocks_with_score[:top_n]
@@ -251,10 +282,10 @@ class LongtouScreener:
             concepts = self.fetcher.get_stock_board_concept(code)
             
             if not concepts:
-                print(" ⚠️  无法获取概念")
+                print(" ⚠️  无概念数据（可能是新股）")
                 filtered_stocks.append({
                     **stock,
-                    '过滤原因': '无法获取概念信息'
+                    '过滤原因': '无概念数据（可能是新股或数据未更新）'
                 })
                 continue
             

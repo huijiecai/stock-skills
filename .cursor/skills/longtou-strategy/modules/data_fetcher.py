@@ -14,11 +14,11 @@ import sys
 
 # 导入配置
 try:
-    from config import TUSHARE_TOKEN
+    from .config import TUSHARE_TOKEN
     ts.set_token(TUSHARE_TOKEN)
     pro = ts.pro_api()
 except ImportError:
-    print("⚠️  警告：未找到config.py，Tushare功能不可用")
+    print("⚠️  警告：未找到modules/config.py，Tushare功能不可用")
     pro = None
 
 
@@ -178,6 +178,9 @@ class DataFetcher:
                 ts_code = f"{symbol}.SH"
             elif symbol.startswith('0') or symbol.startswith('3'):
                 ts_code = f"{symbol}.SZ"
+            elif symbol.startswith('8') or symbol.startswith('4'):
+                # 北交所
+                ts_code = f"{symbol}.BJ"
             else:
                 return []
             
@@ -188,20 +191,11 @@ class DataFetcher:
                 concepts = df['concept_name'].tolist()
                 return concepts
             
+            # Tushare没有数据，可能是新股或数据未更新
             return []
             
         except Exception as e:
-            # 如果Tushare失败，尝试用AKShare获取行业作为备选
-            try:
-                info_df = ak.stock_individual_info_em(symbol=symbol)
-                if info_df is not None and not info_df.empty:
-                    industry_row = info_df[info_df['item'] == '行业']
-                    if not industry_row.empty:
-                        industry = industry_row['value'].values[0]
-                        return [industry] if industry else []
-            except:
-                pass
-            
+            # 静默失败，不打印错误（新股很正常）
             return []
     
     def get_stock_individual_info(self, symbol: str) -> Dict:

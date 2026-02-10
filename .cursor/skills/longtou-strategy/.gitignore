@@ -7,6 +7,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+modules/__pycache__/
 
 # 虚拟环境
 .venv/
@@ -19,8 +20,8 @@ ENV/
 *.swp
 *.swo
 
-# 配置文件（包含token）
-config.py
+# 配置文件（包含token，不要提交）
+modules/config.py
 
 # 临时文件
 *.log
