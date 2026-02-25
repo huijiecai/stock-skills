@@ -54,6 +54,9 @@
       "金属铜": {
         "description": "铜矿开采、铜冶炼及加工（产业链基本金属）"
       },
+      "金属锌": {
+        "description": "锌矿开采、锌冶炼及加工（产业链基本金属）"
+      },
       "稀土永磁": {
         "description": "稀土矿开采、永磁材料制造（产业链稀有金属+新材料）"
       },
@@ -102,6 +105,26 @@
       },
       "AI医疗": {
         "description": "医疗AI诊断、AI制药、智慧医疗（应用层医疗场景）"
+      }
+    }
+  },
+  "AI硬件": {
+    "description": "AI算力基础设施：液冷、互联、PCB",
+    "subconcepts": {
+      "液冷散热": {
+        "description": "液冷服务器、CDU冷却、冷板液冷（AI算力散热核心）"
+      },
+      "CPO光互联": {
+        "description": "CPO共封装光学、光引擎、光芯片（AI交换机超短距离光电转换）"
+      },
+      "PCB材料": {
+        "description": "CCL覆铜板、电子材料（AI服务器PCB上游材料）"
+      },
+      "PCB制造": {
+        "description": "高速PCB、服务器主板制造（AI服务器PCB中游制造）"
+      },
+      "连接器": {
+        "description": "高速连接器、线缆（AI算力连接）"
       }
     }
   },
