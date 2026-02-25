@@ -4,27 +4,39 @@
 
 ## 系统架构
 
+本系统采用**分层架构**，将用户功能、技术文档和实现代码分离：
+
 ```
 skills/dragon-stock-trading/
-├── SKILL.md                    # Skill 文档（6类数据能力说明）
-├── examples.md                 # 使用示例（龙头战法场景）
-├── config.yaml                 # 系统配置
-├── README.md                   # 本文档
-├── scripts/                    # 核心模块
-│   ├── __init__.py
-│   ├── db_init.py             # 数据库初始化
-│   ├── stock_fetcher.py       # 基础股票查询（现有）
-│   ├── market_fetcher.py      # 市场数据采集
-│   ├── concept_manager.py     # 概念管理
-│   ├── history_sync.py        # 历史数据同步
-│   └── query_service.py       # 数据查询服务
-├── data/                       # 数据文件
-│   ├── dragon_stock.db        # SQLite 数据库
-│   └── concepts.json          # 概念配置
-└── tests/                      # 测试文件
-    ├── test_basic_modules.py  # 基础模块测试
-    └── test_integration.py    # 集成测试
+├── SKILL.md                    # 用户层：功能描述
+├── reference/                  # 文档层：技术细节（新增）
+│   ├── 龙头战法理论.md         # 预期管理、情绪拐点
+│   ├── 数据查询API.md          # 6类数据查询方法
+│   ├── 数据库设计.md           # 表结构说明
+│   ├── 概念配置指南.md         # 配置维护方法
+│   └── 系统架构.md             # 架构设计
+├── scripts/                    # 实现层：Python 模块
+│   ├── db_init.py
+│   ├── market_fetcher.py
+│   ├── concept_manager.py
+│   ├── query_service.py
+│   ├── history_sync.py
+│   └── stock_fetcher.py
+├── data/                       # 数据层
+│   ├── dragon_stock.db
+│   └── concepts.json
+├── tests/                      # 测试
+│   ├── test_basic_modules.py
+│   └── test_integration.py
+├── examples.md
+├── config.yaml
+└── README.md
 ```
+
+**设计理念**：
+- **SKILL.md** - 简洁清晰，只描述"做什么"
+- **reference/** - 详细完整，说明"怎么做"
+- LLM 根据需求自动查找 reference 文档
 
 ## 核心功能
 

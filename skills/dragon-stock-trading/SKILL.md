@@ -18,208 +18,98 @@ description: 股票分析工具，输入股票代码或名称，获取实时行�
 - 行业分类
 - 基础技术面分析
 
-### 功能2：龙头战法数据支持
+### 功能2：龙头战法选股分析
 
-本工具提供以下6类数据查询能力，全面支持龙头战法决策：
+根据龙头战法理论，分析个股是否符合龙头标准，并给出操作建议。
 
-#### 2.1 市场情绪查询
-获取指定日期的市场整体状态：
-- 涨停/跌停家数
-- 连板高度分布
-- 指数表现（上证、深证、创业板）
-- 两市总成交额
-- 市场阶段判断（情绪冰点/增量主升/正常）
+**核心能力**：
+- 市场情绪判断（冰点/主升/正常）
+- 个股人气度分析（是否进入人气榜前30）
+- 逻辑正宗性评估（概念归属、板块地位）
+- 技术面确认（走势、量能、连板情况）
+- 板块联动分析（涨停时序、带动性）
 
-**用途**: 判断市场是"冰点修复"还是"增量主升"阶段，决定操作策略
+**分析维度**：
+1. **人气底线** - 成交额是否进入前30
+2. **逻辑正宗** - 概念归属是否硬核，是否核心标的
+3. **地位突出** - 身位最高/领涨性强/PK胜出
+4. **市场状态** - 冰点修复还是增量主升
+5. **确认信号** - 分时承接/板块联动/高开强度
 
-**示例查询**:
-```python
-from scripts.query_service import QueryService
-service = QueryService("data/dragon_stock.db")
-market_status = service.get_market_status("2026-02-25")
-print(service.format_market_status(market_status))
-```
+**使用场景**：
+- 分析单只个股是否值得关注
+- 筛选当日龙头候选标的
+- 判断买卖时机（建立预期→确认买入→兑现卖出）
 
-#### 2.2 个股全景数据
-获取个股完整信息：
-- 实时行情（价格、量额、换手、振幅）
-- 涨停状态、连板天数
-- 所属概念、行业分类
-- 技术面分析（支撑/阻力、趋势判断）
-
-**用途**: 全面了解个股基本面和技术面，支持"建立预期"
-
-**示例查询**:
-```python
-stock_info = service.get_stock_with_concept("002342", "2026-02-25")
-print(service.format_stock_info(stock_info))
-```
-
-#### 2.3 概念板块分析
-查询概念板块统计：
-- 概念内涨停家数、涨停率
-- 板块平均涨幅
-- 板块总成交额
-- 领涨股识别
-
-**用途**: 判断"逻辑正宗性"和"板块联动性"
-
-**示例查询**:
-```python
-from scripts.concept_manager import ConceptManager
-manager = ConceptManager("data/dragon_stock.db")
-stats = manager.get_concept_stats("商业航天", "2026-02-25")
-```
-
-#### 2.4 人气排行榜
-按成交额获取当日人气股：
-- Top 30 人气股列表
-- 成交额排名
-- 涨停状态标识
-
-**用途**: 满足"人气底线"筛选条件（龙头战法要求标的进入人气榜前30）
-
-**示例查询**:
-```python
-popularity = service.get_stock_popularity_rank("2026-02-25", top_n=30)
-for stock in popularity[:10]:
-    print(f"{stock['rank']}. {stock['stock_name']} {stock['change_percent']*100:+.2f}%")
-```
-
-#### 2.5 历史走势回溯
-查询个股历史表现：
-- 近10日K线数据
-- 历史涨停记录
-- 连板周期识别
-
-**用途**: 判断"地位突出"（身位最高/领涨性强），识别连板周期
-
-**示例查询**:
-```python
-history = service.get_stock_history("002342", days=10)
-for day in history:
-    status = "涨停" if day['is_limit_up'] else ""
-    print(f"{day['trade_date']}: {day['close_price']:.2f} {day['change_percent']*100:+.2f}% {status}")
-```
-
-#### 2.6 涨停时序分析
-查询概念内涨停先后顺序：
-- 首板时间
-- 带动关系分析
-
-**用途**: 识别"带动性强"的真龙头（谁先涨停带动板块）
-
-**示例查询**:
-```python
-sequence = service.check_limit_up_sequence("商业航天", "2026-02-25")
-for idx, stock in enumerate(sequence, 1):
-    print(f"{idx}. {stock['stock_name']} 涨停时间: {stock['limit_up_time']}")
-```
-
-### 功能3：概念配置管理
-
-通过 `data/concepts.json` 文件维护股票与概念的关系：
-```json
-{
-  "商业航天": {
-    "core_stocks": ["002025", "002342"],
-    "related_stocks": ["300416"],
-    "keywords": ["火箭", "卫星", "航天器"]
-  }
-}
-```
-
-加载配置：
-```bash
-python scripts/concept_manager.py
-```
+**决策依据**：
+- 参见 [reference/龙头战法理论.md](reference/龙头战法理论.md) 了解完整理论框架
+- 参见 [reference/数据查询API.md](reference/数据查询API.md) 了解数据获取方法
 
 ## 使用方法
 
-### 方式1：直接查询股票信息
+### 查询股票信息
 
-由于itick API的技术限制，当前需要按以下步骤操作：
+直接提供6位股票代码进行查询：
 
-1. **获取股票代码**：用户需先通过其他渠道（如搜索引擎、证券交易软件）确认目标股票的6位数字代码
-2. **输入股票代码**：直接提供6位股票代码进行查询
-3. **获取实时数据**：系统通过itick API获取该股票的实时行情信息
-4. **格式化输出**：以清晰的格式展示股票基本信息和技术分析
-
-### 方式2：使用数据查询服务
-
-通过 Python 脚本直接查询数据库：
-
-#### 初始化数据库
-```bash
-cd scripts
-python db_init.py
+```
+用户：查看002342的股票信息
+用户：分析巨力索具是否符合龙头战法
 ```
 
-#### 采集当日市场数据
-```bash
-# 采集当日全市场数据（示例股票）
-python market_fetcher.py 2026-02-25
+### 龙头战法分析
 
-# 加载概念配置
-python concept_manager.py 2026-02-25
+分析个股是否符合龙头标准：
+
+```
+用户：巨力索具今天的表现怎么样，符合龙头战法吗？
+用户：今天有哪些概念板块表现强势？
+用户：帮我找出当前的龙头候选股
 ```
 
-#### 查询市场和个股信息
-```bash
-# 查询市场状态和个股信息
-python query_service.py 2026-02-25
-```
+系统会自动：
+1. 获取市场情绪数据（判断冰点/主升）
+2. 查询个股行情和概念归属
+3. 分析人气度（成交额排名）
+4. 判断板块联动情况
+5. 给出操作建议
 
-#### 在代码中使用
-```python
-from pathlib import Path
-from scripts.query_service import QueryService
+### 技术实现（开发者）
 
-db_path = Path("data/dragon_stock.db")
-service = QueryService(str(db_path))
-
-# 查询市场状态
-market = service.get_market_status("2026-02-25")
-print(service.format_market_status(market))
-
-# 查询个股信息（含概念）
-stock = service.get_stock_with_concept("002342", "2026-02-25")
-print(service.format_stock_info(stock))
-
-# 查询人气榜
-popularity = service.get_stock_popularity_rank("2026-02-25", 30)
-
-# 查询概念龙头
-leaders = service.get_concept_leaders("2026-02-25", min_limit_up=2)
-```
+如需了解底层数据获取方法，请参考：
+- [数据查询API](reference/数据查询API.md) - 6类数据的详细查询方法
+- [数据库设计](reference/数据库设计.md) - 表结构和字段说明
+- [概念配置指南](reference/概念配置指南.md) - concepts.json 维护方法
+- [龙头战法理论](reference/龙头战法理论.md) - 完整理论框架和决策模型
 
 ### 示例对话
 
-**用户**："000547怎么样"
-**响应**：
+**场景1：基础查询**
 ```
-🔍 000547 (000547) 基本信息
+用户：查看002342怎么样
 
-📡 实时数据 (来自itick API)
-📈 最新价格：27.58元 (-1.85%)
-📊 涨跌额：-0.52元
-📊 成交量：1,543,128手
-💰 成交额：43.14亿元
-
-📈 技术面分析：
-- 今日振幅：3.35%
-- 开盘点位：27.75元
-- 最高价：28.45元
-- 最低价：27.51元
-- 昨收价：28.10元
-- 数据时间：2026-02-24 14:59:24
-
-📊 基础分析：
-- 短期趋势：小幅调整
-- 成交活跃度：较高
-- 支撑位：27.50元左右
-- 阻力位：28.50元左右
+AI响应：
+🔍 巨力索具 (002342) 基本信息
+📈 最新价格：16.10元 (+5.85%)
+📊 成交额：47.28亿元
+🏷️ 概念：⭐商业航天
+...（完整行情信息）
 ```
+
+**场景2：龙头战法分析**
+```
+用户：分析巨力索具是否符合龙头战法
+
+AI响应：
+🔍 巨力索具龙头战法分析
+
+【市场情绪】正常（涨停1家，跌停0家）
+【人气度】✅ 排名第2（成交额47.28亿）
+【逻辑正宗性】✅ 商业航天核心标的
+【地位突出】✅ 板块领涨
+【建议】等待明日确认信号（高开+强承接）
+```
+
+详细使用案例请参考 [examples.md](examples.md)
 
 ### 重要说明
 
@@ -228,22 +118,26 @@ leaders = service.get_concept_leaders("2026-02-25", min_limit_up=2)
 - 仅支持通过**6位数字股票代码**直接查询
 - 建议用户先通过其他途径确认准确的股票代码
 
-## 技术分析要点
+## 技术说明
 
-### 价格分析
-- 当前价格相对于昨日收盘价的位置
-- 今日价格波动幅度
-- 开盘价与收盘价的关系
+### API限制
+- itick API 目前**不支持**根据股票名称进行模糊搜索
+- 仅支持通过**6位数字股票代码**直接查询
 
-### 成交量分析
-- 成交量大小反映市场关注度
-- 量价配合关系判断趋势可靠性
-- 换手率水平评估流动性
+### 数据采集（开发者）
 
-### 技术形态
-- 短期趋势判断（上涨/下跌/震荡）
-- 关键支撑位和阻力位识别
-- 价格波动区间分析
+```bash
+# 初始化数据库
+cd scripts && python db_init.py
+
+# 采集当日市场数据
+python market_fetcher.py 2026-02-25
+
+# 加载概念配置
+python concept_manager.py 2026-02-25
+```
+
+详细的数据采集和查询方法请参考 [reference/数据查询API.md](reference/数据查询API.md)
 
 ## 注意事项
 
@@ -253,11 +147,17 @@ leaders = service.get_concept_leaders("2026-02-25", min_limit_up=2)
 - 请结合自身风险承受能力做出投资决策
 
 📌 **使用建议**：
-- 结合多种分析方法综合判断
-- 关注市场整体环境变化
-- 及时跟踪相关政策和消息面影响
+- 结合龙头战法理论进行综合判断
+- 关注市场整体情绪变化
+- 及时跟踪板块和个股动态
 
-## 相关资源
+## 相关文档
 
-- [技术分析指标说明](reference/技术指标详解.md)
-- [风险管理指南](reference/风险控制.md)
+### 理论与方法
+- [龙头战法理论](reference/龙头战法理论.md) - 预期管理、情绪拐点、实战模式
+- [使用案例](examples.md) - 龙头战法实战场景示例
+
+### 技术文档
+- [数据查询API](reference/数据查询API.md) - 6类数据的详细查询方法
+- [数据库设计](reference/数据库设计.md) - 表结构和字段说明
+- [概念配置指南](reference/概念配置指南.md) - concepts.json 维护方法
