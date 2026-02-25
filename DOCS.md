@@ -83,11 +83,41 @@
 - 🚀 快速部署项目 → [README.md](README.md)
 - 🏗️ 了解系统架构 → [ARCHITECTURE.md](ARCHITECTURE.md)
 - 🤖 使用 LLM Skill → [SKILL.md](skills/dragon-stock-trading/SKILL.md)
+- 💬 使用 AI 聊天分析 → 访问 http://localhost:3000/chat（需配置 OPENAI_API_KEY）
 - 💻 开发后端 API → [backend/README.md](backend/README.md)
 - 🎨 开发前端页面 → [frontend/README.md](frontend/README.md)
 - 📚 学习龙头战法 → [reference/龙头战法理论.md](skills/dragon-stock-trading/reference/龙头战法理论.md)
 
+## AI 聊天功能说明
+
+### 功能特性
+- **自然语言对话**: 通过聊天方式分析股票和市场
+- **实时流式响应**: SSE 推送，打字机效果
+- **智能工具调用**: LLM 自动调用 7 个数据工具（市场情绪、人气榜、概念热度等）
+- **按需查阅文档**: LLM 可主动调用 `read_reference` 查询 7 个 reference 文档
+- **Skill 集成**: 共享 `skills/dragon-stock-trading/` 下的 SKILL.md 和 reference 文档
+
+### 使用方法
+1. **配置 API Key**: 编辑 `backend/.env`，填写 `OPENAI_API_KEY=sk-xxxxx`
+2. **访问聊天页面**: http://localhost:3000/chat
+3. **开始对话**: 尝试问"今天市场情绪怎么样？"或"帮我分析 002342"
+
+### 技术实现
+- **System Prompt**: 动态加载 SKILL.md 核心部分（~1.5KB），避免 context 过长
+- **按需加载**: LLM 根据问题复杂度，主动决策是否查阅详细文档
+- **单一数据源**: Web 平台和 Cursor IDE 共享同一套 Skill 文件
+
+### 测试脚本
+运行 `./test_integration.sh` 验证集成是否正常。
+
 ## 更新日志
+
+### 2026-02-26 - AI 聊天功能集成
+- ✅ 集成 LLM 聊天功能到 Web 平台（`/chat` 路由）
+- ✅ 采用 Skill 集成方案（按需加载，避免 context 过长）
+- ✅ 添加 `read_reference` 工具，LLM 可主动查阅 7 个 reference 文档
+- ✅ 前端支持 SSE 流式响应和 Markdown 渲染
+- ✅ 创建集成测试脚本 `test_integration.sh`
 
 ### 2026-02-26 - 文档整理
 - ✅ 删除临时报告文件（BACKEND_ISOLATION_REPORT.md 等）

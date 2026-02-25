@@ -56,3 +56,18 @@ class ConceptCreate(BaseModel):
     name: str = Field(..., description="概念名称")
     parent: Optional[str] = Field(None, description="父概念（NULL表示顶级）")
     description: str = Field(..., description="描述")
+
+
+# ==================== 新增：LLM聊天相关请求 ====================
+
+class ChatMessage(BaseModel):
+    """聊天消息"""
+    role: str = Field(..., description="角色：user/assistant/system")
+    content: str = Field(..., description="消息内容")
+
+
+class ChatRequest(BaseModel):
+    """聊天请求"""
+    messages: List[ChatMessage] = Field(..., description="消息历史")
+    date: Optional[str] = Field(None, description="分析日期（默认今天）")
+

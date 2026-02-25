@@ -1,11 +1,12 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Layout, Menu } from 'antd';
-import { DashboardOutlined, StockOutlined, AppstoreOutlined, BarChartOutlined, HistoryOutlined } from '@ant-design/icons';
+import { DashboardOutlined, StockOutlined, AppstoreOutlined, BarChartOutlined, RobotOutlined } from '@ant-design/icons';
 import Dashboard from './pages/Dashboard';
 import StockPool from './pages/StockPool';
 import ConceptManage from './pages/ConceptManage';
 import Analysis from './pages/Analysis';
+import ChatAnalysis from './pages/ChatAnalysis';
 import './App.css';
 
 const { Header, Content, Sider } = Layout;
@@ -16,6 +17,11 @@ function App() {
       key: '/',
       icon: <DashboardOutlined />,
       label: <Link to="/">市场总览</Link>,
+    },
+    {
+      key: '/chat',
+      icon: <RobotOutlined />,
+      label: <Link to="/chat">AI智能分析</Link>,
     },
     {
       key: '/stocks',
@@ -62,6 +68,7 @@ function App() {
             >
               <Routes>
                 <Route path="/" element={<Dashboard />} />
+                <Route path="/chat" element={<ChatAnalysis />} />
                 <Route path="/stocks" element={<StockPool />} />
                 <Route path="/concepts" element={<ConceptManage />} />
                 <Route path="/analysis" element={<Analysis />} />

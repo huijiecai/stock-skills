@@ -39,9 +39,21 @@ cd backend && uvicorn app.main:app --reload --port 8000  # 终端1
 cd frontend && npm start  # 终端2
 ```
 
-### 4. 访问
+### 4. 配置环境变量（可选，用于 AI 聊天功能）
+
+```bash
+# 复制环境变量模板
+cp backend/.env.example backend/.env
+
+# 编辑 .env 文件，填写你的 OpenAI API Key
+# OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxx
+# OPENAI_MODEL=gpt-4
+```
+
+### 5. 访问
 
 - **前端**: http://localhost:3000
+- **AI 智能分析**: http://localhost:3000/chat ⭐ 新功能
 - **后端 API**: http://localhost:8000/docs
 - **健康检查**: http://localhost:8000/health
 
@@ -80,12 +92,17 @@ stock/
 ## 核心功能
 
 ### Web 平台
-- 📊 市场概览：涨停/跌停统计、连板高度
-- 📈 股票池管理：添加/删除关注股票
-- 🏷️ 概念管理：层级概念配置
-- 🎯 龙头分析：基于龙头战法的个股分析
+- 📊 **市场概览**：涨停/跌停统计、连板高度、历史数据查询
+- 📈 **股票池管理**：添加/删除关注股票
+- 🏷️ **概念管理**：层级概念配置、股票关联
+- 🎯 **龙头分析**：基于龙头战法的个股分析
+- 🤖 **AI 智能分析**（⭐ 新功能）：
+  - 自然语言对话分析股票（实时 SSE 流式响应）
+  - 自动调用 7 个数据工具（市场情绪、人气榜、概念热度等）
+  - 主动查阅龙头战法理论文档（`read_reference` 工具）
+  - 配置要求：需填写 `backend/.env` 中的 `OPENAI_API_KEY`
 
-### LLM Skill
+### LLM Skill（Cursor IDE）
 - 🤖 自然语言查询市场数据
 - 📝 智能分析个股
 - 🔍 概念龙头识别
