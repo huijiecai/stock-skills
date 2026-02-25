@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Spin } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, FireOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Table, Tag, Spin, DatePicker, Space, Typography } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, FireOutlined, CalendarOutlined } from '@ant-design/icons';
 import { marketAPI, analysisAPI, stocksAPI } from '../services/api';
 import dayjs from 'dayjs';
+
+const { Title } = Typography;
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,41 @@ export default function Dashboard() {
 
   return (
     <div>
-      <h2>市场总览 - {date}</h2>
+      <div style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <Title level={2} style={{ margin: 0 }}>
+          <CalendarOutlined style={{ marginRight: 8 }} />
+          市场总览
+        </Title>
+        <Space>
+          <span style={{ fontSize: '14px', color: '#666' }}>选择日期：</span>
+          <DatePicker
+            value={dayjs(date)}
+            onChange={(dateObj) => {
+              if (dateObj) {
+                setDate(dateObj.format('YYYY-MM-DD'));
+              }
+            }}
+            format="YYYY-MM-DD"
+            placeholder="选择日期"
+            allowClear={false}
+            disabledDate={(current) => {
+              // 不允许选择未来的日期
+              return current && current > dayjs().endOf('day');
+            }}
+          />
+        </Space>
+      </div>
+
+      <Card style={{ marginBottom: 16, background: '#f0f2f5' }}>
+        <div style={{ textAlign: 'center' }}>
+          <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+            {date}
+            {date === dayjs().format('YYYY-MM-DD') && (
+              <Tag color="green" style={{ marginLeft: 8 }}>今日</Tag>
+            )}
+          </Title>
+        </div>
+      </Card>
       
       {/* 市场情绪卡片 */}
       <Row gutter={16} style={{ marginBottom: 24 }}>
