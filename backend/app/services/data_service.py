@@ -1,36 +1,29 @@
-import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict
+import sqlite3
+from datetime import datetime
 
-# 添加skills/dragon-stock-trading/scripts目录到Python路径
-# __file__ -> data_service.py
-# parent -> services/
-# parent -> app/
-# parent -> backend/
-# parent -> stock/
+# 导入后端内部服务模块
+from app.services.query_service import QueryService
+from app.services.concept_manager import ConceptManager
+from app.services.stock_concept_manager import StockConceptManager
+
 project_root = Path(__file__).parent.parent.parent.parent
-scripts_path = project_root / "skills" / "dragon-stock-trading" / "scripts"
-sys.path.insert(0, str(scripts_path))
-
-# 导入现有模块
-from query_service import QueryService
-from market_fetcher import MarketDataFetcher
-from concept_manager import ConceptManager
-from stock_concept_manager import StockConceptManager
 
 
 class DataService:
-    """数据服务，封装对现有scripts模块的调用"""
+    """数据服务 - 后端唯一数据库访问层"""
     
     def __init__(self):
         # 数据文件统一放在项目根目录的data文件夹
         db_path = project_root / "data" / "dragon_stock.db"
         self.db_path = str(db_path)
         self.query_service = QueryService(self.db_path)
-        self.market_fetcher = MarketDataFetcher(self.db_path)
         self.concept_manager = ConceptManager(self.db_path)
         self.stock_concept_manager = StockConceptManager(self.db_path)
-        
+    
+    # ==================== 市场数据查询（已有） ====================
+    
     def get_market_status(self, date: str):
         """获取市场情绪数据"""
         return self.query_service.get_market_status(date)
@@ -62,6 +55,272 @@ class DataService:
     def remove_stock_from_concept(self, stock_code: str, concept_name: str):
         """从概念中移除股票"""
         return self.stock_concept_manager.remove_stock(stock_code, concept_name)
+    
+    # ==================== 新增：股票池管理 ====================
+    
+    def get_stock_pool(self, active_only: bool = True) -> List[Dict]:
+        """
+        获取股票池
+        
+        Args:
+            active_only: 是否只返回活跃股票（默认True）
+        
+        Returns:
+            股票列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        if active_only:
+            cursor.execute('''
+                SELECT stock_code, stock_name, market, added_date, note
+                FROM stock_pool
+                WHERE is_active = 1
+                ORDER BY stock_code
+            ''')
+        else:
+            cursor.execute('''
+                SELECT stock_code, stock_name, market, added_date, note, is_active
+                FROM stock_pool
+                ORDER BY stock_code
+            ''')
+        
+        stocks = []
+        for row in cursor.fetchall():
+            stock = {
+                "code": row[0],
+                "name": row[1],
+                "market": row[2],
+                "added_date": row[3] or "",
+                "note": row[4] or ""
+            }
+            if not active_only:
+                stock["is_active"] = row[5]
+            stocks.append(stock)
+        
+        conn.close()
+        return stocks
+    
+    def add_stock_to_pool(self, stock_code: str, stock_name: str, market: str, note: str = "") -> bool:
+        """
+        添加股票到池
+        
+        Args:
+            stock_code: 股票代码
+            stock_name: 股票名称
+            market: 市场（SH/SZ）
+            note: 备注
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO stock_pool
+                (stock_code, stock_name, market, is_active, added_date, note)
+                VALUES (?, ?, ?, 1, date('now'), ?)
+            ''', (stock_code, stock_name, market, note))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"添加股票失败: {e}")
+            return False
+    
+    def remove_stock_from_pool(self, stock_code: str) -> bool:
+        """
+        从池中移除股票（软删除，设置为不活跃）
+        
+        Args:
+            stock_code: 股票代码
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE stock_pool
+                SET is_active = 0
+                WHERE stock_code = ?
+            ''', (stock_code,))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"移除股票失败: {e}")
+            return False
+    
+    # ==================== 新增：概念层级管理 ====================
+    
+    def get_concept_hierarchy(self) -> Dict:
+        """
+        获取概念层级（树形结构）
+        
+        Returns:
+            概念层级字典
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 查询所有概念
+        cursor.execute('''
+            SELECT concept_name, parent_concept, description, position_in_chain
+            FROM concept_hierarchy
+            ORDER BY parent_concept, concept_name
+        ''')
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        # 构建树形结构
+        hierarchy = {}
+        
+        # 先处理顶级概念
+        for row in rows:
+            if row[1] is None:  # parent_concept为NULL
+                hierarchy[row[0]] = {
+                    "description": row[2] or "",
+                    "subconcepts": {}
+                }
+        
+        # 再处理子概念
+        for row in rows:
+            if row[1] is not None:  # 有父概念
+                parent = row[1]
+                if parent in hierarchy:
+                    hierarchy[parent]["subconcepts"][row[0]] = {
+                        "description": row[2] or ""
+                    }
+        
+        return hierarchy
+    
+    def add_concept(self, concept_name: str, parent_concept: Optional[str], description: str) -> bool:
+        """
+        添加概念
+        
+        Args:
+            concept_name: 概念名称
+            parent_concept: 父概念（None表示顶级概念）
+            description: 描述
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO concept_hierarchy
+                (concept_name, parent_concept, description)
+                VALUES (?, ?, ?)
+            ''', (concept_name, parent_concept, description))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"添加概念失败: {e}")
+            return False
+    
+    # ==================== 新增：市场数据写入 ====================
+    
+    def save_market_sentiment(self, date: str, data: Dict) -> bool:
+        """
+        保存市场情绪数据
+        
+        Args:
+            date: 交易日期
+            data: 市场数据字典
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO market_sentiment
+                (trade_date, limit_up_count, limit_down_count, broken_board_count, 
+                 max_streak, sh_index_change, sz_index_change, cy_index_change, total_turnover)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                date,
+                data.get('limit_up_count', 0),
+                data.get('limit_down_count', 0),
+                data.get('broken_board_count', 0),
+                data.get('max_streak', 0),
+                data.get('sh_index_change', 0.0),
+                data.get('sz_index_change', 0.0),
+                data.get('cy_index_change', 0.0),
+                data.get('total_turnover', 0.0)
+            ))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"保存市场情绪失败: {e}")
+            return False
+    
+    def save_stock_daily(self, date: str, stock: Dict) -> bool:
+        """
+        保存个股日行情
+        
+        Args:
+            date: 交易日期
+            stock: 个股数据字典
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                INSERT OR REPLACE INTO stock_daily
+                (trade_date, stock_code, stock_name, market, 
+                 open_price, high_price, low_price, close_price, pre_close,
+                 change_amount, change_percent, volume, turnover, turnover_rate,
+                 is_limit_up, is_limit_down, limit_up_time, streak_days)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                date,
+                stock.get('code'),
+                stock.get('name'),
+                stock.get('market'),
+                stock.get('open', 0.0),
+                stock.get('high', 0.0),
+                stock.get('low', 0.0),
+                stock.get('close', 0.0),
+                stock.get('pre_close', 0.0),
+                stock.get('change', 0.0),
+                stock.get('change_percent', 0.0),
+                stock.get('volume', 0),
+                stock.get('turnover', 0.0),
+                stock.get('turnover_rate', 0.0),
+                stock.get('is_limit_up', 0),
+                stock.get('is_limit_down', 0),
+                stock.get('limit_up_time', ''),
+                stock.get('streak_days', 0)
+            ))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"保存个股数据失败 {stock.get('code')}: {e}")
+            return False
 
 
 # 单例

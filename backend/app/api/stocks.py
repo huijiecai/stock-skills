@@ -1,58 +1,54 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
 from typing import List
-import json
-from pathlib import Path
 from app.services.data_service import get_data_service
-from app.models.requests import StockAdd
+from app.models.requests import StockAdd, StockPoolAdd
 
 router = APIRouter()
-project_root = Path(__file__).parent.parent.parent.parent
-stock_list_file = project_root / "data" / "stock_list.json"
 
 
 @router.get("")
 async def get_stocks():
-    """获取股票池"""
+    """获取股票池（从数据库读取）"""
     try:
-        with open(stock_list_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data_service = get_data_service()
+        stocks = data_service.get_stock_pool(active_only=True)
         return {
             "success": True,
-            "total": len(data.get('stocks', [])),
-            "stocks": data.get('stocks', [])
+            "total": len(stocks),
+            "stocks": stocks
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.post("")
-async def add_stock(stock: StockAdd):
-    """添加股票到股票池"""
+async def add_stock(stock: StockPoolAdd):
+    """添加股票到股票池（写入数据库）"""
     try:
-        with open(stock_list_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data_service = get_data_service()
         
         # 检查是否已存在
-        stocks = data.get('stocks', [])
-        if any(s['code'] == stock.code for s in stocks):
+        existing_stocks = data_service.get_stock_pool(active_only=False)
+        if any(s['code'] == stock.code for s in existing_stocks):
             raise HTTPException(status_code=400, detail="股票已存在")
         
         # 添加股票
-        stocks.append({
-            "code": stock.code,
-            "name": stock.name,
-            "market": stock.market
-        })
+        success = data_service.add_stock_to_pool(
+            stock.code,
+            stock.name,
+            stock.market,
+            stock.note
+        )
         
-        # 保存
-        with open(stock_list_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        return {
-            "success": True,
-            "message": "添加成功"
-        }
+        if success:
+            return {
+                "success": True,
+                "message": "添加成功"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="添加失败")
+            
     except HTTPException:
         raise
     except Exception as e:
@@ -61,27 +57,19 @@ async def add_stock(stock: StockAdd):
 
 @router.delete("/{code}")
 async def delete_stock(code: str):
-    """从股票池删除股票"""
+    """从股票池删除股票（软删除）"""
     try:
-        with open(stock_list_file, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data_service = get_data_service()
+        success = data_service.remove_stock_from_pool(code)
         
-        stocks = data.get('stocks', [])
-        original_length = len(stocks)
-        stocks = [s for s in stocks if s['code'] != code]
-        
-        if len(stocks) == original_length:
+        if success:
+            return {
+                "success": True,
+                "message": "删除成功"
+            }
+        else:
             raise HTTPException(status_code=404, detail="股票不存在")
-        
-        data['stocks'] = stocks
-        
-        with open(stock_list_file, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        
-        return {
-            "success": True,
-            "message": "删除成功"
-        }
+            
     except HTTPException:
         raise
     except Exception as e:

@@ -1,25 +1,44 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-import json
-from pathlib import Path
 from app.services.data_service import get_data_service
-from app.models.requests import StockConceptAdd, ConceptUpdate
+from app.models.requests import StockConceptAdd, ConceptUpdate, ConceptCreate
 
 router = APIRouter()
-project_root = Path(__file__).parent.parent.parent.parent
-concepts_file = project_root / "data" / "concepts.json"
 
 
 @router.get("")
 async def get_concepts():
-    """获取概念树"""
+    """获取概念树（从数据库读取）"""
     try:
-        with open(concepts_file, 'r', encoding='utf-8') as f:
-            concepts = json.load(f)
+        data_service = get_data_service()
+        concepts = data_service.get_concept_hierarchy()
         return {
             "success": True,
             "data": concepts
         }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("")
+async def create_concept(request: ConceptCreate):
+    """创建新概念（写入数据库）"""
+    try:
+        data_service = get_data_service()
+        success = data_service.add_concept(
+            request.name,
+            request.parent,
+            request.description
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": "创建成功"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="创建失败")
+            
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

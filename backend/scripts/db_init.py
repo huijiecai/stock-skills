@@ -127,6 +127,32 @@ class DatabaseInitializer:
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_events_code ON stock_events(stock_code)')
         
+        # 7. 股票池配置表（新增）
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS stock_pool (
+            stock_code TEXT PRIMARY KEY,
+            stock_name TEXT NOT NULL,
+            market TEXT NOT NULL,
+            is_active INTEGER DEFAULT 1,
+            added_date TEXT,
+            note TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # 8. 概念层级表（新增）
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS concept_hierarchy (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            concept_name TEXT UNIQUE NOT NULL,
+            parent_concept TEXT,
+            description TEXT,
+            position_in_chain TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_parent_concept ON concept_hierarchy(parent_concept)')
+        
         conn.commit()
         conn.close()
         

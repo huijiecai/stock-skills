@@ -1,659 +1,361 @@
-# 龙头战法Web平台 - 项目架构
+# 龙头战法 Web 平台 - 架构文档
 
-## 总体架构图
+## 系统架构图
 
 ```mermaid
 graph TB
-    subgraph "用户层"
-        A[Web浏览器<br/>Ant Design UI] 
-        B[Cursor IDE<br/>LLM + Skill]
+    subgraph external[外部层]
+        iTick[iTick API<br/>实时行情数据]
+        webUser[Web用户]
+        llmUser[LLM + Cursor]
     end
     
-    subgraph "应用层"
-        C[React前端<br/>端口3000]
-        D[FastAPI后端<br/>端口8000]
-        E[Skill API Client<br/>Python模块]
+    subgraph clients[客户端层 - 只能通过API访问]
+        reactFrontend[React前端<br/>端口:3000]
+        skillClient[Skill API Client<br/>skill_api_client.py]
+        dataCollector[数据采集脚本<br/>collect_market_data_via_api.py]
     end
     
-    subgraph "业务逻辑层"
-        F[Analysis Service<br/>龙头战法分析]
-        G[Data Service<br/>数据访问封装]
-        H[Query Service<br/>查询服务]
-        I[Market Fetcher<br/>市场数据采集]
-        J[Concept Manager<br/>概念管理]
+    subgraph backend[后端服务层 FastAPI:8000]
+        apiRouter[API路由层]
+        dataService[Data Service<br/>唯一数据访问层]
     end
     
-    subgraph "数据层"
-        K[(SQLite DB<br/>data/dragon_stock.db)]
-        L[stock_list.json<br/>data/股票池配置]
-        M[concepts.json<br/>data/概念层级配置]
-        N[config.yaml<br/>data/系统配置]
+    subgraph data[数据层 - 只有后端直接访问]
+        sqliteDB[(SQLite DB<br/>data/dragon_stock.db)]
+        note1[包含所有数据：<br/>市场数据、个股数据、股票池<br/>概念层级、股票概念关系]
     end
     
-    subgraph "外部API"
-        O[iTick API<br/>实时行情数据]
-    end
+    iTick -->|实时行情| dataCollector
+    webUser --> reactFrontend
+    llmUser --> skillClient
     
-    A --> C
-    B --> E
-    C --> D
-    E --> D
-    D --> F
-    D --> G
-    F --> G
-    G --> H
-    G --> I
-    G --> J
-    H --> K
-    I --> K
-    I --> O
-    J --> K
-    H --> L
-    H --> M
-    I --> N
-    J --> M
+    dataCollector -->|POST /api/market/collect| apiRouter
+    reactFrontend -->|GET /api/...| apiRouter
+    skillClient -->|GET /api/...| apiRouter
     
-    style A fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
-    style B fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
-    style C fill:#F5A623,stroke:#C17D11,stroke-width:2px,color:#fff
-    style D fill:#F5A623,stroke:#C17D11,stroke-width:2px,color:#fff
-    style E fill:#F5A623,stroke:#C17D11,stroke-width:2px,color:#fff
-    style F fill:#7ED321,stroke:#5FA319,stroke-width:2px,color:#fff
-    style G fill:#7ED321,stroke:#5FA319,stroke-width:2px,color:#fff
-    style H fill:#7ED321,stroke:#5FA319,stroke-width:2px,color:#fff
-    style I fill:#7ED321,stroke:#5FA319,stroke-width:2px,color:#fff
-    style J fill:#7ED321,stroke:#5FA319,stroke-width:2px,color:#fff
-    style K fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
-    style L fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
-    style M fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
-    style N fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
-    style O fill:#9B59B6,stroke:#7D3C98,stroke-width:2px,color:#fff
-```
-
-## 分层架构详解
-
-### 1. 用户层 (User Layer)
-
-#### Web用户
-- **工具**: 浏览器
-- **界面**: React + Ant Design
-- **功能**: 
-  - 可视化查看市场数据
-  - 管理股票池和概念
-  - 一键分析龙头
-
-#### AI用户
-- **工具**: Cursor IDE + LLM
-- **接口**: Skill API Client
-- **功能**:
-  - 自然语言查询
-  - 智能分析建议
-  - 自动化决策
-
----
-
-### 2. 应用层 (Application Layer)
-
-#### React前端 (端口3000)
-```
-frontend/
-├── src/
-│   ├── pages/              # 页面组件
-│   │   ├── Dashboard/      # 市场总览
-│   │   ├── StockPool/      # 股票池管理
-│   │   ├── ConceptManage/  # 概念管理
-│   │   └── Analysis/       # 龙头分析
-│   ├── components/         # 通用组件
-│   ├── services/
-│   │   └── api.js         # API封装
-│   └── App.js             # 主应用
-└── package.json
-```
-
-**技术栈**:
-- React 18
-- Ant Design 5
-- Axios (HTTP客户端)
-- React Router 6
-
-**职责**:
-- 用户交互界面
-- 数据可视化
-- 表单提交和验证
-
----
-
-#### FastAPI后端 (端口8000)
-```
-backend/
-├── app/
-│   ├── api/               # REST API路由
-│   │   ├── market.py      # 市场数据API
-│   │   ├── stocks.py      # 股票管理API
-│   │   ├── concepts.py    # 概念管理API
-│   │   └── analysis.py    # 龙头分析API
-│   ├── services/          # 业务逻辑
-│   │   ├── data_service.py
-│   │   └── analysis_service.py
-│   ├── models/            # 数据模型
-│   └── main.py            # 应用入口
-└── requirements.txt
-```
-
-**技术栈**:
-- FastAPI 0.109
-- Uvicorn (ASGI服务器)
-- Pydantic (数据验证)
-
-**职责**:
-- RESTful API服务
-- 请求路由和验证
-- CORS跨域处理
-- 业务逻辑编排
-
----
-
-#### Skill API Client
-```python
-# skills/dragon-stock-trading/scripts/skill_api_client.py
-
-class SkillAPIClient:
-    - get_market_sentiment(date)      # 市场情绪
-    - get_stock_list()                # 股票列表
-    - get_concepts()                  # 概念树
-    - analyze_stock(code, date)       # 龙头分析
-    - get_popularity_rank(date, limit) # 人气榜
-    # ... 更多方法
-```
-
-**职责**:
-- 封装HTTP请求
-- 提供简洁的Python接口
-- 供LLM Skill调用
-
----
-
-### 3. 业务逻辑层 (Business Logic Layer)
-
-#### Analysis Service (龙头战法分析)
-```python
-class AnalysisService:
-    def analyze_stock(code, date):
-        # 1. 获取市场情绪（冰点/主升/正常）
-        # 2. 获取个股信息（价格、成交额、概念）
-        # 3. 计算人气排名（成交额前30）
-        # 4. 判断龙头标准
-        #    - 人气底线：进入前30
-        #    - 逻辑正宗：有核心概念
-        #    - 涨幅突出：涨幅>3%
-        # 5. 生成操作建议
-        return analysis_result
-```
-
-**判断标准**:
-- ✅ 人气底线: 成交额排名前30
-- ✅ 逻辑正宗: 有核心概念归属
-- ✅ 涨幅突出: 涨幅 > 3%
-- ✅ 市场适配: 根据冰点/主升给出策略
-
----
-
-#### Data Service (数据访问封装)
-```python
-class DataService:
-    - query_service       # 查询服务
-    - market_fetcher      # 市场数据采集
-    - concept_manager     # 概念管理
-    - stock_concept_manager # 股票概念关系
-```
-
-**职责**:
-- 统一数据访问入口
-- 封装底层脚本模块
-- 提供单例服务
-
----
-
-#### Query Service (查询服务)
-```python
-class QueryService:
-    - get_market_status(date)              # 市场情绪
-    - get_stock_with_concept(code, date)   # 个股+概念
-    - get_stock_popularity_rank(date, n)   # 人气榜
-    - get_concept_leaders(date, min)       # 概念龙头
-    - get_concept_analysis(concept, date)  # 概念分析
-```
-
-**职责**:
-- SQL查询封装
-- 数据聚合和计算
-- 结果格式化
-
----
-
-#### Market Fetcher (市场数据采集)
-```python
-class MarketDataFetcher:
-    - fetch_market_data(date)     # 采集市场数据
-    - fetch_stock_daily(code)     # 采集个股日线
-    - is_limit_up(change, board)  # 涨停判断
-```
-
-**职责**:
-- 调用iTick API
-- 数据采集和存储
-- ST股票过滤
-
----
-
-#### Concept Manager (概念管理)
-```python
-class ConceptManager:
-    - load_concept_config()        # 加载concepts.json
-    - get_concept_stats(name, date) # 概念统计
-    - update_concept_daily(date)   # 更新概念日线
-```
-
-**职责**:
-- 概念配置管理
-- 概念统计计算
-- 股票-概念关系维护
-
----
-
-### 4. 数据层 (Data Layer)
-
-#### SQLite数据库 (data/dragon_stock.db)
-
-**表结构**:
-
-```sql
--- 1. 市场情绪表
-CREATE TABLE market_sentiment (
-    date TEXT PRIMARY KEY,
-    limit_up_count INTEGER,      -- 涨停家数
-    limit_down_count INTEGER,    -- 跌停家数
-    max_streak INTEGER,          -- 最高连板
-    market_phase TEXT            -- 市场阶段
-);
-
--- 2. 个股日线表
-CREATE TABLE stock_daily (
-    id INTEGER PRIMARY KEY,
-    stock_code TEXT,
-    trade_date TEXT,
-    open_price REAL,
-    close_price REAL,
-    high_price REAL,
-    low_price REAL,
-    change_percent REAL,         -- 涨跌幅
-    turnover REAL,               -- 成交额
-    is_limit_up INTEGER,         -- 是否涨停
-    UNIQUE(stock_code, trade_date)
-);
-
--- 3. 股票基本信息表
-CREATE TABLE stock_info (
-    stock_code TEXT PRIMARY KEY,
-    stock_name TEXT,
-    market TEXT,                 -- SZ/SH
-    industry TEXT
-);
-
--- 4. 股票-概念关系表
-CREATE TABLE stock_concept (
-    id INTEGER PRIMARY KEY,
-    stock_code TEXT,
-    concept_name TEXT,
-    is_core INTEGER,             -- 是否核心标的
-    note TEXT,
-    UNIQUE(stock_code, concept_name)
-);
-
--- 5. 概念日线表
-CREATE TABLE concept_daily (
-    id INTEGER PRIMARY KEY,
-    concept_name TEXT,
-    trade_date TEXT,
-    limit_up_count INTEGER,      -- 涨停家数
-    avg_change REAL,             -- 平均涨幅
-    total_turnover REAL,         -- 总成交额
-    leader_code TEXT,            -- 领涨股
-    UNIQUE(concept_name, trade_date)
-);
-
--- 6. 股票事件表
-CREATE TABLE stock_events (
-    id INTEGER PRIMARY KEY,
-    stock_code TEXT,
-    event_date TEXT,
-    event_type TEXT,             -- limit_up/announcement
-    description TEXT
-);
-```
-
-**数据量**:
-- stock_concept: 117条关系
-- stock_daily: 动态增长
-- market_sentiment: 按日期
-
----
-
-#### JSON配置文件
-
-所有配置文件统一放在 `data/` 目录：
-
-**data/stock_list.json** (149只股票)
-```json
-{
-  "description": "龙头战法关注股票池",
-  "update_date": "2026-02-25",
-  "stocks": [
-    {"code": "002342", "name": "巨力索具", "market": "SZ"},
-    {"code": "002025", "name": "航天电器", "market": "SZ"},
-    // ... 147只
-  ]
-}
-```
-
-**data/concepts.json** (9大类概念)
-```json
-{
-  "商业航天": {
-    "description": "商业航天产业链：火箭发射、卫星制造、地面设备",
-    "subconcepts": {
-      "卫星制造": {"description": "卫星设计、制造、总装（产业链核心环节）"},
-      "火箭发射": {"description": "火箭发动机、发射服务（产业链上游核心）"},
-      // ... 4个细分
-    }
-  },
-  "化工": { /* 2个细分 */ },
-  "有色金属": { /* 5个细分 */ },
-  "新能源": { /* 4个细分 */ },
-  "AI应用": { /* 5个细分 */ },
-  "存储芯片": { /* 3个细分 */ },
-  "半导体": { /* 5个细分 */ },
-  "AI硬件": { /* 3个细分 */ },
-  "机器人": { /* 4个细分 */ }
-}
-```
-
-**data/config.yaml** (系统配置)
-```yaml
-itick:
-  api_key: "your_key"
-  base_url: "https://api.itick.io"
-  timeout: 10
-
-limit_up:
-  main_board: 0.099      # 主板10%
-  growth_board: 0.199    # 创业板20%
-  st_stock: 0.049        # ST股5%
-```
-
----
-
-### 数据访问规则 🔒
-
-#### 唯一数据入口：后端
-```
-✅ backend/ → 直接访问 data/
-❌ frontend/ → 只能通过API访问
-❌ skills/ → 只能通过API Client访问（skill_api_client.py）
-```
-
-#### 例外：数据采集脚本
-```
-✅ skills/scripts/market_fetcher.py → 可直接写入 data/dragon_stock.db
-✅ skills/scripts/history_sync.py → 可直接写入 data/dragon_stock.db
-```
-
-**原因**：数据采集脚本需要批量写入，不适合通过API
-
-#### iTick API
-- **功能**: 实时行情数据
-- **接口**: 
-  - `/stock/quote` - 实时行情
-  - `/stock/kline` - K线数据
-- **限制**: 需要API Key
-
----
-
-## 数据流图
-
-### 场景1：Web用户查看市场总览
-
-```mermaid
-sequenceDiagram
-    participant U as 用户浏览器
-    participant F as React前端
-    participant B as FastAPI后端
-    participant S as QueryService
-    participant D as SQLite DB
+    apiRouter --> dataService
+    dataService -->|读写| sqliteDB
     
-    U->>F: 访问Dashboard页面
-    F->>B: GET /api/market/sentiment
-    B->>S: query_service.get_market_status()
-    S->>D: SELECT * FROM market_sentiment
-    D-->>S: 返回数据
-    S-->>B: 市场情绪数据
-    B-->>F: JSON响应
-    F-->>U: 渲染图表
+    style iTick fill:#9B59B6,stroke:#7D3C98,stroke-width:2px,color:#fff
+    style webUser fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    style llmUser fill:#4A90E2,stroke:#2E5C8A,stroke-width:2px,color:#fff
+    style reactFrontend fill:#F5A623,stroke:#C17D11,stroke-width:2px,color:#fff
+    style skillClient fill:#F5A623,stroke:#C17D11,stroke-width:2px,color:#fff
+    style dataCollector fill:#F5A623,stroke:#C17D11,stroke-width:2px,color:#fff
+    style apiRouter fill:#7ED321,stroke:#5FA319,stroke-width:2px,color:#fff
+    style dataService fill:#7ED321,stroke:#5FA319,stroke-width:2px,color:#fff
+    style sqliteDB fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
+    style note1 fill:#E74C3C,stroke:#C0392B,stroke-width:2px,color:#fff
 ```
 
----
+## 核心架构原则
 
-### 场景2：LLM分析股票
+### 1. 单一数据源 (Single Source of Truth)
+- 所有数据存储在 SQLite 数据库中
+- 包括：市场数据、个股数据、股票池配置、概念层级、股票概念关系
+- JSON 配置文件仅作为备份，不再被代码直接读取
 
-```mermaid
-sequenceDiagram
-    participant U as 用户(Cursor)
-    participant L as LLM
-    participant C as SkillAPIClient
-    participant B as FastAPI后端
-    participant A as AnalysisService
-    participant D as SQLite DB
-    
-    U->>L: "分析002342是否符合龙头战法"
-    L->>C: analyze_stock("002342", "2026-02-25")
-    C->>B: POST /api/analysis/stock
-    B->>A: analysis_service.analyze_stock()
-    A->>D: 查询市场+个股+人气
-    D-->>A: 多表数据
-    A-->>B: 分析结果+建议
-    B-->>C: JSON响应
-    C-->>L: Python对象
-    L-->>U: "✅ 符合龙头标准，建议..."
+### 2. API 优先 (API-First)
+- 后端是唯一可直接访问数据库的模块
+- 所有客户端（前端、Skill、数据采集）通过 HTTP API 访问数据
+- 确保数据一致性和访问控制
+
+### 3. 职责清晰 (Clear Responsibility)
+- **前端**: UI 展示和用户交互
+- **Skill**: LLM 分析和自然语言接口（含数据采集脚本，因为需要 LLM 辅助概念分类）
+- **后端**: 唯一数据管理者和业务逻辑层
+- **数据层**: 仅被后端直接访问
+
+## 分层架构
+
+### 外部层
+- **iTick API**: 提供实时行情数据
+- **Web 用户**: 通过浏览器访问
+- **LLM 用户**: 通过 Cursor IDE + Skill 访问
+
+### 客户端层
+所有客户端只能通过 API 访问数据：
+
+**React 前端** (端口 3000)
+- 页面：Dashboard、StockPool、ConceptManage、Analysis
+- 通过 Axios 调用后端 API
+- 技术栈：React 18 + Ant Design 5
+
+**Skill API Client**
+- LLM 通过此客户端访问数据
+- 提供自然语言接口
+- 位置：`skills/dragon-stock-trading/scripts/skill_api_client.py`
+
+**数据采集脚本**
+- 从 iTick API 获取数据
+- 通过 `POST /api/market/collect` 写入后端
+- 位置：`skills/dragon-stock-trading/scripts/collect_market_data_via_api.py`
+
+### 后端服务层 (FastAPI:8000)
+
+**API 路由层**
+```
+backend/app/api/
+├── market.py      # 市场数据 API
+├── stocks.py      # 股票池 API
+├── concepts.py    # 概念 API
+└── analysis.py    # 分析 API
 ```
 
----
-
-### 场景3：数据采集流程
-
-```mermaid
-sequenceDiagram
-    participant A as 定时任务/手动
-    participant M as MarketFetcher
-    participant I as iTick API
-    participant D as SQLite DB
-    participant C as ConceptManager
-    
-    A->>M: fetch_market_data(date)
-    M->>I: 请求市场数据
-    I-->>M: 返回行情
-    M->>M: 过滤ST股票
-    M->>M: 判断涨停
-    M->>D: 保存到stock_daily
-    M->>D: 更新market_sentiment
-    M->>C: update_concept_daily()
-    C->>D: 聚合概念统计
-    C->>D: 保存到concept_daily
+**数据服务层**
+```
+backend/app/services/
+├── data_service.py            # 主数据服务（统一入口）
+├── query_service.py           # 查询服务
+├── concept_manager.py         # 概念管理
+└── stock_concept_manager.py   # 股票概念关系管理
 ```
 
----
+### 数据层
 
-## 技术栈总览
+**SQLite 数据库** (`data/dragon_stock.db`)
 
-| 层级 | 技术 | 版本 | 用途 |
-|-----|------|------|------|
-| **前端** | React | 18.2 | UI框架 |
-| | Ant Design | 5.12 | UI组件库 |
-| | Axios | 1.6 | HTTP客户端 |
-| | React Router | 6.20 | 路由管理 |
-| | ECharts | 5.4 | 图表可视化 |
-| **后端** | FastAPI | 0.109 | Web框架 |
-| | Uvicorn | 0.27 | ASGI服务器 |
-| | Pydantic | 2.5 | 数据验证 |
-| **数据** | SQLite | 3.x | 数据库 |
-| | Requests | 2.31 | HTTP客户端 |
-| **外部** | iTick API | - | 行情数据源 |
+主要表结构：
+- `market_sentiment` - 市场情绪数据
+- `stock_daily` - 个股日行情
+- `stock_info` - 股票基本信息
+- `stock_pool` - 股票池配置
+- `concept_hierarchy` - 概念层级
+- `stock_concept` - 股票概念关系
+- `concept_daily` - 概念日统计
+- `stock_events` - 异动记录
 
----
+## 数据流
+
+### 读取流程
+```
+用户/LLM 请求
+    ↓
+客户端（前端/Skill）
+    ↓
+HTTP GET /api/...
+    ↓
+后端 API Router
+    ↓
+Data Service
+    ↓
+Query Service / Concept Manager
+    ↓
+SQLite DB
+    ↓
+返回 JSON 数据
+```
+
+### 写入流程
+```
+iTick API
+    ↓
+数据采集脚本
+    ↓
+HTTP POST /api/market/collect
+    ↓
+后端 API Router
+    ↓
+Data Service
+    ↓
+save_market_sentiment() / save_stock_daily()
+    ↓
+SQLite DB
+```
+
+## 数据访问规则
+
+| 模块 | 数据库直接访问 | JSON 文件读取 | API 访问 |
+|------|---------------|--------------|---------|
+| **后端 DataService** | ✅ 读写 | ❌ | - |
+| **前端 React** | ❌ | ❌ | ✅ GET |
+| **Skill API Client** | ❌ | ❌ | ✅ GET |
+| **数据采集脚本** | ❌ | ❌ | ✅ POST |
+
+## 目录结构详解
+
+```
+stock/
+├── backend/                    # 后端服务
+│   ├── app/
+│   │   ├── api/               # API 端点
+│   │   │   ├── market.py      # 市场数据 API
+│   │   │   ├── stocks.py      # 股票池 API
+│   │   │   ├── concepts.py    # 概念 API
+│   │   │   └── analysis.py    # 分析 API
+│   │   ├── services/          # 业务逻辑 + 数据访问
+│   │   │   ├── data_service.py           # 主数据服务
+│   │   │   ├── query_service.py          # 查询服务
+│   │   │   ├── concept_manager.py        # 概念管理
+│   │   │   └── stock_concept_manager.py  # 股票概念关系
+│   │   └── models/            # 数据模型
+│   │       └── requests.py    # API 请求模型
+│   ├── scripts/               # 数据库管理脚本
+│   │   ├── db_init.py         # 数据库初始化
+│   │   └── migrate_json_to_db.py  # 数据迁移
+│   └── requirements.txt       # Python 依赖
+│
+├── frontend/                  # 前端应用
+│   ├── src/
+│   │   ├── pages/            # 页面组件
+│   │   │   ├── Dashboard.js   # 市场概览
+│   │   │   ├── StockPool.js   # 股票池管理
+│   │   │   ├── ConceptManage.js  # 概念管理
+│   │   │   └── Analysis.js    # 龙头分析
+│   │   ├── services/
+│   │   │   └── api.js        # API 封装
+│   │   └── App.js            # 主应用
+│   └── package.json          # npm 依赖
+│
+├── skills/                   # LLM Skill
+│   └── dragon-stock-trading/
+│       ├── SKILL.md          # Skill 使用文档
+│       ├── scripts/
+│       │   ├── skill_api_client.py        # Skill API 客户端
+│       │   ├── backend_api_client.py      # 后端 API 客户端
+│       │   ├── collect_market_data_via_api.py  # 数据采集
+│       │   ├── itick_client.py            # iTick API 客户端
+│       │   └── config_loader.py           # 配置加载
+│       └── reference/        # 参考文档
+│           ├── 龙头战法理论.md
+│           ├── 数据库设计.md
+│           └── 数据查询API.md
+│
+├── data/                     # 数据目录
+│   ├── dragon_stock.db      # SQLite 数据库（主数据源）
+│   ├── stock_list.json      # 股票池备份
+│   ├── concepts.json        # 概念配置备份
+│   └── config.yaml          # 系统配置
+│
+└── logs/                    # 日志目录
+    ├── backend.log
+    └── frontend.log
+```
+
+## API 端点
+
+### 市场数据 API
+
+```
+GET  /api/market/sentiment         # 获取今日市场情绪
+GET  /api/market/sentiment/{date}  # 获取指定日期市场情绪
+POST /api/market/collect           # 采集市场数据（供数据采集脚本调用）
+```
+
+### 股票池 API
+
+```
+GET    /api/stocks                    # 获取股票池
+POST   /api/stocks                    # 添加股票到池
+DELETE /api/stocks/{code}             # 从池中移除股票
+GET    /api/stocks/{code}/detail      # 获取股票详情
+GET    /api/stocks/popularity/{date}  # 获取人气榜
+```
+
+### 概念 API
+
+```
+GET  /api/concepts                      # 获取概念层级
+POST /api/concepts                      # 创建新概念
+GET  /api/concepts/{name}/stocks        # 获取概念下的股票
+POST /api/concepts/{name}/stocks        # 添加股票到概念
+GET  /api/concepts/{name}/analysis      # 概念分析
+```
+
+### 分析 API
+
+```
+POST /api/analysis/stock    # 分析个股
+POST /api/analysis/concept  # 分析概念
+```
+
+## 技术选型
+
+### 后端
+- **FastAPI**: 现代、高性能的 Python Web 框架
+- **SQLite**: 轻量级关系型数据库，适合单机部署
+- **Pydantic**: 数据验证和设置管理
+- **uvicorn**: ASGI 服务器
+
+### 前端
+- **React 18**: 用户界面库
+- **Ant Design 5**: 企业级 UI 组件库
+- **Axios**: HTTP 客户端
+- **React Router 6**: 前端路由
+
+### 数据源
+- **iTick API**: 实时行情数据接口
 
 ## 部署架构
 
-### 本地开发环境 (当前)
+### 开发环境
 ```
-┌─────────────────────────────────────┐
-│     Localhost (MacOS)               │
-│                                     │
-│  ┌──────────┐      ┌──────────┐   │
-│  │ Frontend │      │ Backend  │   │
-│  │  :3000   │◄────►│  :8000   │   │
-│  └──────────┘      └────┬─────┘   │
-│                          │          │
-│                    ┌─────▼─────┐   │
-│                    │  SQLite   │   │
-│                    │  Database │   │
-│                    └───────────┘   │
-│                                     │
-│  ┌──────────────────────────────┐  │
-│  │   Cursor IDE (LLM + Skill)   │  │
-│  └──────────────┬───────────────┘  │
-│                 │                   │
-│         SkillAPIClient             │
-│                 │                   │
-└─────────────────┼───────────────────┘
-                  │
-                  ▼
-           iTick API (外部)
+localhost:8000  →  后端 (FastAPI)
+localhost:3000  →  前端 (React Dev Server)
 ```
 
----
+### 生产环境建议
+```
+nginx (443) → FastAPI (8000)
+            → React (静态文件)
+PostgreSQL (替代 SQLite)
+```
 
-## 关键设计决策
+## 扩展性
 
-### 1. 为什么选择前后端分离？
-✅ **优势**:
-- Web界面和Skill可独立使用
-- 前端可自由升级UI/UX
-- 后端API可被多个客户端调用
-- 开发和测试更灵活
+### 水平扩展
+- 前端：静态文件，可用 CDN
+- 后端：无状态，可多实例部署
+- 数据库：可迁移到 PostgreSQL
 
-### 2. 为什么复用scripts模块？
-✅ **优势**:
-- 避免代码重复
-- 逻辑保持一致
-- 维护成本低
-- 已有测试覆盖
-
-### 3. 为什么使用SQLite？
-✅ **优势**:
-- 零配置，开箱即用
-- 单文件，便于备份
-- 性能足够（个人使用）
-- 无需额外数据库服务
-
-### 4. 为什么JSON配置文件？
-✅ **优势**:
-- stock_list.json: 手动精选，不需要全市场
-- concepts.json: 层级清晰，易于可视化
-- config.yaml: 集中配置，便于管理
-
----
-
-## 扩展性设计
-
-### 可扩展点
-
-1. **新增概念**
-   - 修改 `concepts.json`
-   - 在Web界面中添加股票关系
-
-2. **新增API端点**
-   - 在 `backend/app/api/` 添加新路由
-   - 自动集成到 Swagger 文档
-
-3. **新增前端页面**
-   - 在 `frontend/src/pages/` 添加组件
-   - 在 App.js 注册路由
-
-4. **数据导出**
-   - 已有API接口，可轻松导出
-   - 可添加 Excel/CSV 导出功能
-
-5. **实时推送**
-   - 可升级为 WebSocket
-   - 或使用 Server-Sent Events
-
----
-
-## 性能指标
-
-| 指标 | 当前值 | 目标 |
-|-----|-------|------|
-| API响应时间 | < 500ms | < 300ms |
-| 数据库查询 | < 100ms | < 50ms |
-| 前端首屏加载 | 2-3s | < 2s |
-| 股票分析 | < 1s | < 500ms |
-| 并发支持 | 10 | 50+ |
-
----
+### 功能扩展
+- 添加用户认证
+- 实现 WebSocket 实时推送
+- 添加策略回测功能
+- 集成更多数据源
 
 ## 安全考虑
 
-### 当前实现
-- ✅ 本地运行，无公网暴露
-- ✅ CORS仅允许localhost:3000
-- ✅ API Key存储在config.yaml（本地）
+### 当前（开发环境）
+- 无认证机制
+- SQLite 本地存储
+- CORS 允许 localhost:3000
 
 ### 生产环境建议
-- 🔒 添加用户认证（JWT）
-- 🔒 HTTPS加密传输
-- 🔒 API Key使用环境变量
-- 🔒 SQL注入防护（已有：Pydantic）
-- 🔒 请求频率限制
+- 添加 JWT 认证
+- API 频率限制
+- HTTPS 加密
+- PostgreSQL + SSL
+- 日志审计
+
+## 性能优化
+
+### 已实施
+- SQLite 索引优化
+- API 响应缓存（DataService 单例）
+
+### 可优化
+- Redis 缓存层
+- 数据库连接池
+- API 响应压缩
+- 前端代码分割
+
+## 监控与日志
+
+### 日志位置
+```
+logs/backend.log   # 后端日志
+logs/frontend.log  # 前端日志
+```
+
+### 监控指标建议
+- API 响应时间
+- 数据库查询性能
+- 错误率
+- 并发用户数
 
 ---
 
-## 监控和日志
-
-### 当前日志
-```
-logs/
-├── backend.log    # FastAPI运行日志
-└── frontend.log   # React编译日志
-```
-
-### 可添加
-- 访问日志（每个API请求）
-- 错误日志（异常追踪）
-- 性能日志（慢查询）
-- 用户行为日志
-
----
-
-## 总结
-
-这是一个**轻量级、高度集成**的股票分析系统：
-
-✅ **轻量级**: SQLite + 本地运行，无需复杂部署  
-✅ **高度集成**: 前端、后端、Skill三位一体  
-✅ **易扩展**: 清晰的分层架构，模块化设计  
-✅ **实用性**: 针对龙头战法，功能精准聚焦  
-
-**适用场景**:
-- 个人股票研究
-- 龙头战法实战
-- AI辅助决策
-- 数据可视化分析
+**架构版本**: 3.0 (Backend Isolation)  
+**更新日期**: 2026-02-26
