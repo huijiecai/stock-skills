@@ -9,7 +9,7 @@ import os
 import json
 from pathlib import Path
 from typing import List, Dict, Optional, AsyncGenerator
-from anthropic import AsyncAnthropic
+from openai import AsyncOpenAI
 from app.services.analysis_service import get_analysis_service
 from app.services.data_service import get_data_service
 
@@ -99,15 +99,22 @@ class LLMChatService:
         # Reference 文档路径
         self.reference_dir = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading" / "reference"
         
-        # 初始化 Anthropic 客户端（支持 Claude）
-        api_key = os.getenv("OPENAI_API_KEY")  # 兼容现有环境变量名
+        # 初始化客户端（支持 OpenAI / 智谱AI / 其他兼容服务）
+        api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            api_key = os.getenv("ANTHROPIC_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY or ANTHROPIC_API_KEY environment variable not set")
+            raise ValueError("OPENAI_API_KEY environment variable not set")
         
-        self.client = AsyncAnthropic(api_key=api_key)
-        self.model = os.getenv("OPENAI_MODEL", "claude-3-5-sonnet-20241022")
+        # 支持自定义 base_url（用于智谱AI等第三方服务）
+        base_url = os.getenv("OPENAI_BASE_URL", None)
+        
+        if base_url:
+            # 使用自定义 base_url（智谱AI、DeepSeek等）
+            self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        else:
+            # 使用默认 OpenAI
+            self.client = AsyncOpenAI(api_key=api_key)
+        
+        self.model = os.getenv("OPENAI_MODEL", "gpt-4")
         
         # 定义可调用的Function工具
         self.tools = [
@@ -358,7 +365,7 @@ class LLMChatService:
         date: Optional[str] = None
     ) -> AsyncGenerator[Dict, None]:
         """
-        流式聊天响应（支持 Claude API）
+        流式聊天响应（支持 OpenAI 及兼容 API）
         
         Args:
             messages: 消息历史列表 [{"role": "user", "content": "..."}]
@@ -367,92 +374,105 @@ class LLMChatService:
         Yields:
             流式响应chunk
         """
+        # 添加系统提示
+        full_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
+        
         # 如果提供了日期，在用户消息中添加上下文
         if date and messages:
             last_message = messages[-1]
             if last_message["role"] == "user":
                 last_message["content"] = f"[分析日期: {date}]\n{last_message['content']}"
         
-        # Claude API 需要转换工具格式
-        claude_tools = []
-        for tool in self.tools:
-            claude_tool = {
-                "name": tool["function"]["name"],
-                "description": tool["function"]["description"],
-                "input_schema": tool["function"]["parameters"]
-            }
-            claude_tools.append(claude_tool)
-        
         try:
-            # 调用 Claude API
-            async with self.client.messages.stream(
+            # 调用 OpenAI 兼容 API
+            response = await self.client.chat.completions.create(
                 model=self.model,
-                max_tokens=4096,
-                system=SYSTEM_PROMPT,
-                messages=messages,
-                tools=claude_tools
-            ) as stream:
-                async for event in stream:
-                    # 处理不同类型的事件
-                    if event.type == "content_block_delta":
-                        if hasattr(event.delta, "text"):
-                            yield {
-                                "type": "content",
-                                "content": event.delta.text
-                            }
-                    elif event.type == "content_block_start":
-                        if hasattr(event.content_block, "type") and event.content_block.type == "tool_use":
-                            # 工具调用开始
-                            pass
+                messages=full_messages,
+                tools=self.tools,
+                tool_choice="auto",
+                stream=True
+            )
+            
+            # 处理流式响应
+            current_tool_call = None
+            tool_call_args = ""
+            
+            async for chunk in response:
+                if not chunk.choices:
+                    continue
                     
-                # 获取最终消息（包含完整的工具调用）
-                final_message = await stream.get_final_message()
+                delta = chunk.choices[0].delta
                 
-                # 检查是否有工具调用
-                tool_calls = [block for block in final_message.content if hasattr(block, "type") and block.type == "tool_use"]
-                
-                if tool_calls:
-                    # 执行工具调用
-                    tool_results = []
-                    for tool_call in tool_calls:
-                        function_name = tool_call.name
-                        function_args = tool_call.input
+                # 处理工具调用
+                if delta.tool_calls:
+                    for tool_call in delta.tool_calls:
+                        if tool_call.id:
+                            # 新的工具调用开始
+                            current_tool_call = tool_call
+                            tool_call_args = ""
                         
-                        # 执行函数
-                        result_str = self._execute_function(function_name, function_args)
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_call.id,
-                            "content": result_str
-                        })
+                        if tool_call.function and tool_call.function.arguments:
+                            # 收集参数片段
+                            tool_call_args += tool_call.function.arguments
+                
+                # 处理文本内容
+                elif delta.content:
+                    yield {
+                        "type": "content",
+                        "content": delta.content
+                    }
+            
+            # 如果有完整的工具调用，执行它
+            if current_tool_call and current_tool_call.function:
+                try:
+                    function_name = current_tool_call.function.name
+                    args_dict = json.loads(tool_call_args)
                     
-                    # 构建新的消息历史，包含工具结果
-                    new_messages = messages + [
+                    # 执行函数调用
+                    result = self._execute_function(function_name, args_dict)
+                    
+                    # 将结果返回给LLM
+                    function_messages = full_messages + [
                         {
                             "role": "assistant",
-                            "content": final_message.content
+                            "content": None,
+                            "tool_calls": [{
+                                "id": current_tool_call.id,
+                                "type": "function",
+                                "function": {
+                                    "name": function_name,
+                                    "arguments": tool_call_args
+                                }
+                            }]
                         },
                         {
-                            "role": "user",
-                            "content": tool_results
+                            "role": "tool",
+                            "tool_call_id": current_tool_call.id,
+                            "content": result
                         }
                     ]
                     
-                    # 继续对话，获取基于工具结果的响应
-                    async with self.client.messages.stream(
+                    # 继续对话
+                    followup_response = await self.client.chat.completions.create(
                         model=self.model,
-                        max_tokens=4096,
-                        system=SYSTEM_PROMPT,
-                        messages=new_messages,
-                        tools=claude_tools
-                    ) as followup_stream:
-                        async for event in followup_stream:
-                            if event.type == "content_block_delta":
-                                if hasattr(event.delta, "text"):
-                                    yield {
-                                        "type": "content",
-                                        "content": event.delta.text
-                                    }
+                        messages=function_messages,
+                        stream=True
+                    )
+                    
+                    async for followup_chunk in followup_response:
+                        if followup_chunk.choices:
+                            followup_delta = followup_chunk.choices[0].delta
+                            if followup_delta.content:
+                                yield {
+                                    "type": "content",
+                                    "content": followup_delta.content
+                                }
+                
+                except json.JSONDecodeError as e:
+                    yield {
+                        "type": "error",
+                        "content": f"工具调用参数解析失败: {str(e)}"
+                    }
         
         except Exception as e:
             yield {
