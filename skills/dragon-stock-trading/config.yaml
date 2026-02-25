@@ -3,13 +3,9 @@ data:
   cache_days: 10  # 保留最近N天数据
   
 itick:
-  api_key: "${ITICK_API_KEY}"
+  api_key: "${ITICK_API_KEY}"  # 从环境变量读取
   base_url: "https://api.itick.io"
   timeout: 10
-  
-scheduler:
-  daily_sync_time: "15:30"  # 每日同步时间
-  history_sync_days: 10     # 历史数据同步天数
   
 limit_up:
   # 涨停阈值（允许0.1%误差）

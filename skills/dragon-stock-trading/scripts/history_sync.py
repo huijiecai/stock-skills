@@ -219,6 +219,10 @@ class HistorySyncer:
         total_klines = 0
         
         for idx, (stock_code, stock_name, region) in enumerate(stock_list, 1):
+            # 排除 ST 股票
+            if stock_name and 'ST' in stock_name:
+                continue
+            
             print(f"[{idx}/{total_stocks}] 同步 {stock_name}({stock_code})...", end=' ')
             
             count = self.sync_stock_klines(stock_code, region, start_date, end_date)

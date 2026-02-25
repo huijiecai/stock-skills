@@ -391,3 +391,4 @@ fetcher.fetch_all_stocks_daily(trade_date, stock_list)
    - `total_turnover` 字段为亿元
 4. **数据延迟**: 需要先运行数据采集脚本才能查询当日数据
 5. **连板计算**: 连板天数从1开始计数（1板=首板，2板=二连板）
+6. **ST 股票**: 系统会自动排除所有 ST 股票（股票名称中包含 'ST'），不会采集和分析

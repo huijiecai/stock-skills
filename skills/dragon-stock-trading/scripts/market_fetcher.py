@@ -11,25 +11,24 @@ import os
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import time
+from config_loader import config
+from itick_client import ItickClient
 
 
 class MarketDataFetcher:
     """市场数据采集器"""
     
-    def __init__(self, db_path: str, api_key: str, base_url: str = "https://api.itick.io"):
-        self.db_path = db_path
-        self.api_key = api_key
-        self.base_url = base_url
-        self.headers = {
-            'accept': 'application/json',
-            'token': self.api_key
-        }
+    def __init__(self, db_path: str = None, api_key: str = None, base_url: str = None):
+        self.db_path = db_path or config.get_db_path()
         
-        # 涨停阈值配置
+        # 使用统一的 itick 客户端
+        self.client = ItickClient(api_key, base_url)
+        
+        # 从配置文件加载涨停阈值
         self.limit_up_threshold = {
-            'main': 0.099,    # 主板 10%
-            'growth': 0.199,  # 创业板/科创板 20%
-            'st': 0.049       # ST股票 5%
+            'main': config.get_limit_up_threshold('main_board'),
+            'growth': config.get_limit_up_threshold('growth_board'),
+            'st': config.get_limit_up_threshold('st_stock')
         }
     
     def _is_limit_up(self, stock_code: str, stock_name: str, change_percent: float) -> bool:
@@ -79,23 +78,7 @@ class MarketDataFetcher:
         Returns:
             行情数据字典
         """
-        url = f"{self.base_url}/stock/quote"
-        params = {
-            'region': region,
-            'code': stock_code
-        }
-        
-        try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('code') == 0 and data.get('data'):
-                return data['data']
-            return None
-        except Exception as e:
-            print(f"❌ 获取 {stock_code} 行情失败: {e}")
-            return None
+        return self.client.get_stock_quote(stock_code, region)
     
     def fetch_all_stocks_daily(self, trade_date: str, stock_list: List[tuple]) -> int:
         """
@@ -117,6 +100,10 @@ class MarketDataFetcher:
         print(f"📊 开始获取 {trade_date} 全市场行情，共 {total} 只股票...")
         
         for idx, (stock_code, stock_name, region) in enumerate(stock_list, 1):
+            # 排除 ST 股票
+            if stock_name and 'ST' in stock_name:
+                continue
+            
             # 显示进度
             if idx % 100 == 0:
                 print(f"进度: {idx}/{total} ({idx/total*100:.1f}%)")
@@ -277,19 +264,9 @@ class MarketDataFetcher:
     
     def _get_index_change(self, index_code: str, region: str) -> float:
         """获取指数涨跌幅"""
-        url = f"{self.base_url}/stock/quote"
-        params = {
-            'region': region,
-            'code': index_code
-        }
-        
-        try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            data = response.json()
-            if data.get('code') == 0 and data.get('data'):
-                return data['data'].get('chp', 0) / 100
-        except:
-            pass
+        data = self.client.get_index_quote(index_code, region)
+        if data:
+            return data.get('chp', 0) / 100
         return 0.0
     
     def get_sample_stock_list(self) -> List[tuple]:
@@ -323,13 +300,8 @@ def main():
         print("请先运行: python db_init.py")
         return
     
-    api_key = os.getenv('ITICK_API_KEY', '446f72772d504a6a8234466581ae33192c83f8f9f3224dd989428a2ae0e3a0d8')
-    
-    if not api_key:
-        print("❌ 请设置 ITICK_API_KEY 环境变量")
-        return
-    
-    fetcher = MarketDataFetcher(str(db_path), api_key)
+    # 使用配置文件中的设置
+    fetcher = MarketDataFetcher(str(db_path))
     
     # 使用今天的日期
     today = datetime.now().strftime('%Y-%m-%d')
