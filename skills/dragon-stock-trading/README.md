@@ -23,8 +23,9 @@ skills/dragon-stock-trading/
 │   ├── history_sync.py
 │   └── stock_fetcher.py
 ├── data/                       # 数据层
-│   ├── dragon_stock.db
-│   └── concepts.json
+│   ├── dragon_stock.db        # SQLite数据库（系统自动）
+│   ├── concepts.json          # 概念配置（手工维护）
+│   └── stock_list.json        # 关注股票池（手工维护，后续自行补充）
 ├── tests/                      # 测试
 │   ├── test_basic_modules.py
 │   └── test_integration.py

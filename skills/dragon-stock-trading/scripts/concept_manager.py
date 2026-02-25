@@ -19,51 +19,25 @@ class ConceptManager:
     
     def load_concept_config(self, config_file: str) -> int:
         """
-        从 JSON 文件加载概念配置到数据库
+        从 JSON 文件加载概念定义（不包含股票关联）
+        只用于验证概念结构，股票-概念关系直接在数据库中维护
         
         Args:
             config_file: 概念配置文件路径
         
         Returns:
-            加载的概念-股票关系数量
+            加载的概念数量
         """
         with open(config_file, 'r', encoding='utf-8') as f:
             concepts = json.load(f)
         
-        conn = sqlite3.connect(self.db_path)
-        cursor = conn.cursor()
-        
         count = 0
+        # 遍历大类和细分概念，只统计数量
+        for category_name, category_data in concepts.items():
+            subconcepts = category_data.get('subconcepts', {})
+            count += len(subconcepts)
         
-        for concept_name, concept_data in concepts.items():
-            # 核心股票
-            for stock_code in concept_data.get('core_stocks', []):
-                try:
-                    cursor.execute('''
-                    INSERT OR REPLACE INTO stock_concept 
-                    (stock_code, concept_name, is_core, note)
-                    VALUES (?, ?, 1, '核心标的')
-                    ''', (stock_code, concept_name))
-                    count += 1
-                except Exception as e:
-                    print(f"❌ 插入 {stock_code} - {concept_name} 失败: {e}")
-            
-            # 相关股票
-            for stock_code in concept_data.get('related_stocks', []):
-                try:
-                    cursor.execute('''
-                    INSERT OR REPLACE INTO stock_concept 
-                    (stock_code, concept_name, is_core, note)
-                    VALUES (?, ?, 0, '相关标的')
-                    ''', (stock_code, concept_name))
-                    count += 1
-                except Exception as e:
-                    print(f"❌ 插入 {stock_code} - {concept_name} 失败: {e}")
-        
-        conn.commit()
-        conn.close()
-        
-        print(f"✅ 成功加载 {count} 条概念-股票关系")
+        print(f"✅ 概念定义加载完成：{len(concepts)} 个大类，{count} 个细分概念")
         return count
     
     def calculate_concept_daily(self, trade_date: str) -> int:

@@ -269,20 +269,40 @@ class MarketDataFetcher:
             return data.get('chp', 0) / 100
         return 0.0
     
-    def get_sample_stock_list(self) -> List[tuple]:
+    def load_stock_list(self, stock_list_file: str = None) -> List[tuple]:
         """
-        获取示例股票列表（用于测试）
-        实际使用时应该从完整的股票列表文件加载
+        从 JSON 文件加载关注股票池
+        
+        Args:
+            stock_list_file: 股票列表文件路径，默认为 data/stock_list.json
+        
+        Returns:
+            股票列表 [(code, name, market), ...]
         """
-        # 这里只返回几个示例股票
-        return [
-            ('002342', '巨力索具', 'SZ'),
-            ('002025', '航天电器', 'SZ'),
-            ('002104', '恒宝股份', 'SZ'),
-            ('002165', '红宝丽', 'SZ'),
-            ('600862', '长城军工', 'SH'),
-            ('000547', '航天发展', 'SZ'),
-        ]
+        if stock_list_file is None:
+            from pathlib import Path
+            script_dir = Path(__file__).resolve().parent
+            project_root = script_dir.parent
+            stock_list_file = project_root / "data" / "stock_list.json"
+        
+        import json
+        
+        try:
+            with open(stock_list_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+            
+            stocks = data.get('stocks', [])
+            stock_list = [
+                (stock['code'], stock['name'], stock['market'])
+                for stock in stocks
+            ]
+            
+            print(f"✅ 成功加载 {len(stock_list)} 只关注股票")
+            return stock_list
+            
+        except Exception as e:
+            print(f"❌ 加载股票列表失败: {e}")
+            return []
 
 
 def main():
@@ -313,8 +333,12 @@ def main():
     
     print(f"📅 交易日期: {trade_date}")
     
-    # 获取示例股票列表
-    stock_list = fetcher.get_sample_stock_list()
+    # 从 JSON 文件加载关注股票池
+    stock_list = fetcher.load_stock_list()
+    
+    if not stock_list:
+        print("❌ 股票列表为空，退出")
+        return
     
     # 采集数据
     fetcher.fetch_all_stocks_daily(trade_date, stock_list)

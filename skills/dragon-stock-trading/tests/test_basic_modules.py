@@ -101,22 +101,50 @@ class TestConceptManager(unittest.TestCase):
         initializer = DatabaseInitializer(self.test_db)
         initializer.init_database()
         
-        # 创建测试配置文件
+        # 创建测试配置文件（只包含概念定义）
         import json
         test_concepts = {
-            "测试概念1": {
-                "core_stocks": ["000001", "000002"],
-                "related_stocks": ["000003"],
-                "keywords": ["测试"]
+            "测试大类1": {
+                "category": "测试类别",
+                "description": "测试用大类1",
+                "subconcepts": {
+                    "测试概念1": {
+                        "description": "测试细分概念1",
+                        "keywords": ["测试"]
+                    }
+                }
             },
-            "测试概念2": {
-                "core_stocks": ["000004"],
-                "related_stocks": [],
-                "keywords": ["测试2"]
+            "测试大类2": {
+                "category": "测试类别2",
+                "description": "测试用大类2",
+                "subconcepts": {
+                    "测试概念2": {
+                        "description": "测试细分概念2",
+                        "keywords": ["测试2"]
+                    }
+                }
             }
         }
         with open(self.test_config, 'w', encoding='utf-8') as f:
             json.dump(test_concepts, f, ensure_ascii=False)
+        
+        # 手动添加股票-概念关系到数据库
+        conn = sqlite3.connect(self.test_db)
+        cursor = conn.cursor()
+        test_mappings = [
+            ('000001', '测试概念1', 1, '测试大类1/测试概念1'),
+            ('000002', '测试概念1', 1, '测试大类1/测试概念1'),
+            ('000003', '测试概念1', 0, '测试大类1/测试概念1'),
+            ('000004', '测试概念2', 1, '测试大类2/测试概念2'),
+        ]
+        for stock_code, concept_name, is_core, note in test_mappings:
+            cursor.execute('''
+            INSERT OR REPLACE INTO stock_concept 
+            (stock_code, concept_name, is_core, note)
+            VALUES (?, ?, ?, ?)
+            ''', (stock_code, concept_name, is_core, note))
+        conn.commit()
+        conn.close()
     
     def tearDown(self):
         """测试后清理"""
@@ -130,10 +158,10 @@ class TestConceptManager(unittest.TestCase):
         manager = ConceptManager(self.test_db)
         count = manager.load_concept_config(self.test_config)
         
-        # 应该加载 4 条记录（2+1 + 1）
-        self.assertEqual(count, 4)
+        # 应该加载 2 个细分概念（概念定义数量）
+        self.assertEqual(count, 2)
         
-        # 检查数据库中的记录
+        # 检查数据库中的股票-概念关系（已手动添加）
         conn = sqlite3.connect(self.test_db)
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM stock_concept")
