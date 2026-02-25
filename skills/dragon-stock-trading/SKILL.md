@@ -7,9 +7,9 @@ description: 股票分析工具，输入股票代码或名称，获取实时行�
 
 ## 核心功能
 
-这是一个专门用于股票分析的工具，帮助用户获取A股股票的实时行情和基础技术分析。
+这是一个专门用于股票分析的工具，帮助用户获取A股股票的实时行情和基础技术分析，并支持龙头战法所需的市场情绪、概念板块、人气排行等多维度数据查询。
 
-### 当前功能：股票基本信息查询
+### 功能1：股票基本信息查询
 输入股票代码或名称，获取该股票的详细信息，包括：
 - 股票代码和简称
 - 最新价格和涨跌幅
@@ -18,9 +18,125 @@ description: 股票分析工具，输入股票代码或名称，获取实时行�
 - 行业分类
 - 基础技术面分析
 
+### 功能2：龙头战法数据支持
+
+本工具提供以下6类数据查询能力，全面支持龙头战法决策：
+
+#### 2.1 市场情绪查询
+获取指定日期的市场整体状态：
+- 涨停/跌停家数
+- 连板高度分布
+- 指数表现（上证、深证、创业板）
+- 两市总成交额
+- 市场阶段判断（情绪冰点/增量主升/正常）
+
+**用途**: 判断市场是"冰点修复"还是"增量主升"阶段，决定操作策略
+
+**示例查询**:
+```python
+from scripts.query_service import QueryService
+service = QueryService("data/dragon_stock.db")
+market_status = service.get_market_status("2026-02-25")
+print(service.format_market_status(market_status))
+```
+
+#### 2.2 个股全景数据
+获取个股完整信息：
+- 实时行情（价格、量额、换手、振幅）
+- 涨停状态、连板天数
+- 所属概念、行业分类
+- 技术面分析（支撑/阻力、趋势判断）
+
+**用途**: 全面了解个股基本面和技术面，支持"建立预期"
+
+**示例查询**:
+```python
+stock_info = service.get_stock_with_concept("002342", "2026-02-25")
+print(service.format_stock_info(stock_info))
+```
+
+#### 2.3 概念板块分析
+查询概念板块统计：
+- 概念内涨停家数、涨停率
+- 板块平均涨幅
+- 板块总成交额
+- 领涨股识别
+
+**用途**: 判断"逻辑正宗性"和"板块联动性"
+
+**示例查询**:
+```python
+from scripts.concept_manager import ConceptManager
+manager = ConceptManager("data/dragon_stock.db")
+stats = manager.get_concept_stats("商业航天", "2026-02-25")
+```
+
+#### 2.4 人气排行榜
+按成交额获取当日人气股：
+- Top 30 人气股列表
+- 成交额排名
+- 涨停状态标识
+
+**用途**: 满足"人气底线"筛选条件（龙头战法要求标的进入人气榜前30）
+
+**示例查询**:
+```python
+popularity = service.get_stock_popularity_rank("2026-02-25", top_n=30)
+for stock in popularity[:10]:
+    print(f"{stock['rank']}. {stock['stock_name']} {stock['change_percent']*100:+.2f}%")
+```
+
+#### 2.5 历史走势回溯
+查询个股历史表现：
+- 近10日K线数据
+- 历史涨停记录
+- 连板周期识别
+
+**用途**: 判断"地位突出"（身位最高/领涨性强），识别连板周期
+
+**示例查询**:
+```python
+history = service.get_stock_history("002342", days=10)
+for day in history:
+    status = "涨停" if day['is_limit_up'] else ""
+    print(f"{day['trade_date']}: {day['close_price']:.2f} {day['change_percent']*100:+.2f}% {status}")
+```
+
+#### 2.6 涨停时序分析
+查询概念内涨停先后顺序：
+- 首板时间
+- 带动关系分析
+
+**用途**: 识别"带动性强"的真龙头（谁先涨停带动板块）
+
+**示例查询**:
+```python
+sequence = service.check_limit_up_sequence("商业航天", "2026-02-25")
+for idx, stock in enumerate(sequence, 1):
+    print(f"{idx}. {stock['stock_name']} 涨停时间: {stock['limit_up_time']}")
+```
+
+### 功能3：概念配置管理
+
+通过 `data/concepts.json` 文件维护股票与概念的关系：
+```json
+{
+  "商业航天": {
+    "core_stocks": ["002025", "002342"],
+    "related_stocks": ["300416"],
+    "keywords": ["火箭", "卫星", "航天器"]
+  }
+}
+```
+
+加载配置：
+```bash
+python scripts/concept_manager.py
+```
+
 ## 使用方法
 
-### 查询股票基本信息
+### 方式1：直接查询股票信息
 
 由于itick API的技术限制，当前需要按以下步骤操作：
 
@@ -28,6 +144,54 @@ description: 股票分析工具，输入股票代码或名称，获取实时行�
 2. **输入股票代码**：直接提供6位股票代码进行查询
 3. **获取实时数据**：系统通过itick API获取该股票的实时行情信息
 4. **格式化输出**：以清晰的格式展示股票基本信息和技术分析
+
+### 方式2：使用数据查询服务
+
+通过 Python 脚本直接查询数据库：
+
+#### 初始化数据库
+```bash
+cd scripts
+python db_init.py
+```
+
+#### 采集当日市场数据
+```bash
+# 采集当日全市场数据（示例股票）
+python market_fetcher.py 2026-02-25
+
+# 加载概念配置
+python concept_manager.py 2026-02-25
+```
+
+#### 查询市场和个股信息
+```bash
+# 查询市场状态和个股信息
+python query_service.py 2026-02-25
+```
+
+#### 在代码中使用
+```python
+from pathlib import Path
+from scripts.query_service import QueryService
+
+db_path = Path("data/dragon_stock.db")
+service = QueryService(str(db_path))
+
+# 查询市场状态
+market = service.get_market_status("2026-02-25")
+print(service.format_market_status(market))
+
+# 查询个股信息（含概念）
+stock = service.get_stock_with_concept("002342", "2026-02-25")
+print(service.format_stock_info(stock))
+
+# 查询人气榜
+popularity = service.get_stock_popularity_rank("2026-02-25", 30)
+
+# 查询概念龙头
+leaders = service.get_concept_leaders("2026-02-25", min_limit_up=2)
+```
 
 ### 示例对话
 

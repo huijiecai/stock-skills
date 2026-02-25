@@ -1,72 +1,210 @@
-# 股票分析工具使用说明
+# 龙头战法数据系统
 
-## 功能概述
+支持龙头战法的完整数据获取、存储和查询系统。
 
-这是一个专注于A股股票分析的工具，提供：
-- ✅ 实时股票行情查询
-- ✅ 基础技术面分析
-- ✅ 成交量和价格趋势分析
-- ✅ 支撑位和阻力位识别
-
-## 使用方法
-
-### 基本查询
-直接输入6位股票代码即可获取分析结果：
+## 系统架构
 
 ```
-用户：000547怎么样
-AI：[返回详细分析结果]
+skills/dragon-stock-trading/
+├── SKILL.md                    # Skill 文档（6类数据能力说明）
+├── examples.md                 # 使用示例（龙头战法场景）
+├── config.yaml                 # 系统配置
+├── README.md                   # 本文档
+├── scripts/                    # 核心模块
+│   ├── __init__.py
+│   ├── db_init.py             # 数据库初始化
+│   ├── stock_fetcher.py       # 基础股票查询（现有）
+│   ├── market_fetcher.py      # 市场数据采集
+│   ├── concept_manager.py     # 概念管理
+│   ├── history_sync.py        # 历史数据同步
+│   └── query_service.py       # 数据查询服务
+├── data/                       # 数据文件
+│   ├── dragon_stock.db        # SQLite 数据库
+│   └── concepts.json          # 概念配置
+└── tests/                      # 测试文件
+    ├── test_basic_modules.py  # 基础模块测试
+    └── test_integration.py    # 集成测试
 ```
 
-### 获取股票代码
-如果不知道股票代码，可通过以下方式获取：
-1. **搜索引擎**：搜索"股票名称 股票代码"
-2. **财经网站**：东方财富、同花顺、雪球等
-3. **证券交易软件**：各券商APP
+## 核心功能
 
-### 常用股票代码示例
-- 宁德时代：300750
-- 比亚迪：002594
-- 贵州茅台：600519
-- 红宝丽：002165
-- 航天发展：000547
+### 6类数据能力
 
-## 技术分析维度
+1. **市场情绪数据** - 涨停/跌停家数、连板高度、指数表现、市场阶段判断
+2. **个股基础数据** - 实时行情、涨停状态、连板天数、关联概念
+3. **题材概念数据** - 概念内涨停家数、平均涨幅、领涨股识别
+4. **人气排行数据** - 按成交额排名，筛选人气标的
+5. **历史走势数据** - 近期K线、涨停记录、连板周期
+6. **板块联动数据** - 同概念涨跌分布、涨停先后顺序
 
-### 价格分析
-- 当前价格位置分析
-- 涨跌幅和波动幅度
-- 开盘价与收盘价关系
+## 快速开始
 
-### 成交量分析
-- 成交活跃度评估
-- 量价配合关系
-- 换手率水平分析
+### 1. 初始化系统
 
-### 技术形态
-- 短期趋势判断
-- 关键价位识别
-- 支撑阻力分析
+```bash
+# 初始化数据库
+cd scripts
+python db_init.py
 
-## API配置
+# 加载概念配置
+python concept_manager.py
+```
 
-### 获取API密钥
-1. 访问 [iTick官网](https://www.itick.org/) 注册账号
-2. 登录后进入开发者中心获取API密钥
-3. iTick提供免费套餐，适合个人开发者使用
+### 2. 采集数据
 
-### 配置环境变量
+```bash
+# 采集当日市场数据（示例股票）
+python market_fetcher.py 2026-02-25
+
+# 重新计算概念统计
+python concept_manager.py 2026-02-25
+```
+
+### 3. 查询数据
+
+```bash
+# 查询市场状态和个股信息
+python query_service.py 2026-02-25
+```
+
+### 4. 在代码中使用
+
+```python
+from pathlib import Path
+from scripts.query_service import QueryService
+
+# 初始化查询服务
+db_path = Path("data/dragon_stock.db")
+service = QueryService(str(db_path))
+
+# 查询市场状态（判断冰点/主升）
+market = service.get_market_status("2026-02-25")
+print(f"市场阶段: {market['market_phase']}")
+print(f"涨停家数: {market['limit_up_count']}")
+
+# 查询个股信息（含概念）
+stock = service.get_stock_with_concept("002342", "2026-02-25")
+print(f"{stock['stock_name']}: {stock['change_percent']*100:+.2f}%")
+print(f"概念: {[c['name'] for c in stock['concepts']]}")
+
+# 查询人气榜 Top 30
+popularity = service.get_stock_popularity_rank("2026-02-25", 30)
+for stock in popularity[:10]:
+    print(f"{stock['rank']}. {stock['stock_name']} 成交{stock['turnover']/100000000:.2f}亿")
+
+# 查询概念龙头
+leaders = service.get_concept_leaders("2026-02-25", min_limit_up=2)
+for leader in leaders:
+    print(f"{leader['concept_name']}: {leader['leader_name']} (涨停{leader['limit_up_count']}家)")
+```
+
+## 数据库设计
+
+### 核心表结构
+
+- **market_sentiment** - 市场情绪日统计（涨停/跌停家数、连板高度）
+- **stock_daily** - 个股日行情（价格、量额、涨停状态、连板天数）
+- **stock_info** - 股票基本信息（行业分类）
+- **stock_concept** - 概念-股票关系（核心标的标识）
+- **concept_daily** - 概念日统计（涨停家数、平均涨幅、领涨股）
+- **stock_events** - 异动记录（监管、公告）
+
+## 概念配置
+
+通过 `data/concepts.json` 维护概念与股票的关系：
+
+```json
+{
+  "商业航天": {
+    "core_stocks": ["002025", "002342"],
+    "related_stocks": ["300416"],
+    "keywords": ["火箭", "卫星", "航天器"]
+  }
+}
+```
+
+## 测试
+
+### 运行单元测试
+
+```bash
+cd tests
+python test_basic_modules.py
+```
+
+### 运行集成测试
+
+```bash
+python test_integration.py
+```
+
+测试覆盖：
+- ✅ 数据库初始化
+- ✅ 概念配置加载
+- ✅ 市场数据采集
+- ✅ 市场情绪计算
+- ✅ 概念统计计算
+- ✅ 数据查询服务
+- ✅ 格式化输出
+
+## 龙头战法应用
+
+### 预期管理四步法
+
+1. **建立预期** - 使用人气榜+概念统计筛选标的
+2. **买入确认** - 通过市场状态判断节点，个股走势确认
+3. **卖出兑现** - 分时走势监控，预期兑现即离场
+4. **复盘验证** - 历史走势回溯，验证预期有效性
+
+### 情绪拐点三板斧
+
+#### 模式1：冰点修复
+```python
+# 判断市场是否冰点
+market = service.get_market_status(date)
+is_ice_point = (market['limit_down_count'] > 15 and 
+                market['max_streak'] <= 2)
+
+# 找抗分歧标的
+popularity = service.get_stock_popularity_rank(date, 30)
+# 筛选人气前30且跌幅较小的
+```
+
+#### 模式2：龙头弱转强
+```python
+# 找爆量分歧后的龙头
+leaders = service.get_concept_leaders(date)
+# 次日观察是否高开强承接
+```
+
+#### 模式3：补涨分离
+```python
+# 龙头断板当日，找分离标的
+sequence = service.check_limit_up_sequence(concept, date)
+# 看谁在龙头弱时主动走强
+```
+
+## 注意事项
+
+1. **API 限制** - itick 有频率限制，采集全市场需控制速度
+2. **数据完整性** - 首次使用需采集当日数据，历史数据通过每日积累
+3. **概念维护** - 概念配置需手工维护，建议定期更新
+4. **缓存策略** - 数据库保留最近N天数据（配置 config.yaml）
+
+## 环境变量
+
 ```bash
 export ITICK_API_KEY="your_api_key_here"
 ```
 
-## 限制说明
+## 后续扩展
 
-⚠️ **重要限制**：
-- itick API不支持股票名称模糊搜索
-- 必须使用6位数字股票代码查询
-- 分析结果仅供参考，不构成投资建议
+- [ ] 龙虎榜数据集成
+- [ ] 资金流向计算（基于 tick 数据）
+- [ ] 分时数据缓存（精确涨停时间）
+- [ ] 消息面数据（公告、新闻）
+- [ ] 自动化调度（每日15:30自动采集）
 
-## 风险提示
+## License
 
-股市有风险，投资需谨慎。本工具仅供学习研究使用，请结合自身情况理性投资。
+MIT
