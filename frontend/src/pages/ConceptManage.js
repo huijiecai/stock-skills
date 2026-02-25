@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Row, Col, Tree, Table, Button, Modal, Form, Input, Checkbox, message, Spin } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Row, Col, Tree, Table, Button, Modal, Form, Input, Checkbox, message, Spin, Card, Space, Tag, Typography, Divider, Empty } from 'antd';
+import { PlusOutlined, DeleteOutlined, AppstoreOutlined, BranchesOutlined, InfoCircleOutlined } from '@ant-design/icons';
 import { conceptsAPI } from '../services/api';
+
+const { Title, Text, Paragraph } = Typography;
 
 export default function ConceptManage() {
   const [loading, setLoading] = useState(true);
   const [concepts, setConcepts] = useState({});
   const [treeData, setTreeData] = useState([]);
   const [selectedConcept, setSelectedConcept] = useState(null);
+  const [selectedConceptInfo, setSelectedConceptInfo] = useState(null);
   const [conceptStocks, setConceptStocks] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [form] = Form.useForm();
@@ -27,10 +30,14 @@ export default function ConceptManage() {
       const formatted = Object.entries(conceptsData).map(([key, value]) => ({
         title: key,
         key: key,
+        icon: <AppstoreOutlined />,
+        description: value.description,
         children: Object.entries(value.subconcepts || {}).map(([subKey, subValue]) => ({
-          title: `${subKey} - ${subValue.description}`,
+          title: subKey,
           key: subKey,
+          icon: <BranchesOutlined />,
           conceptName: subKey,
+          description: subValue.description,
         }))
       }));
       setTreeData(formatted);
@@ -53,6 +60,7 @@ export default function ConceptManage() {
   const handleSelect = (selectedKeys, info) => {
     if (selectedKeys.length > 0 && info.node.conceptName) {
       setSelectedConcept(info.node.conceptName);
+      setSelectedConceptInfo(info.node);
       loadConceptStocks(info.node.conceptName);
     }
   };
@@ -83,13 +91,19 @@ export default function ConceptManage() {
   };
 
   const handleRemove = async (stockCode) => {
-    try {
-      await conceptsAPI.removeStock(selectedConcept, stockCode);
-      message.success('移除成功');
-      loadConceptStocks(selectedConcept);
-    } catch (error) {
-      message.error('移除失败');
-    }
+    Modal.confirm({
+      title: '确认移除',
+      content: `确定要从 ${selectedConcept} 中移除股票 ${stockCode} 吗？`,
+      onOk: async () => {
+        try {
+          await conceptsAPI.removeStock(selectedConcept, stockCode);
+          message.success('移除成功');
+          loadConceptStocks(selectedConcept);
+        } catch (error) {
+          message.error('移除失败');
+        }
+      },
+    });
   };
 
   const columns = [
@@ -98,13 +112,18 @@ export default function ConceptManage() {
       dataIndex: 'stock_code',
       key: 'stock_code',
       width: 120,
+      render: (code) => <Text strong copyable>{code}</Text>,
     },
     {
-      title: '是否核心',
+      title: '标签',
       dataIndex: 'is_core',
       key: 'is_core',
       width: 100,
-      render: (isCore) => (isCore ? '核心' : '相关'),
+      render: (isCore) => (
+        <Tag color={isCore ? 'red' : 'blue'}>
+          {isCore ? '核心标的' : '相关标的'}
+        </Tag>
+      ),
     },
     {
       title: '操作',
@@ -112,8 +131,9 @@ export default function ConceptManage() {
       width: 100,
       render: (_, record) => (
         <Button
-          type="link"
+          type="text"
           danger
+          size="small"
           icon={<DeleteOutlined />}
           onClick={() => handleRemove(record.stock_code)}
         >
@@ -124,66 +144,167 @@ export default function ConceptManage() {
   ];
 
   if (loading) {
-    return <div style={{ textAlign: 'center', padding: '100px' }}><Spin size="large" /></div>;
+    return (
+      <div style={{ textAlign: 'center', padding: '100px' }}>
+        <Spin size="large" tip="加载概念数据..." />
+      </div>
+    );
   }
 
   return (
     <div>
-      <h2>概念管理</h2>
+      <div style={{ marginBottom: 24 }}>
+        <Title level={2}>
+          <AppstoreOutlined style={{ marginRight: 8 }} />
+          概念管理
+        </Title>
+        <Paragraph type="secondary">
+          管理股票概念层级和股票归属关系
+        </Paragraph>
+      </div>
+
       <Row gutter={24}>
+        {/* 左侧：概念树 */}
         <Col span={8}>
-          <div style={{ background: '#fff', padding: 16, minHeight: 600 }}>
-            <h3>概念树</h3>
+          <Card
+            title={
+              <Space>
+                <BranchesOutlined />
+                <span>概念层级树</span>
+                <Tag color="blue">{Object.keys(concepts).length}个大类</Tag>
+              </Space>
+            }
+            bordered={false}
+            style={{ minHeight: 600 }}
+          >
             <Tree
               treeData={treeData}
               onSelect={handleSelect}
+              showIcon
               defaultExpandAll
+              style={{ fontSize: '14px' }}
             />
-          </div>
+          </Card>
         </Col>
+
+        {/* 右侧：股票列表 */}
         <Col span={16}>
-          <div style={{ background: '#fff', padding: 16, minHeight: 600 }}>
-            <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3>
-                {selectedConcept ? `${selectedConcept} - 股票列表（${conceptStocks.length}只）` : '请选择概念'}
-              </h3>
-              {selectedConcept && (
-                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddStock}>
+          <Card
+            title={
+              selectedConcept ? (
+                <Space>
+                  <BranchesOutlined />
+                  <span>{selectedConcept}</span>
+                  <Tag color="green">{conceptStocks.length}只股票</Tag>
+                </Space>
+              ) : (
+                <Space>
+                  <InfoCircleOutlined />
+                  <span>股票列表</span>
+                </Space>
+              )
+            }
+            bordered={false}
+            style={{ minHeight: 600 }}
+            extra={
+              selectedConcept && (
+                <Button
+                  type="primary"
+                  icon={<PlusOutlined />}
+                  onClick={handleAddStock}
+                >
                   添加股票
                 </Button>
-              )}
-            </div>
-            {selectedConcept && (
-              <Table
-                columns={columns}
-                dataSource={conceptStocks}
-                rowKey="stock_code"
-                pagination={false}
+              )
+            }
+          >
+            {selectedConcept ? (
+              <>
+                {selectedConceptInfo && (
+                  <div style={{ 
+                    marginBottom: 16, 
+                    padding: 12, 
+                    background: '#f5f5f5', 
+                    borderRadius: 4 
+                  }}>
+                    <Text type="secondary">
+                      <InfoCircleOutlined style={{ marginRight: 8 }} />
+                      {selectedConceptInfo.description}
+                    </Text>
+                  </div>
+                )}
+                
+                {conceptStocks.length > 0 ? (
+                  <Table
+                    columns={columns}
+                    dataSource={conceptStocks}
+                    rowKey="stock_code"
+                    pagination={{
+                      pageSize: 20,
+                      showSizeChanger: false,
+                      showTotal: (total) => `共 ${total} 只股票`,
+                    }}
+                    size="middle"
+                  />
+                ) : (
+                  <Empty
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    description="暂无股票，点击上方按钮添加"
+                  />
+                )}
+              </>
+            ) : (
+              <Empty
+                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                description="请从左侧概念树中选择一个概念"
+                style={{ marginTop: 100 }}
               />
             )}
-          </div>
+          </Card>
         </Col>
       </Row>
 
+      {/* 添加股票对话框 */}
       <Modal
-        title={`添加股票到 ${selectedConcept}`}
+        title={
+          <Space>
+            <PlusOutlined />
+            <span>添加股票到 {selectedConcept}</span>
+          </Space>
+        }
         open={isModalVisible}
         onOk={handleSubmit}
         onCancel={() => {
           setIsModalVisible(false);
           form.resetFields();
         }}
+        okText="确定"
+        cancelText="取消"
       >
         <Form form={form} layout="vertical">
           <Form.Item
             label="股票代码"
             name="stock_code"
-            rules={[{ required: true, message: '请输入股票代码' }]}
+            rules={[
+              { required: true, message: '请输入股票代码' },
+              { pattern: /^\d{6}$/, message: '请输入6位数字股票代码' }
+            ]}
           >
-            <Input placeholder="例如：002342" />
+            <Input 
+              placeholder="例如：002342" 
+              maxLength={6}
+              style={{ fontSize: '16px' }}
+            />
           </Form.Item>
           <Form.Item name="is_core" valuePropName="checked">
-            <Checkbox>核心标的</Checkbox>
+            <Checkbox>
+              <Space>
+                <span>标记为核心标的</span>
+                <Text type="secondary" style={{ fontSize: '12px' }}>
+                  （核心标的优先级更高）
+                </Text>
+              </Space>
+            </Checkbox>
           </Form.Item>
         </Form>
       </Modal>
