@@ -3,7 +3,7 @@ data:
   cache_days: 10  # 保留最近N天数据
   
 itick:
-  api_key: "${ITICK_API_KEY}"  # 从环境变量读取
+  api_key: "446f72772d504a6a8234466581ae33192c83f8f9f3224dd989428a2ae0e3a0d8"
   base_url: "https://api.itick.io"
   timeout: 10
   

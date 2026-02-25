@@ -11,25 +11,24 @@ import os
 import time
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
+from config_loader import config
+from itick_client import ItickClient
 
 
 class HistorySyncer:
     """历史数据同步器"""
     
-    def __init__(self, db_path: str, api_key: str, base_url: str = "https://api.itick.io"):
-        self.db_path = db_path
-        self.api_key = api_key
-        self.base_url = base_url
-        self.headers = {
-            'accept': 'application/json',
-            'token': self.api_key
-        }
+    def __init__(self, db_path: str = None, api_key: str = None, base_url: str = None):
+        self.db_path = db_path or config.get_db_path()
         
-        # 涨停阈值配置
+        # 使用统一的 itick 客户端
+        self.client = ItickClient(api_key, base_url)
+        
+        # 从配置文件加载涨停阈值
         self.limit_up_threshold = {
-            'main': 0.099,
-            'growth': 0.199,
-            'st': 0.049
+            'main': config.get_limit_up_threshold('main_board'),
+            'growth': config.get_limit_up_threshold('growth_board'),
+            'st': config.get_limit_up_threshold('st_stock')
         }
     
     def _is_limit_up(self, stock_code: str, stock_name: str, change_percent: float) -> bool:
@@ -61,27 +60,16 @@ class HistorySyncer:
         Returns:
             成功同步的K线数量
         """
-        url = f"{self.base_url}/stock/kline"
-        params = {
-            'region': region,
-            'code': stock_code,
-            'period': 'day',
-            'count': 100  # 获取最近100条
-        }
+        # 使用 itick 客户端获取K线数据
+        klines = self.client.get_stock_kline(stock_code, region, period='day', count=100)
+        
+        if not klines:
+            return 0
+        
+        # 获取股票名称
+        stock_name = self._get_stock_name(stock_code, region)
         
         try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('code') != 0 or not data.get('data'):
-                return 0
-            
-            klines = data['data']
-            
-            # 获取股票名称
-            stock_name = self._get_stock_name(stock_code, region)
-            
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
@@ -144,9 +132,8 @@ class HistorySyncer:
             conn.close()
             
             return count
-            
+        
         except Exception as e:
-            print(f"❌ 获取 {stock_code} K线失败: {e}")
             return 0
     
     def _get_stock_name(self, stock_code: str, region: str) -> str:
@@ -161,15 +148,9 @@ class HistorySyncer:
             return row[0]
         
         # 如果本地没有，尝试从API获取
-        try:
-            url = f"{self.base_url}/stock/quote"
-            params = {'region': region, 'code': stock_code}
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            data = response.json()
-            if data.get('code') == 0 and data.get('data'):
-                return data['data'].get('n', stock_code)
-        except:
-            pass
+        quote = self.client.get_stock_quote(stock_code, region)
+        if quote:
+            return quote.get('n', stock_code)
         
         return stock_code
     
@@ -281,13 +262,8 @@ def main():
         print(f"❌ 数据库文件不存在: {db_path}")
         return
     
-    api_key = os.getenv('ITICK_API_KEY', '446f72772d504a6a8234466581ae33192c83f8f9f3224dd989428a2ae0e3a0d8')
-    
-    if not api_key:
-        print("❌ 请设置 ITICK_API_KEY 环境变量")
-        return
-    
-    syncer = HistorySyncer(str(db_path), api_key)
+    # 使用配置文件中的设置
+    syncer = HistorySyncer(str(db_path))
     
     # 获取要同步的天数
     days = int(sys.argv[1]) if len(sys.argv) > 1 else 10

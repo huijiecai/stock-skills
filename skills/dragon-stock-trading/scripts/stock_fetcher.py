@@ -5,20 +5,17 @@
 用于通过itick API获取A股股票实时基本信息
 """
 
-import requests
-import json
 import sys
 from typing import Dict, Optional
 import os
+from config_loader import config
+from itick_client import ItickClient
+
 
 class StockInfoFetcher:
     def __init__(self):
-        self.base_url = "https://api.itick.io"  # 正确的API域名
-        self.token = os.getenv('ITICK_API_KEY', '446f72772d504a6a8234466581ae33192c83f8f9f3224dd989428a2ae0e3a0d8')  # 从环境变量获取API密钥
-        self.headers = {
-            'accept': 'application/json',
-            'token': self.token
-        }
+        # 使用统一的 itick 客户端
+        self.client = ItickClient()
     
     def get_stock_code_and_region(self, stock_name: str) -> Optional[tuple]:
         """
@@ -27,10 +24,6 @@ class StockInfoFetcher:
         1. 直接输入6位股票代码查询
         2. 通过已知代码获取详细信息
         """
-        if not self.token:
-            print("❌ 未配置API密钥，无法查询股票信息")
-            return None
-            
         # 如果输入的是股票代码，直接返回
         if stock_name.isdigit() and len(stock_name) == 6:
             # 判断上海/深圳市场
@@ -48,65 +41,13 @@ class StockInfoFetcher:
         """
         获取股票的详细信息（行业、概念等）
         """
-        if not self.token:
-            return None
-            
-        try:
-            url = f"{self.base_url}/stock/info"
-            params = {
-                'type': 'stock',
-                'region': region,
-                'code': stock_code
-            }
-            
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('code') == 0 and data.get('data'):
-                stock_data = data['data']
-                return {
-                    'industry': stock_data.get('s', ''),  # Sector
-                    'sub_industry': stock_data.get('i', ''),  # Industry segment
-                    'company_desc': stock_data.get('bd', ''),
-                    'website': stock_data.get('wu', '')
-                }
-            return None
-            
-        except Exception as e:
-            print(f"获取股票详细信息失败: {e}")
-            return None
+        return self.client.get_stock_info(stock_code, region)
     
     def fetch_real_time_data(self, stock_code: str, region: str) -> Optional[Dict]:
         """
         通过itick API获取实时股票数据
         """
-        if not self.token:
-            return None
-            
-        url = f"{self.base_url}/stock/quote"
-        params = {
-            'region': region,
-            'code': stock_code
-        }
-        
-        try:
-            response = requests.get(url, headers=self.headers, params=params, timeout=10)
-            response.raise_for_status()
-            data = response.json()
-            
-            if data.get('code') == 0 and data.get('data'):
-                return data['data']
-            else:
-                print(f"API返回错误: {data.get('msg', '未知错误')}")
-                return None
-                
-        except requests.exceptions.RequestException as e:
-            print(f"网络请求失败: {e}")
-            return None
-        except Exception as e:
-            print(f"数据解析失败: {e}")
-            return None
+        return self.client.get_stock_quote(stock_code, region)
     
     def fetch_stock_info(self, stock_name: str) -> Dict:
         """
@@ -125,7 +66,7 @@ class StockInfoFetcher:
         # 尝试获取实时数据
         real_data = self.fetch_real_time_data(stock_code, region)
         
-        if real_data and self.token:
+        if real_data:
             # 获取详细的股票信息用于行业分类
             stock_info = self.get_detailed_stock_info(stock_code, region)
             
@@ -209,10 +150,6 @@ class StockInfoFetcher:
             if stock_info:
                 sample_data.update(stock_info)
             
-            # 如果没有API密钥，给出提示
-            if not self.token:
-                sample_data["warning"] = "⚠️ 未配置ITICK_API_KEY环境变量，显示的是模拟数据。请注册itick获取API密钥以获取实时数据。"
-            
             return sample_data
     
     def format_stock_info(self, data: Dict) -> str:
@@ -279,7 +216,7 @@ class StockInfoFetcher:
 def main():
     if len(sys.argv) != 2:
         print("使用方法: python stock_fetcher.py <股票名称>")
-        print("例如: python stock_fetcher.py 工业富联")
+        print("例如: python stock_fetcher.py 601138")
         print("\n💡 提示：如需实时数据，请设置ITICK_API_KEY环境变量")
         return
     
