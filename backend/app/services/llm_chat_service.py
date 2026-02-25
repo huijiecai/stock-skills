@@ -251,25 +251,29 @@ class LLMChatService:
                 elif role == "assistant":
                     agent_messages.append({"role": "assistant", "content": content})
             
-            # 流式执行 Deep Agent
-            async for chunk in self.agent.astream({"messages": agent_messages}):
-                # Deep Agent 返回格式处理
-                if "messages" in chunk:
-                    for message in chunk["messages"]:
-                        if hasattr(message, "content") and message.content:
-                            # 分块输出
-                            content = message.content
-                            chunk_size = 10
-                            for i in range(0, len(content), chunk_size):
-                                yield {
-                                    "type": "content",
-                                    "content": content[i:i+chunk_size]
-                                }
+            # DeepAgent astream 返回的是状态更新，不是真正的token流
+            # 我们先用 invoke 获取完整结果，然后分块输出
+            result = await self.agent.ainvoke({"messages": agent_messages})
+            
+            # 提取最终消息
+            if "messages" in result and result["messages"]:
+                last_message = result["messages"][-1]
+                if hasattr(last_message, "content") and last_message.content:
+                    content = last_message.content
+                    # 分块输出模拟流式效果
+                    chunk_size = 10
+                    for i in range(0, len(content), chunk_size):
+                        yield {
+                            "type": "content",
+                            "content": content[i:i+chunk_size]
+                        }
         
         except Exception as e:
+            import traceback
+            error_detail = traceback.format_exc()
             yield {
                 "type": "error",
-                "content": f"❌ 发生错误: {str(e)}"
+                "content": f"❌ 发生错误: {str(e)}\n{error_detail}"
             }
 
 
