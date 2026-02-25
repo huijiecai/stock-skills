@@ -131,7 +131,26 @@
     {"code": "002261", "name": "拓维信息", "market": "SZ"},
     {"code": "603019", "name": "中科曙光", "market": "SH"},
     {"code": "600460", "name": "士兰微", "market": "SH"},
-    {"code": "603893", "name": "瑞芯微", "market": "SH"}
+    {"code": "603893", "name": "瑞芯微", "market": "SH"},
+    {"code": "002009", "name": "天奇股份", "market": "SZ"},
+    {"code": "000559", "name": "万向钱潮", "market": "SZ"},
+    {"code": "603667", "name": "五洲新春", "market": "SH"},
+    {"code": "603728", "name": "鸣志电器", "market": "SH"},
+    {"code": "002050", "name": "三花智控", "market": "SZ"},
+    {"code": "601689", "name": "拓普集团", "market": "SH"},
+    {"code": "603119", "name": "浙江荣泰", "market": "SH"},
+    {"code": "600699", "name": "均胜电子", "market": "SH"},
+    {"code": "600580", "name": "卧龙电驱", "market": "SH"},
+    {"code": "603583", "name": "捷昌驱动", "market": "SH"},
+    {"code": "002553", "name": "南方精工", "market": "SZ"},
+    {"code": "300718", "name": "长盛轴承", "market": "SZ"},
+    {"code": "002896", "name": "中大力德", "market": "SZ"},
+    {"code": "002611", "name": "东方精工", "market": "SZ"},
+    {"code": "688017", "name": "绿的谐波", "market": "SH"},
+    {"code": "002915", "name": "中欣氟材", "market": "SZ"},
+    {"code": "600143", "name": "金发科技", "market": "SH"},
+    {"code": "688585", "name": "上纬新材", "market": "SH"},
+    {"code": "002276", "name": "万马股份", "market": "SZ"}
   ]
 }
 
