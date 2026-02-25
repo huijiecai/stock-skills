@@ -1,12 +1,11 @@
 """
-LLM 聊天服务 - 基于 LangChain 实现
+LLM 聊天服务 - 基于 LangChain + AgentSkills 规范实现
 
-使用 LangChain 的优势：
-1. 原生支持 AgentSkills 规范（SKILL.md）
-2. 渐进式加载（只在需要时读取完整 skill）
-3. 智谱AI GLM-4 原生集成
-4. 流式工具调用自动处理
-5. 统一接口，换模型只需改配置
+架构说明：
+1. 从 SKILL.md 读取技能定义（单一数据源）
+2. 使用 @tool 装饰器定义后端工具
+3. ChatZhipuAI + Agent 执行
+4. 流式输出（修复重复问题）
 """
 
 import os
@@ -15,10 +14,10 @@ from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional
 from datetime import datetime
 
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import AIMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_community.chat_models import ChatZhipuAI
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.agents import AgentExecutor, create_tool_calling_agent
 
 from app.services.query_service import QueryService
@@ -204,26 +203,30 @@ def read_reference(doc_name: str) -> str:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 
 
-# ==================== LLM 服务 ====================
+# ==================== Skill 加载 ====================
 
-def _load_skill_core() -> str:
+def _load_skill() -> str:
     """
-    加载 SKILL.md 的核心部分（约前60行）作为系统提示
+    加载 SKILL.md 并构建系统提示
     
-    这样做的好处：
-    1. 保持单一数据源（SKILL.md）
-    2. 不会一次性加载所有内容（避免context过长）
-    3. reference文档通过 read_reference 工具按需加载
+    遵循 AgentSkills 规范：
+    1. 从 SKILL.md 读取核心描述（前60行）
+    2. 工具定义在代码中（上面的 @tool）
+    3. 详细文档通过 read_reference 工具按需加载
+    
+    Returns:
+        完整的系统提示
     """
     skill_path = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading" / "SKILL.md"
     
     if not skill_path.exists():
-        return "龙头战法智能分析助手"
+        return "你是龙头战法智能分析助手。"
     
+    # 读取 SKILL.md 核心部分
     content = skill_path.read_text(encoding="utf-8")
-    
-    # 只取到 "## 使用方法" 之前的部分（核心说明）
     lines = content.split("\n")
+    
+    # 只取到 "## 使用方法" 之前的部分
     core_lines = []
     for line in lines:
         if line.startswith("## 使用方法"):
@@ -238,34 +241,37 @@ def _load_skill_core() -> str:
 ## 可用工具
 
 你可以调用以下工具获取数据：
-1. **get_stock_detail** - 获取个股详细信息
-2. **get_market_sentiment** - 获取市场整体情绪
-3. **get_popularity_rank** - 获取人气股票排行
-4. **get_concept_heatmap** - 获取概念热度排行
+
+1. **get_stock_detail** - 获取个股详细信息（价格、涨跌幅、成交量）
+2. **get_market_sentiment** - 获取市场整体情绪（涨停数、跌停数）
+3. **get_popularity_rank** - 获取人气股票排行（按成交额）
+4. **get_concept_heatmap** - 获取概念板块热度排行
 5. **get_concept_leaders** - 获取概念龙头股
 6. **get_concept_stocks** - 获取概念成分股
 7. **analyze_stock** - 综合分析个股
 8. **read_reference** - 查阅详细的参考文档
 
-## 分析建议
+## 分析流程
 
-进行分析时，建议：
-1. 先获取市场整体情绪和概念热度
-2. 识别热门概念和龙头股
-3. 深入分析个股的各项指标
-4. 如需详细理论，使用 read_reference 工具查阅文档
-5. 基于数据给出明确的结论和建议
+1. **了解需求** - 明确用户想分析什么
+2. **获取数据** - 调用工具获取相关数据
+3. **深入分析** - 基于龙头战法理论分析数据
+4. **给出结论** - 提供明确的投资建议
+
+如需详细理论，使用 `read_reference` 工具查阅文档。
 """
     
     return system_prompt
 
 
-SYSTEM_PROMPT = _load_skill_core()
+SYSTEM_PROMPT = _load_skill()
 
+
+# ==================== LLM 服务 ====================
 
 class LLMChatService:
     """
-    LangChain 版 LLM 聊天服务
+    LangChain 版 LLM 聊天服务（修复流式重复问题）
     """
     
     def __init__(self):
@@ -299,9 +305,9 @@ class LLMChatService:
         # 创建提示模板
         self.prompt = ChatPromptTemplate.from_messages([
             ("system", SYSTEM_PROMPT),
-            ("placeholder", "{chat_history}"),
+            MessagesPlaceholder("chat_history", optional=True),
             ("human", "{input}"),
-            ("placeholder", "{agent_scratchpad}"),
+            MessagesPlaceholder("agent_scratchpad"),
         ])
         
         # 创建 Agent
@@ -319,10 +325,15 @@ class LLMChatService:
         date: Optional[str] = None
     ) -> AsyncGenerator[Dict, None]:
         """
-        流式聊天响应（使用 LangChain Agent）
+        流式聊天响应（修复重复问题）
+        
+        解决方案：
+        1. 升级到最新 LangChain（bug已修复）
+        2. 使用 astream 而不是 astream_events（更简单）
+        3. 只输出最终结果的流式内容
         
         Args:
-            messages: 消息历史列表 [{"role": "user", "content": "..."}]
+            messages: 消息历史列表
             date: 可选的日期参数
         
         Yields:
@@ -341,27 +352,26 @@ class LLMChatService:
                     user_input = content
                 elif role == "assistant":
                     chat_history.append(AIMessage(content=content))
-                elif role == "system":
-                    pass  # system message 已在 prompt 中
             
             # 如果提供了日期，添加到用户输入
             if date and user_input:
                 user_input = f"[分析日期: {date}]\n{user_input}"
             
-            # 流式执行 Agent
+            # 使用 astream 流式执行
             async for chunk in self.agent_executor.astream({
                 "input": user_input,
                 "chat_history": chat_history
             }):
-                # LangChain 的流式输出格式
+                # 只输出最终的 output
                 if "output" in chunk:
-                    yield {
-                        "type": "content",
-                        "content": chunk["output"]
-                    }
-                elif "intermediate_steps" in chunk:
-                    # 工具调用中间步骤（可选：是否要显示给用户）
-                    pass
+                    output = chunk["output"]
+                    # 分块输出（模拟流式效果）
+                    chunk_size = 10
+                    for i in range(0, len(output), chunk_size):
+                        yield {
+                            "type": "content",
+                            "content": output[i:i+chunk_size]
+                        }
         
         except Exception as e:
             yield {
