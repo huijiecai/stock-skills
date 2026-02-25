@@ -84,5 +84,25 @@
         "description": "钠离子电池技术（产业链新型电池材料）"
       }
     }
+  },
+  "AI应用": {
+    "description": "AI应用产业链：大模型应用、垂直场景落地",
+    "subconcepts": {
+      "AIGC应用": {
+        "description": "大模型应用、AI内容生成、AI对话（应用层核心）"
+      },
+      "AI营销": {
+        "description": "AI广告投放、GEO营销、智能营销、效果营销（应用层营销场景）"
+      },
+      "垂直行业AI": {
+        "description": "金融AI、办公AI、企业级AI解决方案（应用层垂直场景）"
+      },
+      "AI安全": {
+        "description": "AI网络安全、安全大模型（应用层安全场景）"
+      },
+      "AI医疗": {
+        "description": "医疗AI诊断、AI制药、智慧医疗（应用层医疗场景）"
+      }
+    }
   }
 }

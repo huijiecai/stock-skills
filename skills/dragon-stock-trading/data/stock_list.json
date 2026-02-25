@@ -56,7 +56,23 @@
     {"code": "002149", "name": "西部材料", "market": "SZ"},
     {"code": "002565", "name": "顺灏股份", "market": "SZ"},
     {"code": "002413", "name": "雷科防务", "market": "SZ"},
-    {"code": "002792", "name": "通宇通讯", "market": "SZ"}
+    {"code": "002792", "name": "通宇通讯", "market": "SZ"},
+    {"code": "300418", "name": "昆仑万维", "market": "SZ"},
+    {"code": "300058", "name": "蓝色光标", "market": "SZ"},
+    {"code": "601360", "name": "三六零", "market": "SH"},
+    {"code": "603466", "name": "风语筑", "market": "SH"},
+    {"code": "300182", "name": "捷成股份", "market": "SZ"},
+    {"code": "603533", "name": "掌阅科技", "market": "SH"},
+    {"code": "300364", "name": "中文在线", "market": "SZ"},
+    {"code": "603000", "name": "人民网", "market": "SH"},
+    {"code": "603598", "name": "引力传媒", "market": "SH"},
+    {"code": "002400", "name": "省广集团", "market": "SZ"},
+    {"code": "002291", "name": "星期六", "market": "SZ"},
+    {"code": "002995", "name": "天地在线", "market": "SZ"},
+    {"code": "002131", "name": "利欧股份", "market": "SZ"},
+    {"code": "301171", "name": "易点天下", "market": "SZ"},
+    {"code": "600986", "name": "浙文互联", "market": "SH"},
+    {"code": "600416", "name": "华能水电", "market": "SH"}
   ]
 }
 
