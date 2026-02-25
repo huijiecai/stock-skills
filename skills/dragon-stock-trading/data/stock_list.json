@@ -21,6 +21,23 @@
     {"code": "600230", "name": "沧州大化", "market": "SH"},
     {"code": "601117", "name": "中国化学", "market": "SH"},
     {"code": "000949", "name": "新乡化纤", "market": "SZ"},
-    {"code": "300927", "name": "江天化学", "market": "SZ"}
+    {"code": "300927", "name": "江天化学", "market": "SZ"},
+    {"code": "002003", "name": "大中矿业", "market": "SZ"},
+    {"code": "002466", "name": "天齐锂业", "market": "SZ"},
+    {"code": "002460", "name": "赣锋锂业", "market": "SZ"},
+    {"code": "002240", "name": "盛新锂能", "market": "SZ"},
+    {"code": "300750", "name": "宁德时代", "market": "SZ"},
+    {"code": "300014", "name": "亿纬锂能", "market": "SZ"},
+    {"code": "002074", "name": "国轩高科", "market": "SZ"},
+    {"code": "300207", "name": "欣旺达", "market": "SZ"},
+    {"code": "002709", "name": "天赐材料", "market": "SZ"},
+    {"code": "002407", "name": "多氟多", "market": "SZ"},
+    {"code": "603659", "name": "璞泰来", "market": "SH"},
+    {"code": "603799", "name": "华友钴业", "market": "SH"},
+    {"code": "300274", "name": "阳光电源", "market": "SZ"},
+    {"code": "603778", "name": "国瓷科技", "market": "SH"},
+    {"code": "603067", "name": "振华股份", "market": "SH"},
+    {"code": "300480", "name": "先登股份", "market": "SZ"},
+    {"code": "002759", "name": "天际股份", "market": "SZ"}
   ]
 }
