@@ -225,7 +225,8 @@ def main():
     from datetime import datetime
     
     script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent
+    # 计算项目根目录（需要往上3层：scripts -> dragon-stock-trading -> skills -> stock）
+    project_root = script_dir.parent.parent.parent
     db_path = project_root / "data" / "dragon_stock.db"
     config_file = project_root / "data" / "concepts.json"
     

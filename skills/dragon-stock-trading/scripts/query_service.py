@@ -390,7 +390,8 @@ def main():
     from datetime import datetime
     
     script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent
+    # 计算项目根目录（需要往上3层）
+    project_root = script_dir.parent.parent.parent
     db_path = project_root / "data" / "dragon_stock.db"
     
     if not db_path.exists():

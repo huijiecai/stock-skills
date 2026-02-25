@@ -282,7 +282,8 @@ class MarketDataFetcher:
         if stock_list_file is None:
             from pathlib import Path
             script_dir = Path(__file__).resolve().parent
-            project_root = script_dir.parent
+            # 计算项目根目录（需要往上3层）
+            project_root = script_dir.parent.parent.parent
             stock_list_file = project_root / "data" / "stock_list.json"
         
         import json
@@ -312,7 +313,8 @@ def main():
     
     # 获取数据库路径和API密钥
     script_dir = Path(__file__).resolve().parent
-    project_root = script_dir.parent
+    # 计算项目根目录（需要往上3层）
+    project_root = script_dir.parent.parent.parent
     db_path = project_root / "data" / "dragon_stock.db"
     
     if not db_path.exists():
