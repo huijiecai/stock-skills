@@ -73,9 +73,53 @@ description: 股票分析工具，输入股票代码或名称，获取实时行�
 4. 判断板块联动情况
 5. 给出操作建议
 
-### 技术实现（开发者）
+### 技术实现（LLM/开发者）
 
-如需了解底层数据获取方法，请参考：
+**通过Web平台API访问数据**（推荐）：
+
+系统提供了统一的Web API接口，LLM可以通过API Client获取所有需要的数据：
+
+```python
+from scripts.skill_api_client import SkillAPIClient
+
+# 初始化API客户端（确保Web平台已启动在8000端口）
+client = SkillAPIClient(base_url="http://localhost:8000")
+
+# 1. 获取市场情绪
+market = client.get_market_sentiment("2026-02-25")
+# 返回：market_phase, limit_up_count, limit_down_count, max_streak
+
+# 2. 分析个股是否符合龙头标准
+analysis = client.analyze_stock("002342", "2026-02-25")
+# 返回：is_leader_candidate, market_phase, popularity_rank, concepts, suggestion
+
+# 3. 获取人气榜
+popularity = client.get_popularity_rank("2026-02-25", limit=30)
+# 返回：排名前30的股票及其成交额、涨幅
+
+# 4. 获取概念热度
+heatmap = client.get_concept_heatmap("2026-02-25")
+# 返回：各概念的涨停家数、领涨股、平均涨幅
+
+# 5. 获取龙头候选
+leaders = client.get_leaders("2026-02-25")
+# 返回：概念龙头和人气龙头列表
+```
+
+**API Client完整方法**：
+- `get_market_sentiment(date)` - 市场情绪
+- `get_stock_detail(code, date)` - 个股详情
+- `get_popularity_rank(date, limit)` - 人气榜
+- `get_concepts()` - 概念树
+- `get_concept_stocks(concept_name)` - 概念下的股票
+- `get_concept_heatmap(date)` - 概念热力图
+- `analyze_stock(code, date)` - 龙头分析
+- `analyze_concept(concept_name, date)` - 概念分析
+- `get_leaders(date)` - 龙头候选
+
+**底层数据获取**（仅供开发/调试）：
+
+如需直接访问数据库或了解底层实现，请参考：
 - [数据查询API](reference/数据查询API.md) - 6类数据的详细查询方法
 - [数据库设计](reference/数据库设计.md) - 表结构和字段说明
 - [概念配置指南](reference/概念配置指南.md) - concepts.json 维护方法

@@ -1,0 +1,48 @@
+{
+  "name": "dragon-stock-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "龙头战法Web平台前端",
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.0",
+    "antd": "^5.12.0",
+    "axios": "^1.6.2",
+    "@ant-design/icons": "^5.2.6",
+    "@ant-design/pro-components": "^2.6.43",
+    "echarts": "^5.4.3",
+    "echarts-for-react": "^3.0.2",
+    "dayjs": "^1.11.10"
+  },
+  "devDependencies": {
+    "react-scripts": "5.0.1",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
+    "typescript": "^5.3.3"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:8000"
+}
