@@ -1,11 +1,11 @@
 """
-LLM 聊天服务 - 基于 LangChain + AgentSkills 规范实现
+LLM 聊天服务 - 基于 DeepAgents + AgentSkills 规范实现
 
-架构说明：
-1. 从 SKILL.md 读取技能定义（单一数据源）
-2. 使用 @tool 装饰器定义后端工具
-3. ChatZhipuAI + Agent 执行
-4. 流式输出（修复重复问题）
+正确的架构：
+1. 使用 create_deep_agent 加载 SKILL.md
+2. 使用 @tool 定义后端服务工具
+3. Skills 自动按需加载（渐进式披露）
+4. 智谱AI GLM-4 作为底层模型
 """
 
 import os
@@ -14,11 +14,10 @@ from pathlib import Path
 from typing import AsyncGenerator, Dict, List, Optional
 from datetime import datetime
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.tools import tool
 from langchain_community.chat_models import ChatZhipuAI
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain.agents import AgentExecutor, create_tool_calling_agent
+from deepagents import create_deep_agent
 
 from app.services.query_service import QueryService
 
@@ -170,108 +169,17 @@ def analyze_stock(stock_code: str, date: Optional[str] = None) -> str:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
 
 
-@tool
-def read_reference(doc_name: str) -> str:
-    """
-    查阅龙头战法参考文档，获取详细的理论指导、数据查询方法、案例分析等
-    
-    可用文档：
-    - 龙头战法理论.md: 核心理论和选股逻辑
-    - 数据查询API.md: 所有可用的查询接口说明
-    - 技术指标详解.md: 技术指标计算和应用
-    - 风险控制.md: 风险管理和止损策略
-    - 系统架构.md: 整体系统设计
-    - 数据库设计.md: 数据表结构说明
-    - 概念配置指南.md: 概念分类配置方法
-    
-    Args:
-        doc_name: 文档名称
-    
-    Returns:
-        文档内容（Markdown格式）
-    """
-    try:
-        reference_dir = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading" / "reference"
-        doc_path = reference_dir / doc_name
-        
-        if not doc_path.exists():
-            return json.dumps({"error": f"文档不存在: {doc_name}"}, ensure_ascii=False)
-        
-        content = doc_path.read_text(encoding="utf-8")
-        return json.dumps({"doc_name": doc_name, "content": content}, ensure_ascii=False)
-    except Exception as e:
-        return json.dumps({"error": str(e)}, ensure_ascii=False)
-
-
-# ==================== Skill 加载 ====================
-
-def _load_skill() -> str:
-    """
-    加载 SKILL.md 并构建系统提示
-    
-    遵循 AgentSkills 规范：
-    1. 从 SKILL.md 读取核心描述（前60行）
-    2. 工具定义在代码中（上面的 @tool）
-    3. 详细文档通过 read_reference 工具按需加载
-    
-    Returns:
-        完整的系统提示
-    """
-    skill_path = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading" / "SKILL.md"
-    
-    if not skill_path.exists():
-        return "你是龙头战法智能分析助手。"
-    
-    # 读取 SKILL.md 核心部分
-    content = skill_path.read_text(encoding="utf-8")
-    lines = content.split("\n")
-    
-    # 只取到 "## 使用方法" 之前的部分
-    core_lines = []
-    for line in lines:
-        if line.startswith("## 使用方法"):
-            break
-        core_lines.append(line)
-    
-    skill_core = "\n".join(core_lines[:60])  # 限制在60行内
-    
-    # 构建完整的系统提示
-    system_prompt = f"""{skill_core}
-
-## 可用工具
-
-你可以调用以下工具获取数据：
-
-1. **get_stock_detail** - 获取个股详细信息（价格、涨跌幅、成交量）
-2. **get_market_sentiment** - 获取市场整体情绪（涨停数、跌停数）
-3. **get_popularity_rank** - 获取人气股票排行（按成交额）
-4. **get_concept_heatmap** - 获取概念板块热度排行
-5. **get_concept_leaders** - 获取概念龙头股
-6. **get_concept_stocks** - 获取概念成分股
-7. **analyze_stock** - 综合分析个股
-8. **read_reference** - 查阅详细的参考文档
-
-## 分析流程
-
-1. **了解需求** - 明确用户想分析什么
-2. **获取数据** - 调用工具获取相关数据
-3. **深入分析** - 基于龙头战法理论分析数据
-4. **给出结论** - 提供明确的投资建议
-
-如需详细理论，使用 `read_reference` 工具查阅文档。
-"""
-    
-    return system_prompt
-
-
-SYSTEM_PROMPT = _load_skill()
-
-
 # ==================== LLM 服务 ====================
 
 class LLMChatService:
     """
-    LangChain 版 LLM 聊天服务（修复流式重复问题）
+    DeepAgents 版 LLM 聊天服务
+    
+    使用 create_deep_agent 自动加载 Skills：
+    - Skills 路径：skills/dragon-stock-trading/
+    - 自动读取 SKILL.md
+    - 按需加载 reference 文档
+    - 自带文件系统工具
     """
     
     def __init__(self):
@@ -280,17 +188,17 @@ class LLMChatService:
         if not api_key:
             raise ValueError("ZHIPUAI_API_KEY or OPENAI_API_KEY environment variable not set")
         
-        model = os.getenv("ZHIPUAI_MODEL", "glm-4-plus")
+        model_name = os.getenv("ZHIPUAI_MODEL", "glm-4-plus")
         
         # 初始化智谱AI模型
         self.llm = ChatZhipuAI(
-            model=model,
+            model=model_name,
             api_key=api_key,
             streaming=True,
             temperature=0.7
         )
         
-        # 定义所有工具
+        # 定义后端服务工具
         self.tools = [
             get_stock_detail,
             get_market_sentiment,
@@ -298,25 +206,18 @@ class LLMChatService:
             get_concept_heatmap,
             get_concept_leaders,
             get_concept_stocks,
-            analyze_stock,
-            read_reference
+            analyze_stock
         ]
         
-        # 创建提示模板
-        self.prompt = ChatPromptTemplate.from_messages([
-            ("system", SYSTEM_PROMPT),
-            MessagesPlaceholder("chat_history", optional=True),
-            ("human", "{input}"),
-            MessagesPlaceholder("agent_scratchpad"),
-        ])
+        # Skills 路径
+        skills_dir = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading"
         
-        # 创建 Agent
-        self.agent = create_tool_calling_agent(self.llm, self.tools, self.prompt)
-        self.agent_executor = AgentExecutor(
-            agent=self.agent,
+        # 创建 Deep Agent（自动加载 Skills）
+        self.agent = create_deep_agent(
+            model=self.llm,
             tools=self.tools,
-            verbose=False,
-            handle_parsing_errors=True
+            skills=[str(skills_dir)],  # 传入 skills 目录
+            system_prompt=None  # 让 Deep Agent 自动从 SKILL.md 读取
         )
     
     async def chat_stream(
@@ -325,12 +226,7 @@ class LLMChatService:
         date: Optional[str] = None
     ) -> AsyncGenerator[Dict, None]:
         """
-        流式聊天响应（修复重复问题）
-        
-        解决方案：
-        1. 升级到最新 LangChain（bug已修复）
-        2. 使用 astream 而不是 astream_events（更简单）
-        3. 只输出最终结果的流式内容
+        流式聊天响应（使用 Deep Agent）
         
         Args:
             messages: 消息历史列表
@@ -340,38 +236,35 @@ class LLMChatService:
             流式响应chunk
         """
         try:
-            # 转换消息格式
-            chat_history = []
-            user_input = ""
+            # 构建消息列表（Deep Agent 格式）
+            agent_messages = []
             
             for msg in messages:
                 role = msg.get("role")
                 content = msg.get("content", "")
                 
                 if role == "user":
-                    user_input = content
+                    # 如果提供了日期，添加到用户消息
+                    if date:
+                        content = f"[分析日期: {date}]\n{content}"
+                    agent_messages.append({"role": "user", "content": content})
                 elif role == "assistant":
-                    chat_history.append(AIMessage(content=content))
+                    agent_messages.append({"role": "assistant", "content": content})
             
-            # 如果提供了日期，添加到用户输入
-            if date and user_input:
-                user_input = f"[分析日期: {date}]\n{user_input}"
-            
-            # 使用 astream 流式执行
-            async for chunk in self.agent_executor.astream({
-                "input": user_input,
-                "chat_history": chat_history
-            }):
-                # 只输出最终的 output
-                if "output" in chunk:
-                    output = chunk["output"]
-                    # 分块输出（模拟流式效果）
-                    chunk_size = 10
-                    for i in range(0, len(output), chunk_size):
-                        yield {
-                            "type": "content",
-                            "content": output[i:i+chunk_size]
-                        }
+            # 流式执行 Deep Agent
+            async for chunk in self.agent.astream({"messages": agent_messages}):
+                # Deep Agent 返回格式处理
+                if "messages" in chunk:
+                    for message in chunk["messages"]:
+                        if hasattr(message, "content") and message.content:
+                            # 分块输出
+                            content = message.content
+                            chunk_size = 10
+                            for i in range(0, len(content), chunk_size):
+                                yield {
+                                    "type": "content",
+                                    "content": content[i:i+chunk_size]
+                                }
         
         except Exception as e:
             yield {
