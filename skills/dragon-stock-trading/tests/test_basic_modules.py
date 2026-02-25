@@ -101,26 +101,22 @@ class TestConceptManager(unittest.TestCase):
         initializer = DatabaseInitializer(self.test_db)
         initializer.init_database()
         
-        # 创建测试配置文件（只包含概念定义）
+        # 创建测试配置文件（简化格式：只有层级和描述）
         import json
         test_concepts = {
             "测试大类1": {
-                "category": "测试类别",
-                "description": "测试用大类1",
+                "description": "测试用大类1（测试环节）",
                 "subconcepts": {
                     "测试概念1": {
-                        "description": "测试细分概念1",
-                        "keywords": ["测试"]
+                        "description": "测试细分概念1（产业链上游）"
                     }
                 }
             },
             "测试大类2": {
-                "category": "测试类别2",
-                "description": "测试用大类2",
+                "description": "测试用大类2（测试环节）",
                 "subconcepts": {
                     "测试概念2": {
-                        "description": "测试细分概念2",
-                        "keywords": ["测试2"]
+                        "description": "测试细分概念2（产业链中游）"
                     }
                 }
             }

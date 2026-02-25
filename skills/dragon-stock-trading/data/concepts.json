@@ -1,29 +1,23 @@
 {
   "商业航天": {
-    "category": "军工",
-    "description": "商业航天产业链相关概念",
+    "description": "商业航天产业链：火箭发射、卫星制造、地面设备",
     "subconcepts": {
       "商业航天": {
-        "description": "商业火箭发射、卫星制造等",
-        "keywords": ["火箭", "卫星", "航天器", "商业航天"]
+        "description": "火箭发射服务、卫星制造（产业链核心环节）"
       }
     }
   },
   "化工": {
-    "category": "基础材料",
-    "description": "化工行业细分领域",
+    "description": "化工细分行业",
     "subconcepts": {
       "磷化工": {
-        "description": "磷矿开采、磷酸生产等",
-        "keywords": ["磷矿", "磷酸", "磷肥", "磷化工"]
+        "description": "磷矿开采、磷酸生产（产业链上游原材料）"
       },
       "氟化工": {
-        "description": "氟化物、制冷剂生产等",
-        "keywords": ["氟化物", "制冷剂", "氟化工"]
+        "description": "氟化物、制冷剂生产（产业链中游化工品）"
       },
       "玻纤": {
-        "description": "玻璃纤维及复合材料",
-        "keywords": ["玻璃纤维", "复合材料", "玻纤"]
+        "description": "玻璃纤维及复合材料（产业链中游材料）"
       }
     }
   }
