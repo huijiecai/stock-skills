@@ -120,7 +120,18 @@
     {"code": "600183", "name": "生益科技", "market": "SH"},
     {"code": "300394", "name": "天孚通信", "market": "SZ"},
     {"code": "300502", "name": "新易盛", "market": "SZ"},
-    {"code": "300308", "name": "中际旭创", "market": "SZ"}
+    {"code": "300308", "name": "中际旭创", "market": "SZ"},
+    {"code": "002119", "name": "康强电子", "market": "SZ"},
+    {"code": "603929", "name": "亚翔集成", "market": "SH"},
+    {"code": "688981", "name": "中芯国际", "market": "SH"},
+    {"code": "002185", "name": "华天科技", "market": "SZ"},
+    {"code": "688256", "name": "寒武纪", "market": "SH"},
+    {"code": "688041", "name": "海光信息", "market": "SH"},
+    {"code": "000977", "name": "浪潮信息", "market": "SZ"},
+    {"code": "002261", "name": "拓维信息", "market": "SZ"},
+    {"code": "603019", "name": "中科曙光", "market": "SH"},
+    {"code": "600460", "name": "士兰微", "market": "SH"},
+    {"code": "603893", "name": "瑞芯微", "market": "SH"}
   ]
 }
 
