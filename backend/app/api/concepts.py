@@ -7,7 +7,7 @@ from app.models.requests import StockConceptAdd, ConceptUpdate
 
 router = APIRouter()
 project_root = Path(__file__).parent.parent.parent.parent
-concepts_file = project_root / "skills" / "dragon-stock-trading" / "data" / "concepts.json"
+concepts_file = project_root / "data" / "concepts.json"
 
 
 @router.get("")

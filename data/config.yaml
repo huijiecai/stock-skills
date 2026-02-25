@@ -1,0 +1,14 @@
+data:
+  db_path: "./data/dragon_stock.db"
+  cache_days: 10  # 保留最近N天数据
+  
+itick:
+  api_key: "446f72772d504a6a8234466581ae33192c83f8f9f3224dd989428a2ae0e3a0d8"
+  base_url: "https://api.itick.io"
+  timeout: 10
+  
+limit_up:
+  # 涨停阈值（允许0.1%误差）
+  main_board: 0.099      # 主板/中小板 10%
+  growth_board: 0.199    # 创业板/科创板 20%
+  st_stock: 0.049        # ST股票 5%

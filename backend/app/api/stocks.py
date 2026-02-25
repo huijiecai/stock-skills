@@ -8,7 +8,7 @@ from app.models.requests import StockAdd
 
 router = APIRouter()
 project_root = Path(__file__).parent.parent.parent.parent
-stock_list_file = project_root / "skills" / "dragon-stock-trading" / "data" / "stock_list.json"
+stock_list_file = project_root / "data" / "stock_list.json"
 
 
 @router.get("")

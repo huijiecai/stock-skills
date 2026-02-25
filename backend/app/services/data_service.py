@@ -3,7 +3,12 @@ from pathlib import Path
 from typing import Optional
 
 # 添加skills/dragon-stock-trading/scripts目录到Python路径
-project_root = Path(__file__).parent.parent.parent
+# __file__ -> data_service.py
+# parent -> services/
+# parent -> app/
+# parent -> backend/
+# parent -> stock/
+project_root = Path(__file__).parent.parent.parent.parent
 scripts_path = project_root / "skills" / "dragon-stock-trading" / "scripts"
 sys.path.insert(0, str(scripts_path))
 
@@ -18,7 +23,8 @@ class DataService:
     """数据服务，封装对现有scripts模块的调用"""
     
     def __init__(self):
-        db_path = project_root / "skills" / "dragon-stock-trading" / "data" / "dragon_stock.db"
+        # 数据文件统一放在项目根目录的data文件夹
+        db_path = project_root / "data" / "dragon_stock.db"
         self.db_path = str(db_path)
         self.query_service = QueryService(self.db_path)
         self.market_fetcher = MarketDataFetcher(self.db_path)
