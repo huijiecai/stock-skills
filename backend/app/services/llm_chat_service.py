@@ -1,363 +1,317 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-LLM聊天服务
-提供与LLM的交互功能，支持流式响应和Function Calling
+LLM 聊天服务 - 基于 LangChain 实现
+
+使用 LangChain 的优势：
+1. 原生支持 AgentSkills 规范（SKILL.md）
+2. 渐进式加载（只在需要时读取完整 skill）
+3. 智谱AI GLM-4 原生集成
+4. 流式工具调用自动处理
+5. 统一接口，换模型只需改配置
 """
 
 import os
 import json
 from pathlib import Path
-from typing import List, Dict, Optional, AsyncGenerator
-from openai import AsyncOpenAI
-from app.services.analysis_service import get_analysis_service
-from app.services.data_service import get_data_service
+from typing import AsyncGenerator, Dict, List, Optional
+from datetime import datetime
 
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.tools import tool
+from langchain_community.chat_models import ChatZhipuAI
+from langchain_core.prompts import ChatPromptTemplate
+from langchain.agents import AgentExecutor, create_tool_calling_agent
+
+from app.services.query_service import QueryService
+
+
+# ==================== 工具定义 ====================
+
+@tool
+def get_stock_detail(stock_code: str, date: Optional[str] = None) -> str:
+    """
+    获取股票详细信息（价格、涨跌幅、成交量等）
+    
+    Args:
+        stock_code: 股票代码（如 000001, 600000）
+        date: 查询日期（YYYY-MM-DD），默认为最新交易日
+    
+    Returns:
+        JSON格式的股票详细信息
+    """
+    try:
+        query_service = QueryService()
+        date = date or datetime.now().strftime("%Y-%m-%d")
+        result = query_service.get_stock_detail(stock_code, date)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
+def get_market_sentiment(date: Optional[str] = None) -> str:
+    """
+    获取市场整体情绪（涨停数、跌停数、涨跌比等）
+    
+    Args:
+        date: 查询日期（YYYY-MM-DD），默认为今天
+    
+    Returns:
+        JSON格式的市场情绪数据
+    """
+    try:
+        query_service = QueryService()
+        date = date or datetime.now().strftime("%Y-%m-%d")
+        result = query_service.get_market_sentiment(date)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
+def get_popularity_rank(date: Optional[str] = None, limit: int = 10) -> str:
+    """
+    获取人气股票排行（按成交额排序）
+    
+    Args:
+        date: 查询日期（YYYY-MM-DD），默认为今天
+        limit: 返回数量，默认10
+    
+    Returns:
+        JSON格式的人气股票列表
+    """
+    try:
+        query_service = QueryService()
+        date = date or datetime.now().strftime("%Y-%m-%d")
+        result = query_service.get_popularity_rank(date, limit)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
+def get_concept_heatmap(date: Optional[str] = None, limit: int = 10) -> str:
+    """
+    获取概念板块热度排行
+    
+    Args:
+        date: 查询日期（YYYY-MM-DD），默认为今天
+        limit: 返回数量，默认10
+    
+    Returns:
+        JSON格式的概念热度数据
+    """
+    try:
+        query_service = QueryService()
+        date = date or datetime.now().strftime("%Y-%m-%d")
+        result = query_service.get_concept_heatmap(date, limit)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
+def get_concept_leaders(concept_id: str, date: Optional[str] = None, limit: int = 5) -> str:
+    """
+    获取概念板块内的龙头股票
+    
+    Args:
+        concept_id: 概念ID
+        date: 查询日期（YYYY-MM-DD），默认为今天
+        limit: 返回数量，默认5
+    
+    Returns:
+        JSON格式的龙头股票列表
+    """
+    try:
+        query_service = QueryService()
+        date = date or datetime.now().strftime("%Y-%m-%d")
+        result = query_service.get_concept_leaders(concept_id, date, limit)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
+def get_concept_stocks(concept_id: str) -> str:
+    """
+    获取概念板块包含的所有股票
+    
+    Args:
+        concept_id: 概念ID
+    
+    Returns:
+        JSON格式的股票列表
+    """
+    try:
+        query_service = QueryService()
+        result = query_service.get_concept_stocks(concept_id)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
+def analyze_stock(stock_code: str, date: Optional[str] = None) -> str:
+    """
+    综合分析个股（价格、成交量、所属概念、概念热度等）
+    
+    Args:
+        stock_code: 股票代码
+        date: 查询日期（YYYY-MM-DD），默认为今天
+    
+    Returns:
+        JSON格式的综合分析结果
+    """
+    try:
+        query_service = QueryService()
+        date = date or datetime.now().strftime("%Y-%m-%d")
+        result = query_service.analyze_stock(stock_code, date)
+        return json.dumps(result, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+@tool
+def read_reference(doc_name: str) -> str:
+    """
+    查阅龙头战法参考文档，获取详细的理论指导、数据查询方法、案例分析等
+    
+    可用文档：
+    - 龙头战法理论.md: 核心理论和选股逻辑
+    - 数据查询API.md: 所有可用的查询接口说明
+    - 技术指标详解.md: 技术指标计算和应用
+    - 风险控制.md: 风险管理和止损策略
+    - 系统架构.md: 整体系统设计
+    - 数据库设计.md: 数据表结构说明
+    - 概念配置指南.md: 概念分类配置方法
+    
+    Args:
+        doc_name: 文档名称
+    
+    Returns:
+        文档内容（Markdown格式）
+    """
+    try:
+        reference_dir = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading" / "reference"
+        doc_path = reference_dir / doc_name
+        
+        if not doc_path.exists():
+            return json.dumps({"error": f"文档不存在: {doc_name}"}, ensure_ascii=False)
+        
+        content = doc_path.read_text(encoding="utf-8")
+        return json.dumps({"doc_name": doc_name, "content": content}, ensure_ascii=False)
+    except Exception as e:
+        return json.dumps({"error": str(e)}, ensure_ascii=False)
+
+
+# ==================== LLM 服务 ====================
 
 def _load_skill_core() -> str:
     """
-    加载 SKILL.md 的核心部分作为 System Prompt
-    只加载前60行核心功能描述，不包含详细的使用方法和技术实现
+    加载 SKILL.md 的核心部分（约前60行）作为系统提示
+    
+    这样做的好处：
+    1. 保持单一数据源（SKILL.md）
+    2. 不会一次性加载所有内容（避免context过长）
+    3. reference文档通过 read_reference 工具按需加载
     """
     skill_path = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading" / "SKILL.md"
     
-    try:
-        with open(skill_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            # 读取到 "## 使用方法" 之前的内容（大约前60行）
-            core_lines = []
-            for line in lines:
-                if line.strip().startswith("## 使用方法"):
-                    break
-                core_lines.append(line)
-            
-            skill_core = ''.join(core_lines)
-            
-            # 构建完整的 System Prompt
-            system_prompt = f"""{skill_core}
-
----
-
-**可用工具**：
-你可以调用以下工具获取数据和查阅文档：
-
-**数据查询工具**：
-- analyze_stock: 分析单只股票是否符合龙头战法
-- get_market_sentiment: 获取市场情绪数据（涨停/跌停家数、市场阶段）
-- get_popularity_rank: 查看人气榜（成交额排名前N）
-- get_concept_heatmap: 查看概念热度（涨停家数分布）
-- get_concept_leaders: 获取概念龙头列表
-- get_stock_detail: 获取个股详细信息（价格、量能）
-- get_concept_stocks: 获取概念下的所有股票
-
-**文档查阅工具**：
-- read_reference: 查阅龙头战法参考文档（详细理论、数据API、案例等）
-  可查阅的文档：
-  * 龙头战法理论.md - 完整的理论框架、决策模型、情绪拐点三板斧
-  * 数据查询API.md - 6类数据的详细查询方法和使用示例
-  * 技术指标详解.md - 技术分析指标说明
-  * 风险控制.md - 风险管理和止损策略
-  * 系统架构.md - 系统架构和技术实现
-
-**分析建议**：
-1. 先获取市场整体情绪（判断是冰点修复还是增量主升）
-2. 查询个股的人气排名和概念归属
-3. 如需详细理论指导，使用 read_reference 查阅相关文档
-4. 分析是否符合龙头标准（人气、逻辑、地位、确认信号）
-5. 给出操作建议
-
-请用清晰、结构化的方式展示分析过程，使用emoji增强可读性。
-遇到复杂问题时，主动查阅 reference 文档获取详细指导。"""
-            
-            return system_prompt
+    if not skill_path.exists():
+        return "龙头战法智能分析助手"
     
-    except Exception as e:
-        # 如果加载失败，返回一个基础的 prompt
-        return """你是龙头战法专家助手，帮助用户分析股票。
+    content = skill_path.read_text(encoding="utf-8")
+    
+    # 只取到 "## 使用方法" 之前的部分（核心说明）
+    lines = content.split("\n")
+    core_lines = []
+    for line in lines:
+        if line.startswith("## 使用方法"):
+            break
+        core_lines.append(line)
+    
+    skill_core = "\n".join(core_lines[:60])  # 限制在60行内
+    
+    # 构建完整的系统提示
+    system_prompt = f"""{skill_core}
 
-核心筛选标准：
-1. 人气底线：成交额进入前30
-2. 逻辑正宗：概念归属硬核
-3. 地位突出：身位最高/领涨性强
-4. 市场状态：冰点修复或增量主升
-5. 确认信号：分时承接/板块联动
+## 可用工具
 
-你可以调用工具获取数据，也可以使用 read_reference 查阅详细文档。"""
+你可以调用以下工具获取数据：
+1. **get_stock_detail** - 获取个股详细信息
+2. **get_market_sentiment** - 获取市场整体情绪
+3. **get_popularity_rank** - 获取人气股票排行
+4. **get_concept_heatmap** - 获取概念热度排行
+5. **get_concept_leaders** - 获取概念龙头股
+6. **get_concept_stocks** - 获取概念成分股
+7. **analyze_stock** - 综合分析个股
+8. **read_reference** - 查阅详细的参考文档
+
+## 分析建议
+
+进行分析时，建议：
+1. 先获取市场整体情绪和概念热度
+2. 识别热门概念和龙头股
+3. 深入分析个股的各项指标
+4. 如需详细理论，使用 read_reference 工具查阅文档
+5. 基于数据给出明确的结论和建议
+"""
+    
+    return system_prompt
 
 
-# 加载 System Prompt
 SYSTEM_PROMPT = _load_skill_core()
 
 
 class LLMChatService:
-    """LLM聊天服务"""
+    """
+    LangChain 版 LLM 聊天服务
+    """
     
     def __init__(self):
-        self.analysis_service = get_analysis_service()
-        self.data_service = get_data_service()
-        
-        # Reference 文档路径
-        self.reference_dir = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading" / "reference"
-        
-        # 初始化客户端（支持 OpenAI / 智谱AI / 其他兼容服务）
-        api_key = os.getenv("OPENAI_API_KEY")
+        # 智谱AI API配置
+        api_key = os.getenv("ZHIPUAI_API_KEY") or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable not set")
+            raise ValueError("ZHIPUAI_API_KEY or OPENAI_API_KEY environment variable not set")
         
-        # 支持自定义 base_url（用于智谱AI等第三方服务）
-        base_url = os.getenv("OPENAI_BASE_URL", None)
+        model = os.getenv("ZHIPUAI_MODEL", "glm-4-plus")
         
-        if base_url:
-            # 使用自定义 base_url（智谱AI、DeepSeek等）
-            self.client = AsyncOpenAI(api_key=api_key, base_url=base_url)
-        else:
-            # 使用默认 OpenAI
-            self.client = AsyncOpenAI(api_key=api_key)
+        # 初始化智谱AI模型
+        self.llm = ChatZhipuAI(
+            model=model,
+            api_key=api_key,
+            streaming=True,
+            temperature=0.7
+        )
         
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4")
-        
-        # 定义可调用的Function工具
+        # 定义所有工具
         self.tools = [
-            {
-                "type": "function",
-                "function": {
-                    "name": "read_reference",
-                    "description": "查阅龙头战法参考文档，获取详细的理论指导、数据查询方法、案例分析等",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "doc_name": {
-                                "type": "string",
-                                "enum": [
-                                    "龙头战法理论.md",
-                                    "数据查询API.md",
-                                    "技术指标详解.md",
-                                    "风险控制.md",
-                                    "系统架构.md",
-                                    "数据库设计.md",
-                                    "概念配置指南.md"
-                                ],
-                                "description": "要查阅的文档名称"
-                            }
-                        },
-                        "required": ["doc_name"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "analyze_stock",
-                    "description": "分析单只股票是否符合龙头战法标准，返回详细的分析结果",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "code": {
-                                "type": "string",
-                                "description": "股票代码，例如：002342"
-                            },
-                            "date": {
-                                "type": "string",
-                                "description": "分析日期，格式YYYY-MM-DD，默认今天"
-                            }
-                        },
-                        "required": ["code"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_market_sentiment",
-                    "description": "获取市场情绪数据，包括市场阶段、涨停家数、跌停家数、最高连板数",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "date": {
-                                "type": "string",
-                                "description": "日期，格式YYYY-MM-DD，默认今天"
-                            }
-                        },
-                        "required": []
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_popularity_rank",
-                    "description": "获取人气榜（成交额排行），查看当日最活跃的股票",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "date": {
-                                "type": "string",
-                                "description": "日期，格式YYYY-MM-DD"
-                            },
-                            "limit": {
-                                "type": "integer",
-                                "description": "返回前N名，默认30",
-                                "default": 30
-                            }
-                        },
-                        "required": ["date"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_concept_heatmap",
-                    "description": "获取概念热力图，查看各概念的涨停家数和活跃度",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "date": {
-                                "type": "string",
-                                "description": "日期，格式YYYY-MM-DD"
-                            }
-                        },
-                        "required": ["date"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_concept_leaders",
-                    "description": "获取概念龙头列表，查看各概念的领涨股",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "date": {
-                                "type": "string",
-                                "description": "日期，格式YYYY-MM-DD"
-                            }
-                        },
-                        "required": ["date"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_stock_detail",
-                    "description": "获取个股详细信息（价格、涨跌幅、成交额等）",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "code": {
-                                "type": "string",
-                                "description": "股票代码"
-                            },
-                            "date": {
-                                "type": "string",
-                                "description": "日期，格式YYYY-MM-DD"
-                            }
-                        },
-                        "required": ["code", "date"]
-                    }
-                }
-            },
-            {
-                "type": "function",
-                "function": {
-                    "name": "get_concept_stocks",
-                    "description": "获取指定概念下的所有股票列表",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "concept_name": {
-                                "type": "string",
-                                "description": "概念名称，例如：商业航天"
-                            }
-                        },
-                        "required": ["concept_name"]
-                    }
-                }
-            }
+            get_stock_detail,
+            get_market_sentiment,
+            get_popularity_rank,
+            get_concept_heatmap,
+            get_concept_leaders,
+            get_concept_stocks,
+            analyze_stock,
+            read_reference
         ]
-    
-    def _execute_function(self, function_name: str, arguments: Dict) -> str:
-        """执行Function Calling"""
-        try:
-            if function_name == "read_reference":
-                doc_name = arguments.get("doc_name")
-                doc_path = self.reference_dir / doc_name
-                
-                if not doc_path.exists():
-                    return json.dumps({
-                        "error": f"文档不存在: {doc_name}",
-                        "available_docs": [
-                            "龙头战法理论.md",
-                            "数据查询API.md",
-                            "技术指标详解.md",
-                            "风险控制.md",
-                            "系统架构.md",
-                            "数据库设计.md",
-                            "概念配置指南.md"
-                        ]
-                    }, ensure_ascii=False)
-                
-                with open(doc_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
-                
-                return json.dumps({
-                    "doc_name": doc_name,
-                    "content": content
-                }, ensure_ascii=False)
-            
-            elif function_name == "analyze_stock":
-                result = self.analysis_service.analyze_stock(
-                    arguments.get("code"),
-                    arguments.get("date", "")
-                )
-                return json.dumps(result, ensure_ascii=False)
-            
-            elif function_name == "get_market_sentiment":
-                date = arguments.get("date", "")
-                result = self.data_service.get_market_status(date)
-                return json.dumps(result, ensure_ascii=False)
-            
-            elif function_name == "get_popularity_rank":
-                result = self.data_service.get_stock_popularity_rank(
-                    arguments.get("date"),
-                    arguments.get("limit", 30)
-                )
-                return json.dumps(result, ensure_ascii=False)
-            
-            elif function_name == "get_concept_heatmap":
-                result = self.data_service.get_concept_leaders(
-                    arguments.get("date"),
-                    min_limit_up=0
-                )
-                return json.dumps(result, ensure_ascii=False)
-            
-            elif function_name == "get_concept_leaders":
-                result = self.data_service.get_concept_leaders(
-                    arguments.get("date"),
-                    min_limit_up=1
-                )
-                return json.dumps(result, ensure_ascii=False)
-            
-            elif function_name == "get_stock_detail":
-                result = self.data_service.get_stock_with_concept(
-                    arguments.get("code"),
-                    arguments.get("date")
-                )
-                return json.dumps(result, ensure_ascii=False)
-            
-            elif function_name == "get_concept_stocks":
-                result = self.data_service.list_concept_stocks(
-                    arguments.get("concept_name")
-                )
-                return json.dumps(result, ensure_ascii=False)
-            
-            else:
-                return json.dumps({"error": f"Unknown function: {function_name}"})
-                
-        except Exception as e:
-            return json.dumps({"error": str(e)}, ensure_ascii=False)
+        
+        # 创建提示模板
+        self.prompt = ChatPromptTemplate.from_messages([
+            ("system", SYSTEM_PROMPT),
+            ("placeholder", "{chat_history}"),
+            ("human", "{input}"),
+            ("placeholder", "{agent_scratchpad}"),
+        ])
+        
+        # 创建 Agent
+        self.agent = create_tool_calling_agent(self.llm, self.tools, self.prompt)
+        self.agent_executor = AgentExecutor(
+            agent=self.agent,
+            tools=self.tools,
+            verbose=False,
+            handle_parsing_errors=True
+        )
     
     async def chat_stream(
         self,
@@ -365,114 +319,49 @@ class LLMChatService:
         date: Optional[str] = None
     ) -> AsyncGenerator[Dict, None]:
         """
-        流式聊天响应（支持 OpenAI 及兼容 API）
+        流式聊天响应（使用 LangChain Agent）
         
         Args:
             messages: 消息历史列表 [{"role": "user", "content": "..."}]
-            date: 可选的日期参数（用于所有查询）
+            date: 可选的日期参数
         
         Yields:
             流式响应chunk
         """
-        # 添加系统提示
-        full_messages = [{"role": "system", "content": SYSTEM_PROMPT}] + messages
-        
-        # 如果提供了日期，在用户消息中添加上下文
-        if date and messages:
-            last_message = messages[-1]
-            if last_message["role"] == "user":
-                last_message["content"] = f"[分析日期: {date}]\n{last_message['content']}"
-        
         try:
-            # 调用 OpenAI 兼容 API
-            response = await self.client.chat.completions.create(
-                model=self.model,
-                messages=full_messages,
-                tools=self.tools,
-                tool_choice="auto",
-                stream=True
-            )
+            # 转换消息格式
+            chat_history = []
+            user_input = ""
             
-            # 处理流式响应
-            current_tool_call = None
-            tool_call_args = ""
+            for msg in messages:
+                role = msg.get("role")
+                content = msg.get("content", "")
+                
+                if role == "user":
+                    user_input = content
+                elif role == "assistant":
+                    chat_history.append(AIMessage(content=content))
+                elif role == "system":
+                    pass  # system message 已在 prompt 中
             
-            async for chunk in response:
-                if not chunk.choices:
-                    continue
-                    
-                delta = chunk.choices[0].delta
-                
-                # 处理工具调用
-                if delta.tool_calls:
-                    for tool_call in delta.tool_calls:
-                        if tool_call.id:
-                            # 新的工具调用开始
-                            current_tool_call = tool_call
-                            tool_call_args = ""
-                        
-                        if tool_call.function and tool_call.function.arguments:
-                            # 收集参数片段
-                            tool_call_args += tool_call.function.arguments
-                
-                # 处理文本内容
-                elif delta.content:
+            # 如果提供了日期，添加到用户输入
+            if date and user_input:
+                user_input = f"[分析日期: {date}]\n{user_input}"
+            
+            # 流式执行 Agent
+            async for chunk in self.agent_executor.astream({
+                "input": user_input,
+                "chat_history": chat_history
+            }):
+                # LangChain 的流式输出格式
+                if "output" in chunk:
                     yield {
                         "type": "content",
-                        "content": delta.content
+                        "content": chunk["output"]
                     }
-            
-            # 如果有完整的工具调用，执行它
-            if current_tool_call and current_tool_call.function:
-                try:
-                    function_name = current_tool_call.function.name
-                    args_dict = json.loads(tool_call_args)
-                    
-                    # 执行函数调用
-                    result = self._execute_function(function_name, args_dict)
-                    
-                    # 将结果返回给LLM
-                    function_messages = full_messages + [
-                        {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [{
-                                "id": current_tool_call.id,
-                                "type": "function",
-                                "function": {
-                                    "name": function_name,
-                                    "arguments": tool_call_args
-                                }
-                            }]
-                        },
-                        {
-                            "role": "tool",
-                            "tool_call_id": current_tool_call.id,
-                            "content": result
-                        }
-                    ]
-                    
-                    # 继续对话
-                    followup_response = await self.client.chat.completions.create(
-                        model=self.model,
-                        messages=function_messages,
-                        stream=True
-                    )
-                    
-                    async for followup_chunk in followup_response:
-                        if followup_chunk.choices:
-                            followup_delta = followup_chunk.choices[0].delta
-                            if followup_delta.content:
-                                yield {
-                                    "type": "content",
-                                    "content": followup_delta.content
-                                }
-                
-                except json.JSONDecodeError as e:
-                    yield {
-                        "type": "error",
-                        "content": f"工具调用参数解析失败: {str(e)}"
-                    }
+                elif "intermediate_steps" in chunk:
+                    # 工具调用中间步骤（可选：是否要显示给用户）
+                    pass
         
         except Exception as e:
             yield {
@@ -483,6 +372,7 @@ class LLMChatService:
 
 # 单例
 _llm_chat_service: Optional[LLMChatService] = None
+
 
 def get_llm_chat_service() -> LLMChatService:
     """获取LLM聊天服务单例"""
