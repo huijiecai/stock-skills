@@ -115,6 +115,13 @@ export default function ConceptManage() {
       render: (code) => <Text strong copyable>{code}</Text>,
     },
     {
+      title: '股票名称',
+      dataIndex: 'stock_name',
+      key: 'stock_name',
+      width: 150,
+      render: (name) => <Text>{name || '-'}</Text>,
+    },
+    {
       title: '标签',
       dataIndex: 'is_core',
       key: 'is_core',

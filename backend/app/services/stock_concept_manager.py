@@ -137,24 +137,26 @@ class StockConceptManager:
             concept_name: 概念名称
         
         Returns:
-            股票列表
+            股票列表（包含股票代码、名称、是否核心、备注）
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
         cursor.execute('''
-        SELECT stock_code, is_core, note 
-        FROM stock_concept 
-        WHERE concept_name = ?
-        ORDER BY is_core DESC, stock_code
+        SELECT sc.stock_code, sp.stock_name, sc.is_core, sc.note 
+        FROM stock_concept sc
+        LEFT JOIN stock_pool sp ON sc.stock_code = sp.stock_code
+        WHERE sc.concept_name = ?
+        ORDER BY sc.is_core DESC, sc.stock_code
         ''', (concept_name,))
         
         stocks = []
         for row in cursor.fetchall():
             stocks.append({
                 'stock_code': row[0],
-                'is_core': bool(row[1]),
-                'note': row[2]
+                'stock_name': row[1] if row[1] else '',  # 如果没有找到名称，返回空字符串
+                'is_core': bool(row[2]),
+                'note': row[3]
             })
         
         conn.close()
