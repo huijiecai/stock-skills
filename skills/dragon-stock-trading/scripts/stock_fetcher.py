@@ -44,6 +44,39 @@ class StockInfoFetcher:
         print(f"💡 请直接输入6位股票代码进行查询，例如：002165")
         return None
     
+    def get_detailed_stock_info(self, stock_code: str, region: str) -> Optional[Dict]:
+        """
+        获取股票的详细信息（行业、概念等）
+        """
+        if not self.token:
+            return None
+            
+        try:
+            url = f"{self.base_url}/stock/info"
+            params = {
+                'type': 'stock',
+                'region': region,
+                'code': stock_code
+            }
+            
+            response = requests.get(url, headers=self.headers, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('code') == 0 and data.get('data'):
+                stock_data = data['data']
+                return {
+                    'industry': stock_data.get('s', ''),  # Sector
+                    'sub_industry': stock_data.get('i', ''),  # Industry segment
+                    'company_desc': stock_data.get('bd', ''),
+                    'website': stock_data.get('wu', '')
+                }
+            return None
+            
+        except Exception as e:
+            print(f"获取股票详细信息失败: {e}")
+            return None
+    
     def fetch_real_time_data(self, stock_code: str, region: str) -> Optional[Dict]:
         """
         通过itick API获取实时股票数据
@@ -93,8 +126,11 @@ class StockInfoFetcher:
         real_data = self.fetch_real_time_data(stock_code, region)
         
         if real_data and self.token:
+            # 获取详细的股票信息用于行业分类
+            stock_info = self.get_detailed_stock_info(stock_code, region)
+            
             # 使用实时API数据
-            return {
+            result = {
                 "stock_name": stock_name,
                 "stock_code": stock_code,
                 "current_price": real_data.get('ld', 0),
@@ -109,7 +145,16 @@ class StockInfoFetcher:
                 "timestamp": real_data.get('t', 0),
                 "source": "real_time_api"
             }
+            
+            # 如果有详细的股票信息，合并进去
+            if stock_info:
+                result.update(stock_info)
+                
+            return result
         else:
+            # 获取详细的股票信息用于行业分类
+            stock_info = self.get_detailed_stock_info(stock_code, region)
+            
             # 使用模拟数据（当没有API密钥或API调用失败时）
             # 根据不同股票返回不同的模拟数据
             stock_templates = {
@@ -123,6 +168,7 @@ class StockInfoFetcher:
                     "pe_ratio": 196.77,
                     "pb_ratio": 11.97,
                     "industry": "有色金属",
+                    "sub_industry": "贵金属",
                     "concept": ["白银", "贵金属", "小金属"],
                     "high_price": 14.45,
                     "low_price": 13.98,
@@ -142,6 +188,7 @@ class StockInfoFetcher:
                 "pe_ratio": 12.3,
                 "pb_ratio": 1.8,
                 "industry": "电子制造",
+                "sub_industry": "消费电子",
                 "concept": ["苹果概念", "智能制造", "工业互联网"],
                 "high_price": 19.12,
                 "low_price": 18.45,
@@ -157,6 +204,10 @@ class StockInfoFetcher:
                 "source": "sample_data",
                 **template
             }
+            
+            # 如果有详细的股票信息，合并进去
+            if stock_info:
+                sample_data.update(stock_info)
             
             # 如果没有API密钥，给出提示
             if not self.token:
@@ -197,11 +248,15 @@ class StockInfoFetcher:
         
         # 如果有行业信息则显示
         if 'industry' in data:
-            output_lines.append(f"🏭 行业：{data['industry']}")
+            output_lines.append(f"🏭 行业分类：{data['industry']}")
+        
+        # 如果有细分行业则显示
+        if 'sub_industry' in data:
+            output_lines.append(f"📊 细分领域：{data['sub_industry']}")
         
         # 如果有概念信息则显示
         if 'concept' in data:
-            output_lines.append(f"🏷️ 概念：{', '.join(data['concept'])}")
+            output_lines.append(f"🏷️ 概念标签：{', '.join(data['concept'])}")
         
         output_lines.extend([
             "",
