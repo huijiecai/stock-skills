@@ -22,13 +22,14 @@ class MarketDataClient:
         self._api = tushare_client
         self._request_count = 0
     
-    def get_stock_quote(self, stock_code: str, market: str = None) -> Optional[Dict]:
+    def get_stock_quote(self, stock_code: str, market: str = None, date: str = None) -> Optional[Dict]:
         """
         获取股票行情数据
         
         Args:
             stock_code: 股票代码（如 000001）
             market: 市场代码（SH/SZ，可选）
+            date: 交易日期（YYYY-MM-DD，可选）
             
         Returns:
             行情数据字典
@@ -46,8 +47,11 @@ class MarketDataClient:
         else:
             ts_code = stock_code
         
+        # 转换日期格式（YYYY-MM-DD -> YYYYMMDD）
+        trade_date = date.replace('-', '') if date else ""
+        
         # 委托给底层API获取数据
-        data = self._api.get_stock_daily(ts_code=ts_code)
+        data = self._api.get_stock_daily(ts_code=ts_code, trade_date=trade_date)
         
         if data and data.get('items'):
             item = data['items'][0]

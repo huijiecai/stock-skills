@@ -152,7 +152,7 @@ class MarketDataCollector:
             "streak_days": 0,      # 连板天数需要后端计算
         }
     
-    def _process_single_stock(self, stock: Dict, index: int, total: int) -> tuple:
+    def _process_single_stock(self, stock: Dict, index: int, total: int, date: str) -> tuple:
         """
         处理单只股票
         
@@ -160,6 +160,7 @@ class MarketDataCollector:
             stock: 股票信息
             index: 当前索引
             total: 总数
+            date: 交易日期
             
         Returns:
             (stock_data, is_limit_up, is_limit_down) 或 (None, 0, 0)
@@ -174,8 +175,8 @@ class MarketDataCollector:
             return None, 0, 0
         
         try:
-            # 获取行情数据
-            quote = self.market_client.get_stock_quote(code, market)
+            # 获取行情数据（传递日期）
+            quote = self.market_client.get_stock_quote(code, market, date)
             
             if not quote:
                 print(f"  ⚠️  {code} {name} - 未获取到行情数据")
@@ -254,12 +255,13 @@ class MarketDataCollector:
             print(f"  ❌ 同步失败: {e}")
             return 0
     
-    def _collect_stocks_data(self, all_stocks: List[Dict]) -> tuple:
+    def _collect_stocks_data(self, all_stocks: List[Dict], date: str) -> tuple:
         """
         采集所有股票数据
         
         Args:
             all_stocks: 股票列表
+            date: 交易日期
             
         Returns:
             (stocks_data, pool_limit_up_count, pool_limit_down_count, total_checked)
@@ -275,7 +277,7 @@ class MarketDataCollector:
         
         for i, stock in enumerate(all_stocks):
             stock_data, is_limit_up, is_limit_down = self._process_single_stock(
-                stock, i, len(all_stocks)
+                stock, i, len(all_stocks), date
             )
             
             if stock_data is None and is_limit_up == 0 and is_limit_down == 0:
@@ -348,7 +350,7 @@ class MarketDataCollector:
             
             # Step 3: 采集股票池数据
             stocks_data, pool_limit_up, pool_limit_down, total_checked = \
-                self._collect_stocks_data(all_stocks)
+                self._collect_stocks_data(all_stocks, date)
             
             # Step 4: 使用全市场统计（来自market_snapshot）
             # 注意：不使用股票池的统计覆盖全市场统计
