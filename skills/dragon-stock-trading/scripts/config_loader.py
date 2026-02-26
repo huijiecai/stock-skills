@@ -44,6 +44,29 @@ class ConfigLoader:
         # 处理环境变量替换
         self._process_env_vars(self._config)
     
+    def get_tushare_token(self) -> str:
+        """获取Tushare token"""
+        return self._config.get('tushare', {}).get('token', '')
+    
+    def get_tushare_base_url(self) -> str:
+        """获取Tushare基础URL"""
+        return self._config.get('tushare', {}).get('base_url', 'http://api.tushare.pro')
+    
+    def get_tushare_timeout(self) -> int:
+        """获取Tushare超时时间"""
+        return self._config.get('tushare', {}).get('timeout', 30)
+    
+    # 兼容旧的iTock方法名（已废弃，建议使用Tushare方法）
+    def get_itick_api_key(self) -> str:
+        """获取iTock API密钥（已废弃，请使用get_tushare_token）"""
+        return self.get_tushare_token()
+    
+    def get_itick_base_url(self) -> str:
+        """获取iTock基础URL（已废弃，请使用get_tushare_base_url）"""
+        return self.get_tushare_base_url()
+    
+    def get_itick_timeout(self) -> int:
+        """获取iTock超时时间（已废弃，请使用get_tushare_timeout）"""
     def _process_env_vars(self, config: Dict):
         """递归处理环境变量"""
         for key, value in config.items():
@@ -57,9 +80,9 @@ class ConfigLoader:
                 if env_value:
                     config[key] = env_value
                 else:
-                    # 如果环境变量不存在，使用默认值（itick API key）
-                    if env_var == 'ITICK_API_KEY':
-                        config[key] = '446f72772d504a6a8234466581ae33192c83f8f9f3224dd989428a2ae0e3a0d8'
+                    # 如果环境变量不存在，使用默认值（Tushare token）
+                    if env_var == 'TUSHARE_TOKEN':
+                        config[key] = '2fcac3d55f4d1844d0bd4e4b8d205003b947a625b596767c697d0e7b'
     
     def get(self, key_path: str, default: Any = None) -> Any:
         """

@@ -35,6 +35,17 @@ class BackendAPIClient:
             print(f"❌ API请求失败 {url}: {e}")
             raise
     
+    def _get(self, endpoint: str, params: Dict = None, timeout: int = 30) -> Dict:
+        """发送GET请求"""
+        url = f"{self.api_base}{endpoint}"
+        try:
+            response = requests.get(url, params=params, timeout=timeout)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            print(f"❌ API请求失败 {url}: {e}")
+            raise
+    
     def collect_market_data(self, date: str, market_data: Dict, stocks: List[Dict]) -> Dict:
         """
         提交市场数据采集结果
@@ -90,6 +101,16 @@ class BackendAPIClient:
             "parent": parent,
             "description": description
         })
+    
+    def get_all_stocks(self) -> List[Dict]:
+        """
+        获取所有股票列表
+        
+        Returns:
+            股票列表 [{"code": "000001", "name": "平安银行", "market": "SZ"}, ...]
+        """
+        result = self._get("/stocks")
+        return result.get("stocks", [])
 
 
 if __name__ == "__main__":

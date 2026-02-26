@@ -2,10 +2,10 @@ data:
   db_path: "./data/dragon_stock.db"
   cache_days: 10  # 保留最近N天数据
   
-itick:
-  api_key: "446f72772d504a6a8234466581ae33192c83f8f9f3224dd989428a2ae0e3a0d8"
-  base_url: "https://api.itick.io"
-  timeout: 10
+tushare:
+  token: "2fcac3d55f4d1844d0bd4e4b8d205003b947a625b596767c697d0e7b"
+  base_url: "http://api.tushare.pro"
+  timeout: 30
   
 limit_up:
   # 涨停阈值（允许0.1%误差）
