@@ -322,13 +322,9 @@ class QueryService:
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         cursor.execute('''
-        SELECT c.concept_name, COUNT(*) as stock_count,
-               SUM(CASE WHEN sd.is_limit_up = 1 THEN 1 ELSE 0 END) as limit_up_count,
-               AVG(sd.change_percent) as avg_change
-        FROM concept_daily c
-        JOIN stock_daily sd ON c.stock_code = sd.stock_code AND c.trade_date = sd.trade_date
-        WHERE c.trade_date = ?
-        GROUP BY c.concept_name
+        SELECT concept_name, stock_count, limit_up_count, avg_change
+        FROM concept_daily
+        WHERE trade_date = ?
         ORDER BY limit_up_count DESC, avg_change DESC
         LIMIT ?
         ''', (date, limit))
@@ -347,23 +343,26 @@ class QueryService:
         """获取概念龙头股票（LLM工具兼容，按概念名称查询）"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
+        # 从 concept_daily 获取龙头股信息
         cursor.execute('''
-        SELECT sd.stock_code, si.stock_name, sd.change_percent, sd.is_limit_up, sd.streak_days
-        FROM concept_daily c
-        JOIN stock_daily sd ON c.stock_code = sd.stock_code AND c.trade_date = sd.trade_date
-        JOIN stock_info si ON sd.stock_code = si.stock_code
-        WHERE c.trade_date = ? AND c.concept_name = ?
-        ORDER BY sd.change_percent DESC, sd.turnover DESC
+        SELECT leader_code, concept_name, limit_up_count, avg_change
+        FROM concept_daily
+        WHERE trade_date = ? AND concept_name = ?
+        ORDER BY limit_up_count DESC, avg_change DESC
         LIMIT ?
         ''', (date, concept_id, limit))
         results = []
         for row in cursor.fetchall():
+            leader_code = row[0]
+            # 获取股票名称
+            cursor.execute('SELECT stock_name FROM stock_info WHERE stock_code = ?', (leader_code,))
+            stock_name_row = cursor.fetchone()
+            stock_name = stock_name_row[0] if stock_name_row else leader_code
             results.append({
-                'stock_code': row[0],
-                'stock_name': row[1],
-                'change_percent': row[2],
-                'is_limit_up': row[3],
-                'streak_days': row[4]
+                'stock_code': leader_code,
+                'stock_name': stock_name,
+                'limit_up_count': row[2],
+                'avg_change': row[3]
             })
         conn.close()
         return results
@@ -372,26 +371,20 @@ class QueryService:
         """获取概念包含的所有股票（LLM工具兼容）"""
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
-        cursor.execute('SELECT MAX(trade_date) FROM concept_daily')
-        latest_date = cursor.fetchone()[0]
-        if not latest_date:
-            conn.close()
-            return []
+        # 从 stock_concept 表获取股票列表
         cursor.execute('''
-        SELECT DISTINCT sd.stock_code, si.stock_name, sd.close_price, sd.change_percent
-        FROM concept_daily c
-        JOIN stock_daily sd ON c.stock_code = sd.stock_code AND c.trade_date = sd.trade_date
-        JOIN stock_info si ON sd.stock_code = si.stock_code
-        WHERE c.trade_date = ? AND c.concept_name = ?
-        ORDER BY sd.change_percent DESC
-        ''', (latest_date, concept_id))
+        SELECT sc.stock_code, si.stock_name, sc.is_core
+        FROM stock_concept sc
+        JOIN stock_info si ON sc.stock_code = si.stock_code
+        WHERE sc.concept_name = ?
+        ORDER BY sc.is_core DESC
+        ''', (concept_id,))
         results = []
         for row in cursor.fetchall():
             results.append({
                 'stock_code': row[0],
                 'stock_name': row[1],
-                'close_price': row[2],
-                'change_percent': row[3]
+                'is_core': bool(row[2])
             })
         conn.close()
         return results

@@ -31,6 +31,24 @@ def get_db_path() -> str:
     return str(db_path)
 
 
+def get_latest_trade_date() -> str:
+    """获取数据库中最新的交易日期"""
+    try:
+        import sqlite3
+        db_path = get_db_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute('SELECT MAX(trade_date) FROM market_sentiment')
+        result = cursor.fetchone()
+        conn.close()
+        if result and result[0]:
+            return result[0]
+    except Exception:
+        pass
+    # 如果查询失败，返回今天
+    return datetime.now().strftime("%Y-%m-%d")
+
+
 # ==================== 工具定义 ====================
 
 @tool
@@ -47,7 +65,7 @@ def get_stock_detail(stock_code: str, date: Optional[str] = None) -> str:
     """
     try:
         query_service = QueryService(get_db_path())
-        date = date or datetime.now().strftime("%Y-%m-%d")
+        date = date or get_latest_trade_date()
         result = query_service.get_stock_detail(stock_code, date)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
@@ -60,14 +78,14 @@ def get_market_sentiment(date: Optional[str] = None) -> str:
     获取市场整体情绪（涨停数、跌停数、涨跌比等）
     
     Args:
-        date: 查询日期（YYYY-MM-DD），默认为今天
+        date: 查询日期（YYYY-MM-DD），默认为最新交易日
     
     Returns:
         JSON格式的市场情绪数据
     """
     try:
         query_service = QueryService(get_db_path())
-        date = date or datetime.now().strftime("%Y-%m-%d")
+        date = date or get_latest_trade_date()
         result = query_service.get_market_sentiment(date)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
@@ -80,7 +98,7 @@ def get_popularity_rank(date: Optional[str] = None, limit: int = 10) -> str:
     获取人气股票排行（按成交额排序）
     
     Args:
-        date: 查询日期（YYYY-MM-DD），默认为今天
+        date: 查询日期（YYYY-MM-DD），默认为最新交易日
         limit: 返回数量，默认10
     
     Returns:
@@ -88,7 +106,7 @@ def get_popularity_rank(date: Optional[str] = None, limit: int = 10) -> str:
     """
     try:
         query_service = QueryService(get_db_path())
-        date = date or datetime.now().strftime("%Y-%m-%d")
+        date = date or get_latest_trade_date()
         result = query_service.get_popularity_rank(date, limit)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
@@ -101,7 +119,7 @@ def get_concept_heatmap(date: Optional[str] = None, limit: int = 10) -> str:
     获取概念板块热度排行
     
     Args:
-        date: 查询日期（YYYY-MM-DD），默认为今天
+        date: 查询日期（YYYY-MM-DD），默认为最新交易日
         limit: 返回数量，默认10
     
     Returns:
@@ -109,7 +127,7 @@ def get_concept_heatmap(date: Optional[str] = None, limit: int = 10) -> str:
     """
     try:
         query_service = QueryService(get_db_path())
-        date = date or datetime.now().strftime("%Y-%m-%d")
+        date = date or get_latest_trade_date()
         result = query_service.get_concept_heatmap(date, limit)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
@@ -123,7 +141,7 @@ def get_concept_leaders(concept_id: str, date: Optional[str] = None, limit: int 
     
     Args:
         concept_id: 概念ID（概念名称）
-        date: 查询日期（YYYY-MM-DD），默认为今天
+        date: 查询日期（YYYY-MM-DD），默认为最新交易日
         limit: 返回数量，默认5
     
     Returns:
@@ -131,7 +149,7 @@ def get_concept_leaders(concept_id: str, date: Optional[str] = None, limit: int 
     """
     try:
         query_service = QueryService(get_db_path())
-        date = date or datetime.now().strftime("%Y-%m-%d")
+        date = date or get_latest_trade_date()
         result = query_service.get_concept_leaders_by_id(concept_id, date, limit)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
@@ -164,14 +182,14 @@ def analyze_stock(stock_code: str, date: Optional[str] = None) -> str:
     
     Args:
         stock_code: 股票代码
-        date: 查询日期（YYYY-MM-DD），默认为今天
+        date: 查询日期（YYYY-MM-DD），默认为最新交易日
     
     Returns:
         JSON格式的综合分析结果
     """
     try:
         query_service = QueryService(get_db_path())
-        date = date or datetime.now().strftime("%Y-%m-%d")
+        date = date or get_latest_trade_date()
         result = query_service.analyze_stock(stock_code, date)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
