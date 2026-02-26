@@ -1,7 +1,7 @@
 """
-Skill API Client - 用于Skill通过API访问龙头战法Web平台数据
+Market Analysis Client - 用于LLM通过API访问龙头战法Web平台数据
 
-LLM可以通过这个client来获取数据，无需直接访问数据库
+LLM可以通过这个client来获取市场分析数据，无需直接访问数据库
 """
 
 import requests
@@ -9,7 +9,7 @@ from typing import Dict, List, Optional
 from datetime import datetime
 
 
-class SkillAPIClient:
+class MarketAnalysisClient:
     """龙头战法API客户端"""
     
     def __init__(self, base_url: str = "http://localhost:8000"):
@@ -206,7 +206,7 @@ class SkillAPIClient:
 
 # 使用示例
 if __name__ == "__main__":
-    client = SkillAPIClient()
+    client = MarketAnalysisClient()
     
     # 获取市场情绪
     print("=== 市场情绪 ===")
