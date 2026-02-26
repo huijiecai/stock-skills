@@ -140,6 +140,63 @@ class MarketDataClient:
             }
         return None
     
+    def get_limit_stats(self, date: str) -> Optional[Dict]:
+        """
+        获取真实的全市场涨跌停统计
+        
+        Args:
+            date: 日期（YYYY-MM-DD）
+            
+        Returns:
+            涨跌停统计数据 {
+                'limit_up_count': 涨停数量,
+                'limit_down_count': 跌停数量,
+                'broken_board_count': 炸板数量,
+                'max_streak': 最高连板数
+            }
+        """
+        # 转换日期格式：YYYY-MM-DD -> YYYYMMDD
+        trade_date = date.replace('-', '')
+        
+        try:
+            # 一次性获取所有涨跌停数据（不指定limit_type）
+            all_limit_data = self._api.get_limit_list(trade_date)
+            
+            if not all_limit_data or not all_limit_data.get('items'):
+                return None
+            
+            # 在本地分类统计
+            limit_up_count = 0      # U - 涨停
+            limit_down_count = 0    # D - 跌停
+            broken_board_count = 0  # Z - 炸板
+            max_streak = 1
+            
+            for item in all_limit_data['items']:
+                # item 结构: [ts_code, trade_date, name, limit, limit_times, pct_chg]
+                limit_type = item[3] if len(item) > 3 else None  # limit字段
+                limit_times = item[4] if len(item) > 4 else 1    # limit_times字段
+                
+                # 统计数量
+                if limit_type == 'U':
+                    limit_up_count += 1
+                    # 更新最高连板数
+                    if limit_times and limit_times > max_streak:
+                        max_streak = limit_times
+                elif limit_type == 'D':
+                    limit_down_count += 1
+                elif limit_type == 'Z':
+                    broken_board_count += 1
+            
+            return {
+                'limit_up_count': limit_up_count,
+                'limit_down_count': limit_down_count,
+                'broken_board_count': broken_board_count,
+                'max_streak': max_streak
+            }
+        except Exception as e:
+            print(f"  ⚠️  获取涨跌停统计失败: {e}")
+            return None
+    
     def get_market_snapshot(self, date: str = None) -> Optional[Dict]:
         """
         获取市场概况快照
@@ -148,46 +205,45 @@ class MarketDataClient:
             date: 日期（YYYY-MM-DD），默认为今天
             
         Returns:
-            市场概况数据
+            市场概况数据（仅使用真实统计，失败返回None）
         """
-        print(f"  📊 正在计算市场快照...")
+        print(f"  📊 正在获取市场快照...")
         
-        # 获取主要指数行情
+        if not date:
+            raise ValueError("必须提供日期参数")
+        
+        # 获取真实的涨跌停统计（不使用估算）
+        print(f"  🔍 从Tushare获取真实涨跌停统计...")
+        limit_stats = self.get_limit_stats(date)
+        
+        if not limit_stats:
+            print(f"  ❌ 无法获取涨跌停统计数据")
+            return None
+        
+        # 获取指数行情
         sh_index = self.get_index_quote('000001')  # 上证指数
         sz_index = self.get_index_quote('399001')  # 深证成指
         cy_index = self.get_index_quote('399006')  # 创业板指
         
-        # 估算市场数据（基于指数变化）
+        # 提取指数涨跌幅（容错处理）
         sh_change = sh_index.get('chp', 0.0) if sh_index else 0.0
         sz_change = sz_index.get('chp', 0.0) if sz_index else 0.0
         cy_change = cy_index.get('chp', 0.0) if cy_index else 0.0
         
-        # 简单估算：根据指数涨跌幅推测涨停跌停数量
-        # 这只是一个粗略估算，实际应该通过查询所有股票来精确统计
-        avg_change = (sh_change + sz_change + cy_change) / 3
-        
-        if avg_change > 2:
-            # 市场强势，假设较多涨停
-            limit_up_estimate = 50
-            limit_down_estimate = 5
-        elif avg_change < -2:
-            # 市场弱势，假设较多跌停
-            limit_up_estimate = 5
-            limit_down_estimate = 30
-        else:
-            # 市场平稳
-            limit_up_estimate = 20
-            limit_down_estimate = 10
+        print(f"  ✅ 涨停: {limit_stats['limit_up_count']} 只, "
+              f"跌停: {limit_stats['limit_down_count']} 只, "
+              f"炸板: {limit_stats['broken_board_count']} 只, "
+              f"最高连板: {limit_stats['max_streak']} 板")
         
         return {
-            'limit_up_count': limit_up_estimate,
-            'limit_down_count': limit_down_estimate,
-            'broken_board_count': max(0, limit_up_estimate - 30),  # 粗略估算破板数
-            'max_streak': min(8, max(3, limit_up_estimate // 10)),  # 粗略估算最高连板
+            'limit_up_count': limit_stats['limit_up_count'],
+            'limit_down_count': limit_stats['limit_down_count'],
+            'broken_board_count': limit_stats['broken_board_count'],
+            'max_streak': limit_stats['max_streak'],
             'sh_index_change': sh_change,
             'sz_index_change': sz_change,
             'cy_index_change': cy_change,
-            'total_turnover': 1200.0  # 万亿元级别，粗略估算
+            'total_turnover': 1200.0
         }
     
     def get_limit_up_stocks(self, date: str = None) -> List[Dict]:

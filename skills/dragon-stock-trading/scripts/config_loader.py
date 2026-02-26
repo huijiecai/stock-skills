@@ -82,7 +82,7 @@ class ConfigLoader:
                 else:
                     # 如果环境变量不存在，使用默认值（Tushare token）
                     if env_var == 'TUSHARE_TOKEN':
-                        config[key] = '2fcac3d55f4d1844d0bd4e4b8d205003b947a625b596767c697d0e7b'
+                        config[key] = '78c2b09c8175affca2a45a788be6b0ba13369519220f7cd1b9c5b991'
     
     def get(self, key_path: str, default: Any = None) -> Any:
         """

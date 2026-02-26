@@ -3,7 +3,7 @@ data:
   cache_days: 10  # 保留最近N天数据
   
 tushare:
-  token: "2fcac3d55f4d1844d0bd4e4b8d205003b947a625b596767c697d0e7b"
+  token: "78c2b09c8175affca2a45a788be6b0ba13369519220f7cd1b9c5b991"
   base_url: "http://api.tushare.pro"
   timeout: 30
   

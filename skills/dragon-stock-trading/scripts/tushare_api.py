@@ -3,15 +3,23 @@
 """
 Tushare API 调用器 - 底层API调用实现
 专门负责与Tushare API的直接交互
+
+注意：使用自定义API域名（高积分用户专用）
 """
 
+import tushare as ts
+import tushare.pro.client as client
 import requests
 import time
 from typing import Dict, List, Optional
 
+# 【重要】全局设置自定义API域名（高积分用户专用，速度更快）
+# 必须在创建任何 ts.pro_api() 实例之前设置
+client.DataApi._DataApi__http_url = "http://tushare.xyz"
+
 
 class TushareAPI:
-    """Tushare API底层调用器"""
+    """Tushare API底层调用器（使用自定义域名）"""
     
     def __init__(self, token: str):
         """
@@ -21,7 +29,11 @@ class TushareAPI:
             token: Tushare token
         """
         self.token = token
-        self.base_url = "http://api.tushare.pro"
+        self.base_url = "http://tushare.xyz"
+        
+        # 使用官方SDK（已配置自定义域名）
+        self.pro = ts.pro_api(token)
+        
         self.headers = {
             'Content-Type': 'application/json'
         }
@@ -86,43 +98,89 @@ class TushareAPI:
             print(f"Tushare处理错误: {e}")
             return None
     
-    def get_stock_daily(self, ts_code: str, trade_date: str = "") -> Optional[List]:
+    def get_stock_daily(self, ts_code: str, trade_date: str = "") -> Optional[Dict]:
         """
-        获取股票日线数据
+        获取股票日线数据（使用官方SDK）
         
         Args:
             ts_code: Tushare股票代码（如 000001.SZ）
-            trade_date: 交易日期
+            trade_date: 交易日期（格式：20260226，留空则获取最近一条）
             
         Returns:
-            日线数据列表
+            日线数据字典
         """
-        return self._post(
-            api_name="daily",
-            fields=["ts_code", "trade_date", "open", "high", "low", "close", 
-                   "pre_close", "change", "pct_chg", "vol", "amount"],
-            ts_code=ts_code,
-            trade_date=trade_date
-        )
+        try:
+            # 如果没有指定日期，使用 start_date 限制只返回最近数据
+            if trade_date:
+                df = self.pro.daily(
+                    ts_code=ts_code,
+                    trade_date=trade_date,
+                    fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
+                )
+            else:
+                # 获取最近1条数据（避免返回全部历史数据导致超时）
+                import datetime
+                end_date = datetime.datetime.now().strftime('%Y%m%d')
+                start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
+                df = self.pro.daily(
+                    ts_code=ts_code,
+                    start_date=start_date,
+                    end_date=end_date,
+                    fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
+                )
+            
+            if df is None or df.empty:
+                return None
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
     
-    def get_index_daily(self, ts_code: str, trade_date: str = "") -> Optional[List]:
+    def get_index_daily(self, ts_code: str, trade_date: str = "") -> Optional[Dict]:
         """
-        获取指数日线数据
+        获取指数日线数据（使用官方SDK）
         
         Args:
             ts_code: Tushare指数代码（如 000001.SH）
-            trade_date: 交易日期
+            trade_date: 交易日期（格式：20260226，留空则获取最近一条）
             
         Returns:
-            指数日线数据列表
+            指数日线数据字典
         """
-        return self._post(
-            api_name="index_daily",
-            fields=["ts_code", "trade_date", "open", "high", "low", "close", 
-                   "pre_close", "change", "pct_chg", "vol", "amount"],
-            ts_code=ts_code,
-            trade_date=trade_date
-        )
+        try:
+            # 如果没有指定日期，使用 start_date 限制只返回最近数据
+            if trade_date:
+                df = self.pro.index_daily(
+                    ts_code=ts_code,
+                    trade_date=trade_date,
+                    fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
+                )
+            else:
+                # 获取最近1条数据（避免返回全部历史数据导致超时）
+                import datetime
+                end_date = datetime.datetime.now().strftime('%Y%m%d')
+                start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
+                df = self.pro.index_daily(
+                    ts_code=ts_code,
+                    start_date=start_date,
+                    end_date=end_date,
+                    fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
+                )
+            
+            if df is None or df.empty:
+                return None
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
     
     def get_stock_basic(self, ts_code: str) -> Optional[List]:
         """
@@ -139,6 +197,38 @@ class TushareAPI:
             fields=["ts_code", "name", "area", "industry", "market", "list_date"],
             ts_code=ts_code
         )
+
+
+    def get_limit_list(self, trade_date: str, limit_type: str = None) -> Optional[Dict]:
+        """
+        获取涨跌停列表（使用官方SDK）
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            limit_type: 涨跌停类型（U=涨停, D=跌停, Z=炸板, None=全部）
+            
+        Returns:
+            涨跌停数据字典 {'items': [[...], [...]], 'fields': [...]}
+        """
+        try:
+            # 使用官方SDK调用（支持自定义域名）
+            df = self.pro.limit_list_d(
+                trade_date=trade_date,
+                limit_type=limit_type,
+                fields='ts_code,trade_date,name,limit,limit_times,pct_chg'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            # 转换为与_post相同的格式
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
 
 
 # 全局API实例（供TushareClient使用）
@@ -158,7 +248,7 @@ def get_tushare_api(token: str = None) -> TushareAPI:
     global _tushare_api
     if _tushare_api is None:
         if token is None:
-            token = "2fcac3d55f4d1844d0bd4e4b8d205003b947a625b596767c697d0e7b"
+            token = "78c2b09c8175affca2a45a788be6b0ba13369519220f7cd1b9c5b991"
         _tushare_api = TushareAPI(token)
     return _tushare_api
 
