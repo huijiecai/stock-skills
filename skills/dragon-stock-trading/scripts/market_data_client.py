@@ -53,15 +53,15 @@ class MarketDataClient:
             item = data['items'][0]
             self._request_count += 1
             return {
-                'ld': item[5],      # close
-                'chp': item[8],     # pct_chg
-                'vol': item[9],
-                'amt': item[10],
-                'o': item[2],
-                'h': item[3],
-                'l': item[4],
-                'p': item[6],
-                'tr': 0.0  # 换手率需要额外计算
+                'ld': item[5],                  # close 收盘价
+                'chp': item[8] / 100.0,         # pct_chg 涨跌幅（转换：7.7483% -> 0.077483）
+                'vol': item[9],                 # volume 成交量（手）
+                'amt': item[10] * 1000,         # amount 成交额（单位：千元 -> 元）
+                'o': item[2],                   # open 开盘价
+                'h': item[3],                   # high 最高价
+                'l': item[4],                   # low 最低价
+                'p': item[6],                   # pre_close 昨收价
+                'tr': 0.0                       # turnover_rate 换手率需要额外计算
             }
         return None
     
@@ -129,14 +129,14 @@ class MarketDataClient:
             item = data['items'][0]
             self._request_count += 1
             return {
-                'ld': item[5],      # close
-                'chp': item[8],     # pct_chg
-                'vol': item[9],
-                'amt': item[10],
-                'o': item[2],
-                'h': item[3],
-                'l': item[4],
-                'p': item[6]
+                'ld': item[5],                  # close 收盘价
+                'chp': item[8] / 100.0,         # pct_chg 涨跌幅（转换：7.7483% -> 0.077483）
+                'vol': item[9],                 # volume 成交量（手）
+                'amt': item[10] * 1000,         # amount 成交额（单位：千元 -> 元）
+                'o': item[2],                   # open 开盘价
+                'h': item[3],                   # high 最高价
+                'l': item[4],                   # low 最低价
+                'p': item[6]                    # pre_close 昨收价
             }
         return None
     
