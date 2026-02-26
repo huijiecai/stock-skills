@@ -27,7 +27,7 @@ if [ ! -d ".venv" ]; then
     echo "📦 首次运行，创建Python虚拟环境..."
     python3 -m venv .venv
     source .venv/bin/activate
-    pip install -r backend/requirements.txt
+    pip install -r requirements.txt
     echo "✅ 后端依赖安装完成"
 else
     echo "✅ 后端环境已存在"
