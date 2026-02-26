@@ -219,8 +219,7 @@ stock/
 │       │   └── config_loader.py           # 配置加载
 │       └── reference/        # 参考文档
 │           ├── 龙头战法理论.md
-│           ├── 数据库设计.md
-│           └── 数据查询API.md
+│           ├── 数据库设计.md (已移至 backend/)
 │
 ├── data/                     # 数据目录
 │   ├── dragon_stock.db      # SQLite 数据库（主数据源）

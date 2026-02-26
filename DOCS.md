@@ -39,8 +39,7 @@
 ### Skill 参考文档
 - [skills/dragon-stock-trading/reference/](skills/dragon-stock-trading/reference/)
   - 龙头战法理论.md
-  - 数据库设计.md
-  - 数据查询API.md
+  - 数据库设计.md (已移至 backend/)
   - 技术指标详解.md
   - 风险控制.md
 

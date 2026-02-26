@@ -55,7 +55,7 @@ description: 龙头战法股票分析工具。基于"管理预期"核心理念�
 
 **决策依据**：
 - 参见 [reference/龙头战法理论.md](reference/龙头战法理论.md) 了解完整理论框架
-- 参见 [reference/数据查询API.md](reference/数据查询API.md) 了解数据获取方法
+- 通过后端 API 获取数据（参见后端 README）
 
 ## 使用方法
 
@@ -132,8 +132,7 @@ leaders = client.get_leaders("2026-02-25")
 **底层数据获取**（仅供开发/调试）：
 
 如需直接访问数据库或了解底层实现，请参考：
-- [数据查询API](reference/数据查询API.md) - 6类数据的详细查询方法
-- [数据库设计](reference/数据库设计.md) - 表结构和字段说明
+- [数据库设计](../../backend/数据库设计.md) - 表结构和字段说明
 - [概念配置指南](reference/概念配置指南.md) - concepts.json 维护方法
 - [龙头战法理论](reference/龙头战法理论.md) - 完整理论框架和决策模型
 
@@ -193,7 +192,7 @@ python market_fetcher.py 2026-02-25
 python concept_manager.py 2026-02-25
 ```
 
-详细的数据采集和查询方法请参考 [reference/数据查询API.md](reference/数据查询API.md)
+数据表结构请参考 [../../backend/数据库设计.md](../../backend/数据库设计.md)
 
 ## 注意事项
 
@@ -214,6 +213,5 @@ python concept_manager.py 2026-02-25
 - [使用案例](examples.md) - 龙头战法实战场景示例
 
 ### 技术文档
-- [数据查询API](reference/数据查询API.md) - 6类数据的详细查询方法
-- [数据库设计](reference/数据库设计.md) - 表结构和字段说明
+- [数据库设计](../../backend/数据库设计.md) - 表结构和字段说明
 - [概念配置指南](reference/概念配置指南.md) - concepts.json 维护方法

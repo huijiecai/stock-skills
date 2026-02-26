@@ -11,8 +11,7 @@ skills/dragon-stock-trading/
 ├── SKILL.md                    # 用户层：功能描述
 ├── reference/                  # 文档层：技术细节（新增）
 │   ├── 龙头战法理论.md         # 预期管理、情绪拐点
-│   ├── 数据查询API.md          # 6类数据查询方法
-│   ├── 数据库设计.md           # 表结构说明
+│   ├── 数据库设计.md (已移至 ../../backend/)
 │   ├── 概念配置指南.md         # 配置维护方法
 │   └── 系统架构.md             # 架构设计
 ├── scripts/                    # 实现层：Python 模块
