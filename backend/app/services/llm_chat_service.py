@@ -18,6 +18,8 @@ from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from deepagents import create_deep_agent
+from deepagents.backends.filesystem import FilesystemBackend
+from langgraph.checkpoint.memory import MemorySaver
 
 from app.services.query_service import QueryService
 
@@ -237,15 +239,16 @@ class LLMChatService:
             analyze_stock
         ]
         
-        # Skills 路径
-        skills_dir = Path(__file__).parent.parent.parent.parent / "skills" / "dragon-stock-trading"
+        # Skills 路径（相对于项目根目录）
+        project_root = Path(__file__).parent.parent.parent.parent
         
-        # 创建 Deep Agent（自动加载 Skills）
+        # 创建 Deep Agent（使用 FilesystemBackend 自动加载 Skills）
         self.agent = create_deep_agent(
             model=self.llm,
             tools=self.tools,
-            skills=[str(skills_dir)],  # 传入 skills 目录
-            system_prompt=None  # 让 Deep Agent 自动从 SKILL.md 读取
+            backend=FilesystemBackend(root_dir=str(project_root)),
+            skills=["skills/"],  # 相对于 root_dir 的路径
+            checkpointer=MemorySaver(),  # FilesystemBackend 需要 checkpointer
         )
     
     async def chat_stream(
@@ -279,8 +282,11 @@ class LLMChatService:
                 elif role == "assistant":
                     agent_messages.append({"role": "assistant", "content": content})
             
-            # 使用 invoke 获取完整结果
-            result = await self.agent.ainvoke({"messages": agent_messages})
+            # 使用 invoke 获取完整结果（需要传入 thread_id）
+            result = await self.agent.ainvoke(
+                {"messages": agent_messages},
+                config={"configurable": {"thread_id": "chat-session-1"}}
+            )
             
             # 提取最终消息并一次性输出（不分块）
             if "messages" in result and result["messages"]:
