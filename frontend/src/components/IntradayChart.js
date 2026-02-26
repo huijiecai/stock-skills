@@ -14,10 +14,17 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
   const chartInstance = useRef(null);
 
   useEffect(() => {
-    if (!data || data.length === 0) return;
+    if (!data || data.length === 0) {
+      // 如果没有数据，清理图表实例
+      if (chartInstance.current) {
+        chartInstance.current.dispose();
+        chartInstance.current = null;
+      }
+      return;
+    }
 
-    // 初始化图表
-    if (!chartInstance.current) {
+    // 初始化图表（只初始化一次）
+    if (!chartInstance.current && chartRef.current) {
       chartInstance.current = echarts.init(chartRef.current);
     }
 
@@ -28,8 +35,8 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
     const volumes = data.map(item => item.volume);
 
     // 计算涨跌幅
-    const firstPrice = prices[prices.length - 1]; // 开盘价
-    const currentPrice = prices[0]; // 最新价
+    const firstPrice = prices[0]; // 开盘价（数据按时间升序）
+    const currentPrice = prices[prices.length - 1]; // 最新价
     const changePercent = ((currentPrice - firstPrice) / firstPrice * 100).toFixed(2);
     const changeAmount = (currentPrice - firstPrice).toFixed(2);
 
@@ -207,6 +214,7 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
     };
     window.addEventListener('resize', handleResize);
 
+    // 清理函数：只移除事件监听，不销毁图表
     return () => {
       window.removeEventListener('resize', handleResize);
     };
@@ -215,7 +223,10 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
   // 组件卸载时销毁图表
   useEffect(() => {
     return () => {
-      chartInstance.current?.dispose();
+      if (chartInstance.current) {
+        chartInstance.current.dispose();
+        chartInstance.current = null;
+      }
     };
   }, []);
 
