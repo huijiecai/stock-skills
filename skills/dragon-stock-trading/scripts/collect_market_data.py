@@ -19,7 +19,7 @@ from typing import Dict, List
 script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
 
-from tushare_client import TushareClient as MarketDataClient  # 使用Tushare替代iTock
+from market_data_client import MarketDataClient as MarketDataClient  # 使用新的市场数据客户端
 from backend_api_client import BackendAPIClient
 
 

@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Tushare客户端 - 统一的数据访问接口
-作为市场数据客户端，提供标准化的数据获取接口
-实际API调用由底层tushare_api模块处理
+市场数据客户端 - 统一的数据访问接口
+作为业务逻辑层，提供标准化的数据获取接口
+实际API调用委托给底层的tushare_api模块
 """
 
-import time
 from typing import Dict, List, Optional
 from datetime import datetime
 
@@ -14,12 +13,12 @@ from datetime import datetime
 from tushare_api import get_tushare_api
 
 
-class TushareClient:
-    """Tushare数据客户端（统一接口层）"""
+class MarketDataClient:
+    """市场数据客户端（业务逻辑层）"""
     
     def __init__(self):
         """初始化客户端"""
-        # 获取API调用器实例
+        # 获取底层API调用器实例
         self._api = get_tushare_api()
         self._request_count = 0
     
@@ -47,7 +46,7 @@ class TushareClient:
         else:
             ts_code = stock_code
         
-        # 通过底层API获取数据
+        # 委托给底层API获取数据
         data = self._api.get_stock_daily(ts_code=ts_code)
         
         if data and data.get('items'):
@@ -89,7 +88,7 @@ class TushareClient:
         else:
             ts_code = stock_code
         
-        # 通过底层API获取数据
+        # 委托给底层API获取数据
         data = self._api.get_stock_basic(ts_code=ts_code)
         
         if data and data.get('items'):
@@ -123,7 +122,7 @@ class TushareClient:
         
         ts_code = index_mapping.get(index_code, f"{index_code}.SH")
         
-        # 通过底层API获取数据
+        # 委托给底层API获取数据
         data = self._api.get_index_daily(ts_code=ts_code)
         
         if data and data.get('items'):
@@ -217,10 +216,10 @@ class TushareClient:
 def main():
     """测试客户端"""
     print("="*60)
-    print("Tushare 客户端测试")
+    print("市场数据客户端测试")
     print("="*60)
     
-    client = TushareClient()
+    client = MarketDataClient()
     
     # 测试获取股票行情
     print("\n测试1: 获取平安银行行情")
