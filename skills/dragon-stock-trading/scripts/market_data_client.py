@@ -3,14 +3,14 @@
 """
 市场数据客户端 - 统一的数据访问接口
 作为业务逻辑层，提供标准化的数据获取接口
-实际API调用委托给底层的tushare_api模块
+实际API调用委托给底层的tushare_client模块
 """
 
 from typing import Dict, List, Optional
 from datetime import datetime
 
-# 导入底层API调用器
-from tushare_api import get_tushare_api
+# 导入全局Tushare客户端
+from tushare_client import tushare_client
 
 
 class MarketDataClient:
@@ -18,8 +18,8 @@ class MarketDataClient:
     
     def __init__(self):
         """初始化客户端"""
-        # 获取底层API调用器实例
-        self._api = get_tushare_api()
+        # 使用全局Tushare客户端实例
+        self._api = tushare_client
         self._request_count = 0
     
     def get_stock_quote(self, stock_code: str, market: str = None) -> Optional[Dict]:

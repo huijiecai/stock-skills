@@ -45,7 +45,7 @@ script_dir = Path(__file__).parent
 sys.path.insert(0, str(script_dir))
 
 from market_data_client import MarketDataClient
-from backend_api_client import BackendAPIClient
+from backend_client import BackendClient
 
 
 class MarketDataCollector:
@@ -58,8 +58,8 @@ class MarketDataCollector:
         Args:
             backend_url: 后端服务地址（不提供则从配置文件读取）
         """
-        self.market_client = MarketDataClient()  # 市场数据客户端（使用tushare_api）
-        self.backend_client = BackendAPIClient(backend_url)  # 后端API客户端
+        self.market_client = MarketDataClient()  # 市场数据客户端（使用tushare_client）
+        self.backend_client = BackendClient(backend_url)  # 后端API客户端
     
     def _get_market_overview(self, date: str) -> Dict:
         """

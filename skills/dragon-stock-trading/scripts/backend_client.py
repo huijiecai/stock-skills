@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-后端API客户端 - 用于数据采集脚本通过API写入数据
+Backend Client - 后端API客户端
 
 数据采集脚本使用此客户端将数据提交到后端API，而非直接操作数据库
 """
@@ -12,7 +12,7 @@ from datetime import datetime
 from config_loader import ConfigLoader
 
 
-class BackendAPIClient:
+class BackendClient:
     """后端API客户端"""
     
     def __init__(self, base_url: str = None):
@@ -117,9 +117,8 @@ class BackendAPIClient:
         result = self._get("/stocks")
         return result.get("stocks", [])
 
-
 if __name__ == "__main__":
     # 测试
-    client = BackendAPIClient()
-    print("✅ BackendAPIClient 初始化成功")
+    client = BackendClient()
+    print("✅ BackendClient 初始化成功")
     print(f"  后端地址: {client.base_url}")
