@@ -220,8 +220,9 @@ def main():
     # 测试获取涨跌停列表
     print("\n测试3: 获取涨跌停列表")
     import datetime
-    today = datetime.datetime.now().strftime('%Y%m%d')
-    data = tushare_client.get_limit_list(today)
+    # 使用昨天的日期（当天数据可能还未生成）
+    yesterday = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime('%Y%m%d')
+    data = tushare_client.get_limit_list(yesterday)
     if data and data.get('items'):
         items = data['items']
         # 统计各类型数量
@@ -230,12 +231,12 @@ def main():
             limit_type = item[3]
             stats[limit_type] = stats.get(limit_type, 0) + 1
         
-        print(f"✅ 获取 {len(items)} 条记录")
+        print(f"✅ 获取 {len(items)} 条记录（日期: {yesterday}）")
         print(f"   涨停(U): {stats.get('U', 0)} 只")
         print(f"   跌停(D): {stats.get('D', 0)} 只")
         print(f"   炸板(Z): {stats.get('Z', 0)} 只")
     else:
-        print("❌ 获取失败")
+        print(f"❌ 获取失败（日期: {yesterday}）")
     
     print(f"\n总请求数: {tushare_client._request_count}")
     print("\n✅ Tushare客户端测试完成！")
