@@ -197,6 +197,63 @@ class MarketDataCollector:
             print(f"  ❌ 查询 {code} {name} 失败: {e}")
             return None, 0, 0
     
+    def _sync_stock_info(self, all_stocks: List[Dict]) -> int:
+        """
+        同步股票池信息到 stock_info 表
+        
+        将股票池中的股票基本信息同步到 stock_info，包括：
+        - 股票代码、名称、市场
+        - 板块类型（根据代码判断）
+        - 行业分类（如果有）
+        
+        Args:
+            all_stocks: 股票池列表
+            
+        Returns:
+            同步的股票数量
+        """
+        print(f"\n📝 Step 2.1: 同步股票信息到 stock_info...")
+        
+        # 准备同步数据
+        stocks_to_sync = []
+        for stock in all_stocks:
+            code = stock['code']
+            name = stock.get('name', '')
+            market = stock['market']
+            
+            # 判断板块类型
+            if code.startswith('688'):
+                board_type = '科创板'
+            elif code.startswith('300') or code.startswith('301'):
+                board_type = '创业板'
+            elif code.startswith('8') or code.startswith('4'):
+                board_type = '北交所'
+            else:
+                board_type = '主板'
+            
+            stocks_to_sync.append({
+                'stock_code': code,
+                'stock_name': name,
+                'market': market,
+                'board_type': board_type
+            })
+        
+        # 批量调用后端API同步
+        try:
+            result = self.backend_client.sync_stock_info(stocks_to_sync)
+            success_count = result.get('success_count', 0)
+            failed_count = result.get('failed_count', 0)
+            
+            if failed_count > 0:
+                print(f"  ⚠️  同步完成: {success_count} 成功, {failed_count} 失败")
+            else:
+                print(f"  ✅ 同步完成: {success_count}/{len(all_stocks)} 只")
+            
+            return success_count
+        except Exception as e:
+            print(f"  ❌ 同步失败: {e}")
+            return 0
+    
     def _collect_stocks_data(self, all_stocks: List[Dict]) -> tuple:
         """
         采集所有股票数据
@@ -285,6 +342,9 @@ class MarketDataCollector:
             print(f"\n📈 Step 2: 获取股票池...")
             all_stocks = self.backend_client.get_all_stocks()
             print(f"  股票池总数: {len(all_stocks)} 只")
+            
+            # Step 2.1: 同步股票信息到 stock_info
+            self._sync_stock_info(all_stocks)
             
             # Step 3: 采集股票池数据
             stocks_data, pool_limit_up, pool_limit_down, total_checked = \

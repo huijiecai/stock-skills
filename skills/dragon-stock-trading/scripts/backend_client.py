@@ -116,6 +116,22 @@ class BackendClient:
         """
         result = self._get("/stocks")
         return result.get("stocks", [])
+    
+    def sync_stock_info(self, stocks: List[Dict]) -> Dict:
+        """
+        批量同步股票信息到 stock_info 表
+        
+        Args:
+            stocks: 股票信息列表，每项包含:
+                - stock_code: 股票代码
+                - stock_name: 股票名称
+                - market: 市场
+                - board_type: 板块类型
+        
+        Returns:
+            同步结果
+        """
+        return self._post("/stocks/sync-info", stocks)
 
 if __name__ == "__main__":
     # 测试

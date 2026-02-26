@@ -3,8 +3,17 @@ from datetime import datetime
 from typing import List
 from app.services.data_service import get_data_service
 from app.models.requests import StockAdd, StockPoolAdd
+from pydantic import BaseModel
 
 router = APIRouter()
+
+
+class StockInfoSync(BaseModel):
+    """股票信息同步模型"""
+    stock_code: str
+    stock_name: str
+    market: str
+    board_type: str
 
 
 @router.get("")
@@ -107,3 +116,34 @@ async def get_popularity(date: str, limit: int = 30):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/sync-info")
+async def sync_stock_info(stocks: List[StockInfoSync]):
+    """批量同步股票信息到 stock_info 表"""
+    try:
+        data_service = get_data_service()
+        
+        # 转换为字典列表
+        stocks_data = [
+            {
+                'stock_code': s.stock_code,
+                'stock_name': s.stock_name,
+                'market': s.market,
+                'board_type': s.board_type
+            }
+            for s in stocks
+        ]
+        
+        success_count, failed_count = data_service.batch_sync_stock_info(stocks_data)
+        
+        return {
+            "success": True,
+            "message": f"同步完成",
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total": len(stocks)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+

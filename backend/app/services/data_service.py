@@ -158,6 +158,86 @@ class DataService:
             print(f"移除股票失败: {e}")
             return False
     
+    def sync_stock_info(self, stock_code: str, stock_name: str, market: str, board_type: str) -> bool:
+        """
+        同步股票信息到 stock_info 表
+        
+        如果股票已存在则更新，不存在则插入
+        
+        Args:
+            stock_code: 股票代码
+            stock_name: 股票名称
+            market: 市场（SH/SZ）
+            board_type: 板块类型（主板/创业板/科创板/北交所）
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 使用 INSERT OR REPLACE 确保数据同步
+            cursor.execute('''
+                INSERT OR REPLACE INTO stock_info
+                (stock_code, stock_name, market, board_type, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (stock_code, stock_name, market, board_type))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"同步股票信息失败: {e}")
+            return False
+    
+    def batch_sync_stock_info(self, stocks: List[Dict]) -> tuple:
+        """
+        批量同步股票信息到 stock_info 表
+        
+        Args:
+            stocks: 股票信息列表，每项包含:
+                - stock_code: 股票代码
+                - stock_name: 股票名称
+                - market: 市场
+                - board_type: 板块类型
+        
+        Returns:
+            (成功数量, 失败数量)
+        """
+        success_count = 0
+        failed_count = 0
+        
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            for stock in stocks:
+                try:
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO stock_info
+                        (stock_code, stock_name, market, board_type, updated_at)
+                        VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (
+                        stock['stock_code'],
+                        stock['stock_name'],
+                        stock['market'],
+                        stock['board_type']
+                    ))
+                    success_count += 1
+                except Exception as e:
+                    print(f"同步 {stock.get('stock_code')} 失败: {e}")
+                    failed_count += 1
+            
+            conn.commit()
+            conn.close()
+            
+        except Exception as e:
+            print(f"批量同步失败: {e}")
+            failed_count = len(stocks) - success_count
+        
+        return success_count, failed_count
+    
     # ==================== 新增：概念层级管理 ====================
     
     def get_concept_hierarchy(self) -> Dict:
