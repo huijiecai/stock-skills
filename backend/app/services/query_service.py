@@ -436,5 +436,196 @@ def main():
               f"{leader['leader_change']*100:+.2f}% (涨停{leader['limit_up_count']}家)")
 
 
+# ==================== 新增：LLM工具兼容方法 ====================
+
+def get_stock_detail(self, stock_code: str, date: str) -> Optional[Dict]:
+    """
+    获取股票详细信息（LLM工具兼容）
+    
+    Args:
+        stock_code: 股票代码
+        date: 查询日期
+    
+    Returns:
+        股票详细信息
+    """
+    return self.get_stock_with_concept(stock_code, date)
+
+
+def get_market_sentiment(self, date: str) -> Optional[Dict]:
+    """
+    获取市场情绪（LLM工具兼容）
+    
+    Args:
+        date: 查询日期
+    
+    Returns:
+        市场情绪数据
+    """
+    return self.get_market_status(date)
+
+
+def get_popularity_rank(self, date: str, limit: int = 10) -> List[Dict]:
+    """
+    获取人气排行（LLM工具兼容）
+    
+    Args:
+        date: 查询日期
+        limit: 返回数量
+    
+    Returns:
+        人气股票列表
+    """
+    return self.get_stock_popularity_rank(date, limit)
+
+
+def get_concept_heatmap(self, date: str, limit: int = 10) -> List[Dict]:
+    """
+    获取概念热度排行（LLM工具兼容）
+    
+    Args:
+        date: 查询日期
+        limit: 返回数量
+    
+    Returns:
+        概念热度列表
+    """
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    SELECT c.concept_name, COUNT(*) as stock_count,
+           SUM(CASE WHEN sd.is_limit_up = 1 THEN 1 ELSE 0 END) as limit_up_count,
+           AVG(sd.change_percent) as avg_change
+    FROM concept_daily c
+    JOIN stock_daily sd ON c.stock_code = sd.stock_code AND c.trade_date = sd.trade_date
+    WHERE c.trade_date = ?
+    GROUP BY c.concept_name
+    ORDER BY limit_up_count DESC, avg_change DESC
+    LIMIT ?
+    ''', (date, limit))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'concept_name': row[0],
+            'stock_count': row[1],
+            'limit_up_count': row[2],
+            'avg_change': row[3]
+        })
+    
+    conn.close()
+    return results
+
+
+def get_concept_leaders_by_id(self, concept_id: str, date: str, limit: int = 5) -> List[Dict]:
+    """
+    获取概念龙头股票（LLM工具兼容，按概念名称查询）
+    
+    Args:
+        concept_id: 概念名称（作为ID）
+        date: 查询日期
+        limit: 返回数量
+    
+    Returns:
+        龙头股票列表
+    """
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    cursor.execute('''
+    SELECT sd.stock_code, si.stock_name, sd.change_percent, sd.is_limit_up, sd.streak_days
+    FROM concept_daily c
+    JOIN stock_daily sd ON c.stock_code = sd.stock_code AND c.trade_date = sd.trade_date
+    JOIN stock_info si ON sd.stock_code = si.stock_code
+    WHERE c.trade_date = ? AND c.concept_name = ?
+    ORDER BY sd.change_percent DESC, sd.turnover DESC
+    LIMIT ?
+    ''', (date, concept_id, limit))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'stock_code': row[0],
+            'stock_name': row[1],
+            'change_percent': row[2],
+            'is_limit_up': row[3],
+            'streak_days': row[4]
+        })
+    
+    conn.close()
+    return results
+
+
+def get_concept_stocks(self, concept_id: str) -> List[Dict]:
+    """
+    获取概念包含的所有股票（LLM工具兼容）
+    
+    Args:
+        concept_id: 概念名称（作为ID）
+    
+    Returns:
+        股票列表
+    """
+    conn = sqlite3.connect(self.db_path)
+    cursor = conn.cursor()
+    
+    # 获取最新日期
+    cursor.execute('SELECT MAX(trade_date) FROM concept_daily')
+    latest_date = cursor.fetchone()[0]
+    
+    if not latest_date:
+        conn.close()
+        return []
+    
+    cursor.execute('''
+    SELECT DISTINCT sd.stock_code, si.stock_name, sd.close_price, sd.change_percent
+    FROM concept_daily c
+    JOIN stock_daily sd ON c.stock_code = sd.stock_code AND c.trade_date = sd.trade_date
+    JOIN stock_info si ON sd.stock_code = si.stock_code
+    WHERE c.trade_date = ? AND c.concept_name = ?
+    ORDER BY sd.change_percent DESC
+    ''', (latest_date, concept_id))
+    
+    results = []
+    for row in cursor.fetchall():
+        results.append({
+            'stock_code': row[0],
+            'stock_name': row[1],
+            'close_price': row[2],
+            'change_percent': row[3]
+        })
+    
+    conn.close()
+    return results
+
+
+def analyze_stock(self, stock_code: str, date: str) -> Dict:
+    """
+    综合分析个股（LLM工具兼容）
+    
+    Args:
+        stock_code: 股票代码
+        date: 查询日期
+    
+    Returns:
+        综合分析结果
+    """
+    # 获取股票基本信息
+    stock_info = self.get_stock_with_concept(stock_code, date)
+    
+    # 获取历史数据
+    history = self.get_stock_history(stock_code, 5)
+    
+    # 获取市场状态
+    market = self.get_market_status(date)
+    
+    return {
+        'stock_info': stock_info,
+        'history': history,
+        'market_context': market
+    }
+
+
 if __name__ == "__main__":
     main()

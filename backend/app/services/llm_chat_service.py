@@ -21,6 +21,15 @@ from deepagents import create_deep_agent
 
 from app.services.query_service import QueryService
 
+# 全局数据库路径
+def get_db_path() -> str:
+    """获取数据库路径"""
+    # 从当前文件位置计算项目根目录
+    current_file = Path(__file__).resolve()
+    project_root = current_file.parent.parent.parent.parent
+    db_path = project_root / "data" / "dragon_stock.db"
+    return str(db_path)
+
 
 # ==================== 工具定义 ====================
 
@@ -37,7 +46,7 @@ def get_stock_detail(stock_code: str, date: Optional[str] = None) -> str:
         JSON格式的股票详细信息
     """
     try:
-        query_service = QueryService()
+        query_service = QueryService(get_db_path())
         date = date or datetime.now().strftime("%Y-%m-%d")
         result = query_service.get_stock_detail(stock_code, date)
         return json.dumps(result, ensure_ascii=False)
@@ -57,7 +66,7 @@ def get_market_sentiment(date: Optional[str] = None) -> str:
         JSON格式的市场情绪数据
     """
     try:
-        query_service = QueryService()
+        query_service = QueryService(get_db_path())
         date = date or datetime.now().strftime("%Y-%m-%d")
         result = query_service.get_market_sentiment(date)
         return json.dumps(result, ensure_ascii=False)
@@ -78,7 +87,7 @@ def get_popularity_rank(date: Optional[str] = None, limit: int = 10) -> str:
         JSON格式的人气股票列表
     """
     try:
-        query_service = QueryService()
+        query_service = QueryService(get_db_path())
         date = date or datetime.now().strftime("%Y-%m-%d")
         result = query_service.get_popularity_rank(date, limit)
         return json.dumps(result, ensure_ascii=False)
@@ -99,7 +108,7 @@ def get_concept_heatmap(date: Optional[str] = None, limit: int = 10) -> str:
         JSON格式的概念热度数据
     """
     try:
-        query_service = QueryService()
+        query_service = QueryService(get_db_path())
         date = date or datetime.now().strftime("%Y-%m-%d")
         result = query_service.get_concept_heatmap(date, limit)
         return json.dumps(result, ensure_ascii=False)
@@ -113,7 +122,7 @@ def get_concept_leaders(concept_id: str, date: Optional[str] = None, limit: int 
     获取概念板块内的龙头股票
     
     Args:
-        concept_id: 概念ID
+        concept_id: 概念ID（概念名称）
         date: 查询日期（YYYY-MM-DD），默认为今天
         limit: 返回数量，默认5
     
@@ -121,9 +130,9 @@ def get_concept_leaders(concept_id: str, date: Optional[str] = None, limit: int 
         JSON格式的龙头股票列表
     """
     try:
-        query_service = QueryService()
+        query_service = QueryService(get_db_path())
         date = date or datetime.now().strftime("%Y-%m-%d")
-        result = query_service.get_concept_leaders(concept_id, date, limit)
+        result = query_service.get_concept_leaders_by_id(concept_id, date, limit)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
         return json.dumps({"error": str(e)}, ensure_ascii=False)
@@ -141,7 +150,7 @@ def get_concept_stocks(concept_id: str) -> str:
         JSON格式的股票列表
     """
     try:
-        query_service = QueryService()
+        query_service = QueryService(get_db_path())
         result = query_service.get_concept_stocks(concept_id)
         return json.dumps(result, ensure_ascii=False)
     except Exception as e:
@@ -161,7 +170,7 @@ def analyze_stock(stock_code: str, date: Optional[str] = None) -> str:
         JSON格式的综合分析结果
     """
     try:
-        query_service = QueryService()
+        query_service = QueryService(get_db_path())
         date = date or datetime.now().strftime("%Y-%m-%d")
         result = query_service.analyze_stock(stock_code, date)
         return json.dumps(result, ensure_ascii=False)
