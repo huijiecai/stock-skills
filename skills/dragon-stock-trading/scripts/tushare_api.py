@@ -240,7 +240,7 @@ def get_tushare_api(token: str = None) -> TushareAPI:
     获取TushareAPI单例实例
     
     Args:
-        token: Tushare token，如果不提供则使用默认token
+        token: Tushare token，如果不提供则从配置文件读取
         
     Returns:
         TushareAPI实例
@@ -248,7 +248,11 @@ def get_tushare_api(token: str = None) -> TushareAPI:
     global _tushare_api
     if _tushare_api is None:
         if token is None:
-            token = "78c2b09c8175affca2a45a788be6b0ba13369519220f7cd1b9c5b991"
+            from config_loader import ConfigLoader
+            config = ConfigLoader()
+            token = config.get_tushare_token()
+            if not token:
+                raise ValueError("未配置 Tushare Token，请在 config.yaml 中设置 tushare.token")
         _tushare_api = TushareAPI(token)
     return _tushare_api
 

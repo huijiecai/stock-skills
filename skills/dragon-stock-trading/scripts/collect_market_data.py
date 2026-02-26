@@ -51,12 +51,12 @@ from backend_api_client import BackendAPIClient
 class MarketDataCollector:
     """市场数据采集器（通过后端API写入）"""
     
-    def __init__(self, backend_url: str = "http://localhost:8000"):
+    def __init__(self, backend_url: str = None):
         """
         初始化采集器
         
         Args:
-            backend_url: 后端服务地址（默认：http://localhost:8000）
+            backend_url: 后端服务地址（不提供则从配置文件读取）
         """
         self.market_client = MarketDataClient()  # 市场数据客户端（使用tushare_api）
         self.backend_client = BackendAPIClient(backend_url)  # 后端API客户端

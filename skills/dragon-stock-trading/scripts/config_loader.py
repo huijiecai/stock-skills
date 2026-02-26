@@ -79,10 +79,7 @@ class ConfigLoader:
                 env_value = os.getenv(env_var)
                 if env_value:
                     config[key] = env_value
-                else:
-                    # 如果环境变量不存在，使用默认值（Tushare token）
-                    if env_var == 'TUSHARE_TOKEN':
-                        config[key] = '78c2b09c8175affca2a45a788be6b0ba13369519220f7cd1b9c5b991'
+                # 如果环境变量不存在，保持原样（由调用方处理）
     
     def get(self, key_path: str, default: Any = None) -> Any:
         """

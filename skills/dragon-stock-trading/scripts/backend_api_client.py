@@ -9,18 +9,23 @@
 import requests
 from typing import Dict, List, Optional
 from datetime import datetime
+from config_loader import ConfigLoader
 
 
 class BackendAPIClient:
     """后端API客户端"""
     
-    def __init__(self, base_url: str = "http://localhost:8000"):
+    def __init__(self, base_url: str = None):
         """
         初始化API客户端
         
         Args:
-            base_url: 后端服务地址（默认：http://localhost:8000）
+            base_url: 后端服务地址（不提供则从配置文件读取）
         """
+        if base_url is None:
+            config = ConfigLoader()
+            base_url = config.get('backend', {}).get('url', 'http://localhost:8000')
+        
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
     

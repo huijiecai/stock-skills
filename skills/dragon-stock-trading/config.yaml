@@ -2,6 +2,9 @@ data:
   db_path: "./data/dragon_stock.db"
   cache_days: 10  # 保留最近N天数据
   
+backend:
+  url: "http://localhost:8000"
+  
 tushare:
   token: "78c2b09c8175affca2a45a788be6b0ba13369519220f7cd1b9c5b991"
   base_url: "http://api.tushare.pro"
