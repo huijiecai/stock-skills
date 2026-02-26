@@ -77,6 +77,7 @@ class DatabaseInitializer:
             stock_code TEXT PRIMARY KEY,
             stock_name TEXT,
             market TEXT,
+            board_type TEXT,
             industry TEXT,
             sub_industry TEXT,
             list_date TEXT,
