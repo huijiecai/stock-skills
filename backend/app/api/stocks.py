@@ -190,3 +190,71 @@ async def get_intraday_data(stock_code: str, date: str):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{code}/quote")
+async def get_stock_quote(code: str):
+    """获取股票实时行情"""
+    try:
+        data_service = get_data_service()
+        quote = data_service.get_stock_quote(code)
+        
+        if not quote:
+            raise HTTPException(status_code=404, detail="未找到股票行情数据")
+        
+        return {
+            "success": True,
+            "data": quote
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/{code}/daily")
+async def get_stock_daily(code: str, start_date: str = None, end_date: str = None):
+    """获取股票日K线数据"""
+    try:
+        data_service = get_data_service()
+        
+        # 如果没有指定日期范围，默认返回最近1年
+        if not end_date:
+            end_date = datetime.now().strftime("%Y-%m-%d")
+        if not start_date:
+            # 计算1年前的日期
+            from datetime import timedelta
+            one_year_ago = datetime.now() - timedelta(days=365)
+            start_date = one_year_ago.strftime("%Y-%m-%d")
+        
+        daily_data = data_service.get_stock_daily(code, start_date, end_date)
+        
+        return {
+            "success": True,
+            "data": daily_data,
+            "total": len(daily_data)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/batch-quote")
+async def batch_get_quote(request: Dict):
+    """批量获取股票行情"""
+    try:
+        codes = request.get('codes', [])
+        if not codes:
+            raise HTTPException(status_code=400, detail="codes参数不能为空")
+        
+        data_service = get_data_service()
+        quotes = data_service.batch_get_stock_quote(codes)
+        
+        return {
+            "success": True,
+            "data": quotes,
+            "total": len(quotes)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

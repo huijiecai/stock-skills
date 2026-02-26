@@ -1,21 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, message, Popconfirm, Space, DatePicker, Radio } from 'antd';
-import { PlusOutlined, DeleteOutlined, LineChartOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, message, Space } from 'antd';
+import { PlusOutlined, LineChartOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { stocksAPI } from '../services/api';
-import IntradayChart from '../components/IntradayChart';
-import dayjs from 'dayjs';
 
 export default function StockPool() {
   const [loading, setLoading] = useState(false);
   const [stocks, setStocks] = useState([]);
+  const [quotesMap, setQuotesMap] = useState({});
   const [isModalVisible, setIsModalVisible] = useState(false);
-  const [isChartVisible, setIsChartVisible] = useState(false);
-  const [selectedStock, setSelectedStock] = useState(null);
-  const [chartData, setChartData] = useState([]);
-  const [chartLoading, setChartLoading] = useState(false);
-  const [chartType, setChartType] = useState('intraday'); // intraday 或 daily
-  const [selectedDate, setSelectedDate] = useState(dayjs());
   const [form] = Form.useForm();
+  const navigate = useNavigate();
 
   useEffect(() => {
     loadStocks();
@@ -24,8 +19,23 @@ export default function StockPool() {
   const loadStocks = async () => {
     setLoading(true);
     try {
+      // 获取股票列表
       const res = await stocksAPI.getList();
-      setStocks(res.data.stocks || []);
+      const stockList = res.data.stocks || [];
+      setStocks(stockList);
+
+      // 批量获取行情
+      if (stockList.length > 0) {
+        const codes = stockList.map(s => s.code);
+        const quotesRes = await stocksAPI.batchQuote(codes);
+        
+        // 转换为 Map 方便查询
+        const map = {};
+        (quotesRes.data.data || []).forEach(quote => {
+          map[quote.code] = quote;
+        });
+        setQuotesMap(map);
+      }
     } catch (error) {
       message.error('加载股票池失败');
     } finally {
@@ -50,55 +60,43 @@ export default function StockPool() {
     }
   };
 
-  const handleDelete = async (code) => {
-    try {
-      await stocksAPI.delete(code);
-      message.success('删除成功');
-      loadStocks();
-    } catch (error) {
-      message.error('删除失败');
-    }
+  const handleViewDetail = (stock) => {
+    // 跳转到详情页
+    navigate(`/stocks/${stock.code}`);
   };
 
-  const handleViewChart = async (stock) => {
-    setSelectedStock(stock);
-    setIsChartVisible(true);
-    await loadChartData(stock, selectedDate.format('YYYY-MM-DD'), chartType);
+  // 格式化数值
+  const formatNumber = (num) => {
+    if (num === null || num === undefined) return '-';
+    if (num >= 100000000) {
+      return (num / 100000000).toFixed(2) + '亿';
+    }
+    if (num >= 10000) {
+      return (num / 10000).toFixed(2) + '万';
+    }
+    return num.toFixed(2);
   };
 
-  const loadChartData = async (stock, date, type) => {
-    setChartLoading(true);
-    try {
-      if (type === 'intraday') {
-        // 获取分时数据
-        const res = await stocksAPI.getIntraday(stock.code, date);
-        setChartData(res.data.data || []);
-      } else {
-        // 日线数据暂不支持
-        message.info('日线图功能开发中');
-        setChartData([]);
-      }
-    } catch (error) {
-      message.error('加载图表数据失败');
-      setChartData([]);
-    } finally {
-      setChartLoading(false);
-    }
+  // 渲染涨跌幅
+  const renderChangePercent = (value) => {
+    if (value === null || value === undefined) return '-';
+    const color = value >= 0 ? '#f5222d' : '#52c41a';
+    const prefix = value >= 0 ? '+' : '';
+    return <span style={{ color, fontWeight: 'bold' }}>{prefix}{value.toFixed(2)}%</span>;
   };
 
-  const handleChartTypeChange = (e) => {
-    const newType = e.target.value;
-    setChartType(newType);
-    if (selectedStock) {
-      loadChartData(selectedStock, selectedDate.format('YYYY-MM-DD'), newType);
-    }
+  // 渲染涨跌额
+  const renderChange = (value) => {
+    if (value === null || value === undefined) return '-';
+    const color = value >= 0 ? '#f5222d' : '#52c41a';
+    const prefix = value >= 0 ? '+' : '';
+    return <span style={{ color }}>{prefix}{value.toFixed(2)}</span>;
   };
 
-  const handleDateChange = (date) => {
-    setSelectedDate(date);
-    if (selectedStock) {
-      loadChartData(selectedStock, date.format('YYYY-MM-DD'), chartType);
-    }
+  // 渲染价格
+  const renderPrice = (value) => {
+    if (value === null || value === undefined) return '-';
+    return value.toFixed(2);
   };
 
   const columns = [
@@ -106,13 +104,78 @@ export default function StockPool() {
       title: '股票代码',
       dataIndex: 'code',
       key: 'code',
-      width: 120,
+      width: 100,
+      render: (code) => (
+        <a onClick={() => handleViewDetail({ code })} style={{ color: '#1890ff', cursor: 'pointer' }}>
+          {code}
+        </a>
+      ),
     },
     {
       title: '股票名称',
       dataIndex: 'name',
       key: 'name',
-      width: 150,
+      width: 120,
+      render: (name, record) => (
+        <a onClick={() => handleViewDetail(record)} style={{ color: '#1890ff', cursor: 'pointer', fontWeight: 'bold' }}>
+          {name}
+        </a>
+      ),
+    },
+    {
+      title: '最新价',
+      key: 'price',
+      width: 100,
+      align: 'right',
+      render: (_, record) => {
+        const quote = quotesMap[record.code];
+        return quote ? renderPrice(quote.price) : '-';
+      },
+    },
+    {
+      title: '涨跌幅',
+      key: 'change_percent',
+      width: 100,
+      align: 'right',
+      render: (_, record) => {
+        const quote = quotesMap[record.code];
+        return quote ? renderChangePercent(quote.change_percent) : '-';
+      },
+      sorter: (a, b) => {
+        const aQuote = quotesMap[a.code];
+        const bQuote = quotesMap[b.code];
+        return (aQuote?.change_percent || 0) - (bQuote?.change_percent || 0);
+      },
+    },
+    {
+      title: '涨跌额',
+      key: 'change',
+      width: 100,
+      align: 'right',
+      render: (_, record) => {
+        const quote = quotesMap[record.code];
+        return quote ? renderChange(quote.change) : '-';
+      },
+    },
+    {
+      title: '成交量',
+      key: 'volume',
+      width: 120,
+      align: 'right',
+      render: (_, record) => {
+        const quote = quotesMap[record.code];
+        return quote ? formatNumber(quote.volume) : '-';
+      },
+    },
+    {
+      title: '成交额',
+      key: 'turnover',
+      width: 120,
+      align: 'right',
+      render: (_, record) => {
+        const quote = quotesMap[record.code];
+        return quote ? formatNumber(quote.turnover) : '-';
+      },
     },
     {
       title: '市场',
@@ -124,27 +187,16 @@ export default function StockPool() {
     {
       title: '操作',
       key: 'action',
-      width: 200,
+      width: 100,
+      fixed: 'right',
       render: (_, record) => (
-        <Space>
-          <Button 
-            type="link" 
-            icon={<LineChartOutlined />}
-            onClick={() => handleViewChart(record)}
-          >
-            查看走势
-          </Button>
-          <Popconfirm
-            title="确定删除这只股票吗？"
-            onConfirm={() => handleDelete(record.code)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Button type="link" danger icon={<DeleteOutlined />}>
-              删除
-            </Button>
-          </Popconfirm>
-        </Space>
+        <Button 
+          type="link" 
+          icon={<LineChartOutlined />}
+          onClick={() => handleViewDetail(record)}
+        >
+          详情
+        </Button>
       ),
     },
   ];
@@ -167,6 +219,7 @@ export default function StockPool() {
           pageSize: 20,
           showTotal: (total) => `共 ${total} 只股票`,
         }}
+        scroll={{ x: 1200 }}
       />
 
       <Modal
@@ -204,43 +257,6 @@ export default function StockPool() {
             </Select>
           </Form.Item>
         </Form>
-      </Modal>
-
-      {/* 走势图弹窗 */}
-      <Modal
-        title={
-          <Space>
-            <span>个股走势</span>
-            <Radio.Group value={chartType} onChange={handleChartTypeChange} size="small">
-              <Radio.Button value="intraday">分时</Radio.Button>
-              <Radio.Button value="daily">日线</Radio.Button>
-            </Radio.Group>
-            <DatePicker 
-              value={selectedDate}
-              onChange={handleDateChange}
-              format="YYYY-MM-DD"
-              size="small"
-              allowClear={false}
-            />
-          </Space>
-        }
-        open={isChartVisible}
-        onCancel={() => setIsChartVisible(false)}
-        footer={null}
-        width={900}
-      >
-        {chartLoading ? (
-          <div style={{ textAlign: 'center', padding: '50px' }}>加载中...</div>
-        ) : (
-          selectedStock && (
-            <IntradayChart 
-              data={chartData}
-              stockCode={selectedStock.code}
-              stockName={selectedStock.name}
-              date={selectedDate.format('YYYY-MM-DD')}
-            />
-          )
-        )}
       </Modal>
     </div>
   );

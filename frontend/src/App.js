@@ -4,6 +4,7 @@ import { Layout, Menu } from 'antd';
 import { DashboardOutlined, StockOutlined, AppstoreOutlined, BarChartOutlined, RobotOutlined } from '@ant-design/icons';
 import Dashboard from './pages/Dashboard';
 import StockPool from './pages/StockPool';
+import StockDetail from './pages/StockDetail';
 import ConceptManage from './pages/ConceptManage';
 import Analysis from './pages/Analysis';
 import ChatAnalysis from './pages/ChatAnalysis';
@@ -70,6 +71,7 @@ function App() {
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/chat" element={<ChatAnalysis />} />
                 <Route path="/stocks" element={<StockPool />} />
+                <Route path="/stocks/:code" element={<StockDetail />} />
                 <Route path="/concepts" element={<ConceptManage />} />
                 <Route path="/analysis" element={<Analysis />} />
               </Routes>

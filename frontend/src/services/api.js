@@ -24,6 +24,12 @@ export const stocksAPI = {
   getDetail: (code, date) => api.get(`/stocks/${code}/detail`, { params: { date } }),
   getPopularity: (date, limit = 30) => api.get(`/stocks/popularity/${date}`, { params: { limit } }),
   getIntraday: (code, date) => api.get(`/stocks/intraday/${code}/${date}`),
+  // 新增接口
+  getQuote: (code) => api.get(`/stocks/${code}/quote`),
+  getDaily: (code, startDate, endDate) => api.get(`/stocks/${code}/daily`, { 
+    params: { start_date: startDate, end_date: endDate } 
+  }),
+  batchQuote: (codes) => api.post('/stocks/batch-quote', { codes }),
 };
 
 // 概念API

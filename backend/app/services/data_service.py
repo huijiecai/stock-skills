@@ -448,6 +448,171 @@ class DataService:
             print(f"保存分时数据失败 {stock_code}: {e}")
             return False
     
+    def get_stock_quote(self, stock_code: str) -> Optional[Dict]:
+        """
+        获取股票实时行情（从stock_daily表获取最新一天的数据）
+        
+        Args:
+            stock_code: 股票代码
+        
+        Returns:
+            行情数据字典，包含：code, name, price, change, change_percent, volume, turnover, etc.
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 从stock_daily获取最新一天的数据
+        cursor.execute('''
+            SELECT 
+                sd.stock_code,
+                si.stock_name,
+                sd.close_price as price,
+                sd.change_amount as change,
+                sd.change_percent,
+                sd.volume,
+                sd.turnover,
+                sd.turnover_rate,
+                sd.high_price as high,
+                sd.low_price as low,
+                sd.open_price as open,
+                sd.pre_close
+            FROM stock_daily sd
+            LEFT JOIN stock_info si ON sd.stock_code = si.stock_code
+            WHERE sd.stock_code = ?
+            ORDER BY sd.trade_date DESC
+            LIMIT 1
+        ''', (stock_code,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if not row:
+            return None
+        
+        return {
+            'code': row[0],
+            'name': row[1] or stock_code,
+            'price': row[2],
+            'change': row[3],
+            'change_percent': row[4],
+            'volume': row[5],
+            'turnover': row[6],
+            'turnover_rate': row[7],
+            'high': row[8],
+            'low': row[9],
+            'open': row[10],
+            'prev_close': row[11]
+        }
+    
+    def get_stock_daily(self, stock_code: str, start_date: str, end_date: str) -> List[Dict]:
+        """
+        获取股票日K线数据
+        
+        Args:
+            stock_code: 股票代码
+            start_date: 开始日期 (YYYY-MM-DD)
+            end_date: 结束日期 (YYYY-MM-DD)
+        
+        Returns:
+            日K线数据列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT 
+                trade_date,
+                open_price as open,
+                high_price as high,
+                low_price as low,
+                close_price as close,
+                volume,
+                turnover,
+                change_percent
+            FROM stock_daily
+            WHERE stock_code = ? AND trade_date BETWEEN ? AND ?
+            ORDER BY trade_date ASC
+        ''', (stock_code, start_date, end_date))
+        
+        data = []
+        for row in cursor.fetchall():
+            data.append({
+                'date': row[0],
+                'open': row[1],
+                'high': row[2],
+                'low': row[3],
+                'close': row[4],
+                'volume': row[5],
+                'turnover': row[6],
+                'change_percent': row[7]
+            })
+        
+        conn.close()
+        return data
+    
+    def batch_get_stock_quote(self, codes: List[str]) -> List[Dict]:
+        """
+        批量获取股票行情
+        
+        Args:
+            codes: 股票代码列表
+        
+        Returns:
+            行情数据列表
+        """
+        if not codes:
+            return []
+        
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 使用子查询获取每个股票的最新交易日期
+        placeholders = ','.join('?' * len(codes))
+        cursor.execute(f'''
+            WITH latest_dates AS (
+                SELECT stock_code, MAX(trade_date) as max_date
+                FROM stock_daily
+                WHERE stock_code IN ({placeholders})
+                GROUP BY stock_code
+            )
+            SELECT 
+                sd.stock_code,
+                si.stock_name,
+                sd.close_price as price,
+                sd.change_amount as change,
+                sd.change_percent,
+                sd.volume,
+                sd.turnover,
+                sd.turnover_rate,
+                sd.high_price as high,
+                sd.low_price as low,
+                sd.open_price as open,
+                sd.pre_close
+            FROM stock_daily sd
+            INNER JOIN latest_dates ld ON sd.stock_code = ld.stock_code AND sd.trade_date = ld.max_date
+            LEFT JOIN stock_info si ON sd.stock_code = si.stock_code
+        ''', codes)
+        
+        quotes = []
+        for row in cursor.fetchall():
+            quotes.append({
+                'code': row[0],
+                'name': row[1] or row[0],
+                'price': row[2],
+                'change': row[3],
+                'change_percent': row[4],
+                'volume': row[5],
+                'turnover': row[6],
+                'turnover_rate': row[7],
+                'high': row[8],
+                'low': row[9],
+                'open': row[10],
+                'prev_close': row[11]
+            })
+        
+        conn.close()
+        return quotes
+    
     def get_intraday_data(self, stock_code: str, date: str) -> List[Dict]:
         """
         获取分时数据
