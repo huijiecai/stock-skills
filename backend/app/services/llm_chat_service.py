@@ -5,7 +5,7 @@ LLM 聊天服务 - 基于 DeepAgents + AgentSkills 规范实现
 1. 使用 create_deep_agent 加载 SKILL.md
 2. 使用 @tool 定义后端服务工具
 3. Skills 自动按需加载（渐进式披露）
-4. 智谱AI GLM-4 作为底层模型
+4. 阿里云通义千问 Qwen 作为底层模型
 """
 
 import os
@@ -16,7 +16,7 @@ from datetime import datetime
 
 from langchain_core.messages import HumanMessage, AIMessage
 from langchain_core.tools import tool
-from langchain_community.chat_models import ChatZhipuAI
+from langchain_openai import ChatOpenAI
 from deepagents import create_deep_agent
 
 from app.services.query_service import QueryService
@@ -192,17 +192,18 @@ class LLMChatService:
     """
     
     def __init__(self):
-        # 智谱AI API配置
-        api_key = os.getenv("ZHIPUAI_API_KEY") or os.getenv("OPENAI_API_KEY")
+        # 阿里云通义千问 API配置（使用OpenAI兼容模式）
+        api_key = os.getenv("DASHSCOPE_API_KEY") or os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("ZHIPUAI_API_KEY or OPENAI_API_KEY environment variable not set")
+            raise ValueError("DASHSCOPE_API_KEY or OPENAI_API_KEY environment variable not set")
         
-        model_name = os.getenv("ZHIPUAI_MODEL", "glm-4-plus")
+        model_name = os.getenv("QWEN_MODEL", "qwen-max")
         
-        # 初始化智谱AI模型
-        self.llm = ChatZhipuAI(
+        # 初始化通义千问模型（通过OpenAI兼容接口）
+        self.llm = ChatOpenAI(
             model=model_name,
             api_key=api_key,
+            base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
             streaming=True,
             temperature=0.7
         )
