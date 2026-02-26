@@ -28,6 +28,9 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
       chartInstance.current = echarts.init(chartRef.current);
     }
 
+    // 如果图表实例不存在，返回
+    if (!chartInstance.current) return;
+
     // 处理数据
     const times = data.map(item => item.trade_time.substring(11, 16)); // HH:MM
     const prices = data.map(item => item.price);
@@ -39,6 +42,9 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
     const currentPrice = prices[prices.length - 1]; // 最新价
     const changePercent = ((currentPrice - firstPrice) / firstPrice * 100).toFixed(2);
     const changeAmount = (currentPrice - firstPrice).toFixed(2);
+
+    // 打印调试信息（帮助排查问题）
+    console.log(`[IntradayChart] ${stockCode} ${date}: ${data.length}条数据, 价格范围 ${Math.min(...prices).toFixed(2)} ~ ${Math.max(...prices).toFixed(2)}`);
 
     // 配置图表
     const option = {
@@ -173,22 +179,23 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
             ])
           }
         },
-        {
-          name: '均价线',
-          type: 'line',
-          data: avgPrices,
-          xAxisIndex: 0,
-          yAxisIndex: 0,
-          smooth: false,
-          symbol: 'none',
-          lineStyle: {
-            color: '#ff9800',
-            width: 1
-          },
-          itemStyle: {
-            color: '#ff9800'
-          }
-        },
+        // 暂时注释均价线，因为数据问题导致Y轴范围异常
+        // {
+        //   name: '均价线',
+        //   type: 'line',
+        //   data: avgPrices,
+        //   xAxisIndex: 0,
+        //   yAxisIndex: 0,
+        //   smooth: false,
+        //   symbol: 'none',
+        //   lineStyle: {
+        //     color: '#ff9800',
+        //     width: 1
+        //   },
+        //   itemStyle: {
+        //     color: '#ff9800'
+        //   }
+        // },
         {
           name: '成交量',
           type: 'bar',

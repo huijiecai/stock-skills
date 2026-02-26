@@ -344,7 +344,7 @@ class MarketDataClient:
             amt = float(item[7]) * 1000  # 累计成交额（千元转元）
             price = float(item[5])  # 当前价（close）
             
-            # 计算均价
+            # 计算均价：成交额(元) / 成交量(股)
             avg_price = amt / (vol * 100) if vol > 0 else price
             
             # 计算涨跌幅
