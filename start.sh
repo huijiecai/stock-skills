@@ -22,14 +22,12 @@ fi
 echo "✅ 环境检查通过"
 echo ""
 
-# 检查后端依赖
-if [ ! -d "backend/venv" ]; then
+# 检查后端依赖（使用根目录的 .venv）
+if [ ! -d ".venv" ]; then
     echo "📦 首次运行，创建Python虚拟环境..."
-    cd backend
-    python3 -m venv venv
-    source venv/bin/activate
-    pip install -r requirements.txt
-    cd ..
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r backend/requirements.txt
     echo "✅ 后端依赖安装完成"
 else
     echo "✅ 后端环境已存在"
@@ -52,8 +50,8 @@ echo ""
 
 # 启动后端
 echo "启动后端服务（端口8000）..."
+source .venv/bin/activate
 cd backend
-source venv/bin/activate
 uvicorn app.main:app --host 0.0.0.0 --port 8000 > ../logs/backend.log 2>&1 &
 BACKEND_PID=$!
 cd ..
