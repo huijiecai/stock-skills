@@ -1,12 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, message, Popconfirm, Space } from 'antd';
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, message, Popconfirm, Space, DatePicker, Radio } from 'antd';
+import { PlusOutlined, DeleteOutlined, LineChartOutlined } from '@ant-design/icons';
 import { stocksAPI } from '../services/api';
+import IntradayChart from '../components/IntradayChart';
+import dayjs from 'dayjs';
 
 export default function StockPool() {
   const [loading, setLoading] = useState(false);
   const [stocks, setStocks] = useState([]);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isChartVisible, setIsChartVisible] = useState(false);
+  const [selectedStock, setSelectedStock] = useState(null);
+  const [chartData, setChartData] = useState([]);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartType, setChartType] = useState('intraday'); // intraday 或 daily
+  const [selectedDate, setSelectedDate] = useState(dayjs());
   const [form] = Form.useForm();
 
   useEffect(() => {
@@ -52,6 +60,47 @@ export default function StockPool() {
     }
   };
 
+  const handleViewChart = async (stock) => {
+    setSelectedStock(stock);
+    setIsChartVisible(true);
+    await loadChartData(stock, selectedDate.format('YYYY-MM-DD'), chartType);
+  };
+
+  const loadChartData = async (stock, date, type) => {
+    setChartLoading(true);
+    try {
+      if (type === 'intraday') {
+        // 获取分时数据
+        const res = await stocksAPI.getIntraday(stock.code, date);
+        setChartData(res.data.data || []);
+      } else {
+        // 日线数据暂不支持
+        message.info('日线图功能开发中');
+        setChartData([]);
+      }
+    } catch (error) {
+      message.error('加载图表数据失败');
+      setChartData([]);
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
+  const handleChartTypeChange = (e) => {
+    const newType = e.target.value;
+    setChartType(newType);
+    if (selectedStock) {
+      loadChartData(selectedStock, selectedDate.format('YYYY-MM-DD'), newType);
+    }
+  };
+
+  const handleDateChange = (date) => {
+    setSelectedDate(date);
+    if (selectedStock) {
+      loadChartData(selectedStock, date.format('YYYY-MM-DD'), chartType);
+    }
+  };
+
   const columns = [
     {
       title: '股票代码',
@@ -75,9 +124,16 @@ export default function StockPool() {
     {
       title: '操作',
       key: 'action',
-      width: 150,
+      width: 200,
       render: (_, record) => (
         <Space>
+          <Button 
+            type="link" 
+            icon={<LineChartOutlined />}
+            onClick={() => handleViewChart(record)}
+          >
+            查看走势
+          </Button>
           <Popconfirm
             title="确定删除这只股票吗？"
             onConfirm={() => handleDelete(record.code)}
@@ -148,6 +204,43 @@ export default function StockPool() {
             </Select>
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 走势图弹窗 */}
+      <Modal
+        title={
+          <Space>
+            <span>个股走势</span>
+            <Radio.Group value={chartType} onChange={handleChartTypeChange} size="small">
+              <Radio.Button value="intraday">分时</Radio.Button>
+              <Radio.Button value="daily">日线</Radio.Button>
+            </Radio.Group>
+            <DatePicker 
+              value={selectedDate}
+              onChange={handleDateChange}
+              format="YYYY-MM-DD"
+              size="small"
+              allowClear={false}
+            />
+          </Space>
+        }
+        open={isChartVisible}
+        onCancel={() => setIsChartVisible(false)}
+        footer={null}
+        width={900}
+      >
+        {chartLoading ? (
+          <div style={{ textAlign: 'center', padding: '50px' }}>加载中...</div>
+        ) : (
+          selectedStock && (
+            <IntradayChart 
+              data={chartData}
+              stockCode={selectedStock.code}
+              stockName={selectedStock.name}
+              date={selectedDate.format('YYYY-MM-DD')}
+            />
+          )
+        )}
       </Modal>
     </div>
   );

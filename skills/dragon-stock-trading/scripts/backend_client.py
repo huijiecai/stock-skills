@@ -132,6 +132,38 @@ class BackendClient:
             同步结果
         """
         return self._post("/stocks/sync-info", stocks)
+    
+    def save_intraday_data(self, date: str, stock_code: str, intraday_data: List[Dict]) -> Dict:
+        """
+        保存分时数据
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            stock_code: 股票代码
+            intraday_data: 分时数据列表
+        
+        Returns:
+            保存结果
+        """
+        return self._post("/stocks/intraday", {
+            "date": date,
+            "stock_code": stock_code,
+            "intraday_data": intraday_data
+        })
+    
+    def get_intraday_data(self, stock_code: str, date: str) -> List[Dict]:
+        """
+        获取分时数据
+        
+        Args:
+            stock_code: 股票代码
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            分时数据列表
+        """
+        result = self._get(f"/stocks/intraday/{stock_code}/{date}")
+        return result.get("data", [])
 
 if __name__ == "__main__":
     # 测试

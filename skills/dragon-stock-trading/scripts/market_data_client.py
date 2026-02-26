@@ -267,6 +267,101 @@ class MarketDataClient:
         print("  ⚠️  Tushare不直接提供涨停列表，需要通过涨跌幅>=9.5%筛选")
         return []
     
+    def _get_prev_close(self, stock_code: str, market: str, date: str) -> float:
+        """
+        获取股票前一日收盘价
+        
+        Args:
+            stock_code: 股票代码
+            market: 市场代码
+            date: 当前日期（YYYY-MM-DD）
+            
+        Returns:
+            前一日收盘价
+        """
+        # 构造Tushare格式的股票代码
+        if '.' not in stock_code:
+            ts_code = f"{stock_code}.{market.upper()}"
+        else:
+            ts_code = stock_code
+        
+        # 转换日期格式（YYYY-MM-DD -> YYYYMMDD）
+        trade_date = date.replace('-', '')
+        
+        # 获取日线数据
+        data = self._api.get_stock_daily(ts_code=ts_code, trade_date=trade_date)
+        
+        if data and data.get('items') and len(data['items']) > 0:
+            item = data['items'][0]
+            return item[6]  # pre_close 昨收价
+        
+        return 0.0
+    
+    def get_stock_intraday(self, stock_code: str, market: str, date: str) -> List[Dict]:
+        """
+        获取股票分时数据
+        
+        Args:
+            stock_code: 股票代码（如 000001）
+            market: 市场代码（SH/SZ）
+            date: 交易日期（YYYY-MM-DD）
+            
+        Returns:
+            分时数据列表，每个元素包含：
+            - trade_time: 交易时间（HH:MM）
+            - price: 当前价
+            - change_percent: 涨跌幅（小数）
+            - volume: 累计成交量（手）
+            - turnover: 累计成交额（元）
+            - avg_price: 均价
+        """
+        # 构造Tushare格式的股票代码
+        if '.' not in stock_code:
+            ts_code = f"{stock_code}.{market.upper()}"
+        else:
+            ts_code = stock_code
+        
+        # 转换日期格式（YYYY-MM-DD -> YYYYMMDD）
+        trade_date = date.replace('-', '')
+        
+        # 调用底层API获取分时数据
+        data = self._api.get_stock_intraday(ts_code, trade_date)
+        
+        if not data or not data.get('items'):
+            return []
+        
+        # 获取前一日收盘价（用于计算涨跌幅）
+        prev_close = self._get_prev_close(stock_code, market, date)
+        if prev_close == 0:
+            # 如果获取不到昨收价，使用当天开盘价
+            if data['items']:
+                prev_close = data['items'][0][2]  # open
+        
+        result = []
+        for item in data['items']:
+            # item结构: [ts_code, trade_time, open, high, low, close, vol, amount]
+            vol = float(item[6])  # 累计成交量（手）
+            amt = float(item[7]) * 1000  # 累计成交额（千元转元）
+            price = float(item[5])  # 当前价（close）
+            
+            # 计算均价
+            avg_price = amt / (vol * 100) if vol > 0 else price
+            
+            # 计算涨跌幅
+            change_pct = (price - prev_close) / prev_close if prev_close > 0 else 0
+            
+            result.append({
+                'trade_time': item[1],  # HH:MM
+                'price': price,
+                'change_percent': change_pct,
+                'volume': int(vol),
+                'turnover': amt,
+                'avg_price': avg_price
+            })
+        
+        self._request_count += 1
+        return result
+    
     def get_request_count(self) -> int:
         """获取请求计数"""
         return self._request_count

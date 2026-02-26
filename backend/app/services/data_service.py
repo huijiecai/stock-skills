@@ -403,6 +403,86 @@ class DataService:
         except Exception as e:
             print(f"保存个股数据失败 {stock.get('code')}: {e}")
             return False
+    
+    # ==================== 分时数据管理 ====================
+    
+    def save_intraday_data(self, date: str, stock_code: str, intraday_data: List[Dict]) -> bool:
+        """
+        保存分时数据
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            stock_code: 股票代码
+            intraday_data: 分时数据列表
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 先删除已有数据（避免重复）
+            cursor.execute('''
+                DELETE FROM stock_intraday 
+                WHERE trade_date = ? AND stock_code = ?
+            ''', (date, stock_code))
+            
+            # 批量插入
+            for item in intraday_data:
+                cursor.execute('''
+                    INSERT INTO stock_intraday
+                    (trade_date, stock_code, trade_time, price, change_percent, 
+                     volume, turnover, avg_price)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    date, stock_code, item['trade_time'], item['price'],
+                    item['change_percent'], item['volume'], item['turnover'],
+                    item['avg_price']
+                ))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"保存分时数据失败 {stock_code}: {e}")
+            return False
+    
+    def get_intraday_data(self, stock_code: str, date: str) -> List[Dict]:
+        """
+        获取分时数据
+        
+        Args:
+            stock_code: 股票代码
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            分时数据列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 根据 trade_time 字段过滤，只返回指定日期的数据
+        cursor.execute('''
+            SELECT trade_time, price, change_percent, volume, turnover, avg_price
+            FROM stock_intraday
+            WHERE stock_code = ? AND trade_time LIKE ?
+            ORDER BY trade_time
+        ''', (stock_code, f"{date}%"))
+        
+        data = []
+        for row in cursor.fetchall():
+            data.append({
+                'trade_time': row[0],
+                'price': row[1],
+                'change_percent': row[2],
+                'volume': row[3],
+                'turnover': row[4],
+                'avg_price': row[5]
+            })
+        
+        conn.close()
+        return data
 
 
 # 单例

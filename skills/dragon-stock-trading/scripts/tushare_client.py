@@ -147,6 +147,47 @@ class TushareClient:
             return None
 
 
+    def get_stock_intraday(self, ts_code: str, trade_date: str, freq: str = '1min') -> Optional[Dict]:
+        """
+        获取股票分时数据（使用官方SDK）
+        
+        Args:
+            ts_code: Tushare股票代码（如 000001.SZ）
+            trade_date: 交易日期（格式：20260226）
+            freq: 数据频度（1min/5min/15min/30min/60min）
+            
+        Returns:
+            分时数据字典 {'items': [[...], [...]], 'fields': [...]}
+            
+        注意：需要 5000 积分权限
+        """
+        try:
+            # 调用官方SDK的分钟线接口
+            df = self.pro.stk_mins(
+                ts_code=ts_code,
+                trade_date=trade_date,
+                freq=freq,
+                fields='ts_code,trade_time,open,high,low,close,vol,amount'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            # 权限不足或其他错误
+            if '没有访问权限' in str(e) or 'Permission denied' in str(e):
+                print(f"⚠️  分时接口需要5000积分权限: {e}")
+            else:
+                print(f"Tushare API错误: {e}")
+            return None
+
+
     def get_limit_list(self, trade_date: str, limit_type: str = None) -> Optional[Dict]:
         """
         获取涨跌停列表（使用官方SDK）

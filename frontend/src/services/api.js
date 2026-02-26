@@ -23,6 +23,7 @@ export const stocksAPI = {
   delete: (code) => api.delete(`/stocks/${code}`),
   getDetail: (code, date) => api.get(`/stocks/${code}/detail`, { params: { date } }),
   getPopularity: (date, limit = 30) => api.get(`/stocks/popularity/${date}`, { params: { limit } }),
+  getIntraday: (code, date) => api.get(`/stocks/intraday/${code}/${date}`),
 };
 
 // 概念API

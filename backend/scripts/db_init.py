@@ -71,7 +71,26 @@ class DatabaseInitializer:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_daily_date ON stock_daily(trade_date)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_stock_daily_code ON stock_daily(stock_code)')
         
-        # 3. 股票基本信息表
+        # 3. 个股分时数据表
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS stock_intraday (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trade_date TEXT NOT NULL,
+            stock_code TEXT NOT NULL,
+            trade_time TEXT NOT NULL,
+            price REAL,
+            change_percent REAL,
+            volume INTEGER,
+            turnover REAL,
+            avg_price REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(trade_date, stock_code, trade_time)
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_intraday_date_code ON stock_intraday(trade_date, stock_code)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_intraday_time ON stock_intraday(trade_time)')
+        
+        # 4. 股票基本信息表
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS stock_info (
             stock_code TEXT PRIMARY KEY,
@@ -85,7 +104,7 @@ class DatabaseInitializer:
         )
         ''')
         
-        # 4. 概念题材配置表
+        # 5. 概念题材配置表
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS stock_concept (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -100,7 +119,7 @@ class DatabaseInitializer:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_concept_stock ON stock_concept(stock_code)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_concept_name ON stock_concept(concept_name)')
         
-        # 5. 概念日统计表
+        # 6. 概念日统计表
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS concept_daily (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -116,7 +135,7 @@ class DatabaseInitializer:
         )
         ''')
         
-        # 6. 异动记录表
+        # 7. 异动记录表
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS stock_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,7 +148,7 @@ class DatabaseInitializer:
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_events_code ON stock_events(stock_code)')
         
-        # 7. 股票池配置表（新增）
+        # 8. 股票池配置表（新增）
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS stock_pool (
             stock_code TEXT PRIMARY KEY,
@@ -142,7 +161,7 @@ class DatabaseInitializer:
         )
         ''')
         
-        # 8. 概念层级表（新增）
+        # 9. 概念层级表（新增）
         cursor.execute('''
         CREATE TABLE IF NOT EXISTS concept_hierarchy (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-from typing import List
+from typing import List, Dict
 from app.services.data_service import get_data_service
 from app.models.requests import StockAdd, StockPoolAdd
 from pydantic import BaseModel
@@ -14,6 +14,13 @@ class StockInfoSync(BaseModel):
     stock_name: str
     market: str
     board_type: str
+
+
+class IntradayDataRequest(BaseModel):
+    """分时数据请求模型"""
+    date: str
+    stock_code: str
+    intraday_data: List[Dict]
 
 
 @router.get("")
@@ -147,3 +154,39 @@ async def sync_stock_info(stocks: List[StockInfoSync]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.post("/intraday")
+async def save_intraday_data(data: IntradayDataRequest):
+    """保存分时数据"""
+    try:
+        data_service = get_data_service()
+        success = data_service.save_intraday_data(
+            data.date,
+            data.stock_code,
+            data.intraday_data
+        )
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"保存成功 {len(data.intraday_data)} 条数据"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="保存失败")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/intraday/{stock_code}/{date}")
+async def get_intraday_data(stock_code: str, date: str):
+    """获取分时数据"""
+    try:
+        data_service = get_data_service()
+        data = data_service.get_intraday_data(stock_code, date)
+        return {
+            "success": True,
+            "data": data,
+            "total": len(data)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
