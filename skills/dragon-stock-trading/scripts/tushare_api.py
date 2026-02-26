@@ -9,9 +9,7 @@ Tushare API 调用器 - 底层API调用实现
 
 import tushare as ts
 import tushare.pro.client as client
-import requests
-import time
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 # 【重要】全局设置自定义API域名（高积分用户专用，速度更快）
 # 必须在创建任何 ts.pro_api() 实例之前设置
@@ -19,7 +17,7 @@ client.DataApi._DataApi__http_url = "http://tushare.xyz"
 
 
 class TushareAPI:
-    """Tushare API底层调用器（使用自定义域名）"""
+    """Tushare API底层调用器（使用官方SDK）"""
     
     def __init__(self, token: str):
         """
@@ -34,69 +32,8 @@ class TushareAPI:
         # 使用官方SDK（已配置自定义域名）
         self.pro = ts.pro_api(token)
         
-        self.headers = {
-            'Content-Type': 'application/json'
-        }
-        
-        # 请求计数和频率控制
+        # 请求计数（用于统计）
         self._request_count = 0
-        self._last_request_time = 0
-    
-    def _rate_limit(self):
-        """频率控制 - Tushare免费用户限制每分钟100次"""
-        current_time = time.time()
-        
-        # 控制频率：每分钟最多100次请求（约0.6秒一次）
-        if current_time - self._last_request_time < 0.6:
-            sleep_time = 0.6 - (current_time - self._last_request_time)
-            time.sleep(sleep_time)
-        
-        self._last_request_time = time.time()
-        self._request_count += 1
-    
-    def _post(self, api_name: str, fields: List[str], **kwargs) -> Optional[Dict]:
-        """
-        发送POST请求到Tushare API
-        
-        Args:
-            api_name: API接口名称
-            fields: 返回字段列表
-            **kwargs: 请求参数
-            
-        Returns:
-            API返回的数据字典
-        """
-        self._rate_limit()
-        
-        payload = {
-            "api_name": api_name,
-            "token": self.token,
-            "params": kwargs,
-            "fields": fields
-        }
-        
-        try:
-            response = requests.post(
-                self.base_url,
-                json=payload,
-                headers=self.headers,
-                timeout=30
-            )
-            response.raise_for_status()
-            result = response.json()
-            
-            if result.get('code') == 0:
-                return result.get('data')
-            else:
-                print(f"Tushare API错误: {result.get('msg', '未知错误')}")
-                return None
-                
-        except requests.exceptions.RequestException as e:
-            print(f"Tushare请求失败: {e}")
-            return None
-        except Exception as e:
-            print(f"Tushare处理错误: {e}")
-            return None
     
     def get_stock_daily(self, ts_code: str, trade_date: str = "") -> Optional[Dict]:
         """
@@ -182,21 +119,32 @@ class TushareAPI:
             print(f"Tushare API错误: {e}")
             return None
     
-    def get_stock_basic(self, ts_code: str) -> Optional[List]:
+    def get_stock_basic(self, ts_code: str) -> Optional[Dict]:
         """
-        获取股票基本信息
+        获取股票基本信息（使用官方SDK）
         
         Args:
             ts_code: Tushare股票代码
             
         Returns:
-            股票基本信息列表
+            股票基本信息字典
         """
-        return self._post(
-            api_name="stock_basic",
-            fields=["ts_code", "name", "area", "industry", "market", "list_date"],
-            ts_code=ts_code
-        )
+        try:
+            df = self.pro.stock_basic(
+                ts_code=ts_code,
+                fields='ts_code,name,area,industry,market,list_date'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
 
 
     def get_limit_list(self, trade_date: str, limit_type: str = None) -> Optional[Dict]:
@@ -280,6 +228,26 @@ def main():
     if data and data.get('items'):
         item = data['items'][0]
         print(f"✅ 上证指数: {item[5]:.2f} ({item[8]:+.2f}%)")
+    else:
+        print("❌ 获取失败")
+    
+    # 测试获取涨跌停列表
+    print("\n测试3: 获取涨跌停列表")
+    import datetime
+    today = datetime.datetime.now().strftime('%Y%m%d')
+    data = api.get_limit_list(today)
+    if data and data.get('items'):
+        items = data['items']
+        # 统计各类型数量
+        stats = {}
+        for item in items:
+            limit_type = item[3]
+            stats[limit_type] = stats.get(limit_type, 0) + 1
+        
+        print(f"✅ 获取 {len(items)} 条记录")
+        print(f"   涨停(U): {stats.get('U', 0)} 只")
+        print(f"   跌停(D): {stats.get('D', 0)} 只")
+        print(f"   炸板(Z): {stats.get('Z', 0)} 只")
     else:
         print("❌ 获取失败")
     
