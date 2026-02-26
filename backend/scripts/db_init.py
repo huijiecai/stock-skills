@@ -36,6 +36,7 @@ class DatabaseInitializer:
             sh_index_change REAL,
             sz_index_change REAL,
             cy_index_change REAL,
+            kc_index_change REAL,
             total_turnover REAL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )

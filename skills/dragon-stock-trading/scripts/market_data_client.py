@@ -224,11 +224,13 @@ class MarketDataClient:
         sh_index = self.get_index_quote('000001')  # 上证指数
         sz_index = self.get_index_quote('399001')  # 深证成指
         cy_index = self.get_index_quote('399006')  # 创业板指
+        kc_index = self.get_index_quote('000688')  # 科创50
         
         # 提取指数涨跌幅（容错处理）
         sh_change = sh_index.get('chp', 0.0) if sh_index else 0.0
         sz_change = sz_index.get('chp', 0.0) if sz_index else 0.0
         cy_change = cy_index.get('chp', 0.0) if cy_index else 0.0
+        kc_change = kc_index.get('chp', 0.0) if kc_index else 0.0
         
         print(f"  ✅ 涨停: {limit_stats['limit_up_count']} 只, "
               f"跌停: {limit_stats['limit_down_count']} 只, "
@@ -243,6 +245,7 @@ class MarketDataClient:
             'sh_index_change': sh_change,
             'sz_index_change': sz_change,
             'cy_index_change': cy_change,
+            'kc_index_change': kc_change,
             'total_turnover': 1200.0
         }
     

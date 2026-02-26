@@ -88,12 +88,14 @@ class MarketDataCollector:
             "sh_index_change": market_snapshot.get("sh_index_change", 0.0),
             "sz_index_change": market_snapshot.get("sz_index_change", 0.0),
             "cy_index_change": market_snapshot.get("cy_index_change", 0.0),
+            "kc_index_change": market_snapshot.get("kc_index_change", 0.0),
             "total_turnover": market_snapshot.get("total_turnover", 0.0)
         }
         
         print(f"  上证指数: {market_data['sh_index_change']:+.2f}%")
         print(f"  深证成指: {market_data['sz_index_change']:+.2f}%")
         print(f"  创业板指: {market_data['cy_index_change']:+.2f}%")
+        print(f"  科创50: {market_data['kc_index_change']:+.2f}%")
         
         return market_data
     

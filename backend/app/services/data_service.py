@@ -251,8 +251,9 @@ class DataService:
             cursor.execute('''
                 INSERT OR REPLACE INTO market_sentiment
                 (trade_date, limit_up_count, limit_down_count, broken_board_count, 
-                 max_streak, sh_index_change, sz_index_change, cy_index_change, total_turnover)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 max_streak, sh_index_change, sz_index_change, cy_index_change, 
+                 kc_index_change, total_turnover)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 date,
                 data.get('limit_up_count', 0),
@@ -262,6 +263,7 @@ class DataService:
                 data.get('sh_index_change', 0.0),
                 data.get('sz_index_change', 0.0),
                 data.get('cy_index_change', 0.0),
+                data.get('kc_index_change', 0.0),
                 data.get('total_turnover', 0.0)
             ))
             
