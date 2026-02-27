@@ -1,0 +1,13 @@
+{
+  "metadata": {
+    "export_time": "2026-02-27T20:20:42.369008",
+    "tables": [
+      "concept_hierarchy",
+      "stock_concept"
+    ],
+    "concept_count": 0,
+    "relationship_count": 0
+  },
+  "hierarchy": {},
+  "relationships": {}
+}
