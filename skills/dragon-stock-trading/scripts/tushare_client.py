@@ -162,11 +162,18 @@ class TushareClient:
         注意：需要 5000 积分权限
         """
         try:
-            # 调用官方SDK的分钟线接口
+            # 转换日期格式：20260226 -> 2026-02-26 09:00:00
+            from datetime import datetime
+            date_obj = datetime.strptime(trade_date, '%Y%m%d')
+            start_time = date_obj.strftime('%Y-%m-%d 09:00:00')
+            end_time = date_obj.strftime('%Y-%m-%d 19:00:00')
+            
+            # 调用官方SDK的分钟线接口（使用start_date和end_date参数）
             df = self.pro.stk_mins(
                 ts_code=ts_code,
-                trade_date=trade_date,
                 freq=freq,
+                start_date=start_time,
+                end_date=end_time,
                 fields='ts_code,trade_time,open,high,low,close,vol,amount'
             )
             

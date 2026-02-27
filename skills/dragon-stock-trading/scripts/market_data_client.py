@@ -308,14 +308,12 @@ class MarketDataClient:
             
         Returns:
             分时数据列表，每个元素包含：
-            - trade_time: 交易时间（YYYY-MM-DD HH:MM:SS，来自Tushare原始数据）
+            - trade_time: 交易时间（YYYY-MM-DD HH:MM:SS）
             - price: 当前价
             - change_percent: 涨跌幅（小数）
             - volume: 累计成交量（手）
             - turnover: 累计成交额（元）
             - avg_price: 均价
-            
-        注意：Tushare可能返回临近交易日的数据，需要验证日期
         """
         # 构造Tushare格式的股票代码
         if '.' not in stock_code:
@@ -331,14 +329,6 @@ class MarketDataClient:
         
         if not data or not data.get('items'):
             return []
-        
-        # 验证返回的数据日期是否匹配请求日期
-        first_item = data['items'][0]
-        returned_date = first_item[1][:10]  # 提取日期部分 YYYY-MM-DD
-        
-        if returned_date != date:
-            print(f"  ⚠️  警告：请求日期 {date}，但Tushare返回 {returned_date} 的数据")
-            # 仍然继续处理，但在trade_time前加上警告标记
         
         # 获取前一日收盘价（用于计算涨跌幅）
         prev_close = self._get_prev_close(stock_code, market, date)
@@ -361,7 +351,7 @@ class MarketDataClient:
             change_pct = (price - prev_close) / prev_close if prev_close > 0 else 0
             
             result.append({
-                'trade_time': item[1],  # 保留Tushare返回的原始时间戳（YYYY-MM-DD HH:MM:SS）
+                'trade_time': item[1],  # Tushare返回的时间戳（YYYY-MM-DD HH:MM:SS）
                 'price': price,
                 'change_percent': change_pct,
                 'volume': int(vol),
