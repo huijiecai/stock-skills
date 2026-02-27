@@ -15,16 +15,14 @@ from config_loader import ConfigLoader
 class BackendClient:
     """后端API客户端"""
     
-    def __init__(self, base_url: str = None):
+    def __init__(self):
         """
-        初始化API客户端
-        
-        Args:
-            base_url: 后端服务地址（不提供则从配置文件读取）
+        初始化API客户端（从配置文件读取）
         """
-        if base_url is None:
-            config = ConfigLoader()
-            base_url = config.get('backend', {}).get('url', 'http://localhost:8000')
+        config = ConfigLoader()
+        base_url = config.get('backend', {}).get('url')
+        if not base_url:
+            raise ValueError("配置文件中未找到 backend.url 配置")
         
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
@@ -183,6 +181,22 @@ class BackendClient:
         except Exception:
             # 如果API调用失败，默认返回False（假设不存在）
             return False
+
+
+# 模块级别全局实例
+def _init_backend_client() -> BackendClient:
+    """初始化后端客户端"""
+    try:
+        return BackendClient()
+    except Exception as e:
+        print(f"⚠️  初始化后端客户端失败: {e}")
+        print("   请检查配置文件中的 backend.url 配置")
+        raise
+
+
+# 全局客户端实例
+backend_client = _init_backend_client()
+
 
 if __name__ == "__main__":
     # 测试

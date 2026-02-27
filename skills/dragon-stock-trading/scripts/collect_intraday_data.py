@@ -23,7 +23,7 @@ import time
 sys.path.insert(0, str(Path(__file__).parent))
 
 from market_data_client import MarketDataClient
-from backend_client import BackendClient
+from backend_client import backend_client  # 使用全局实例
 
 
 class IntradayDataCollector:
@@ -31,7 +31,7 @@ class IntradayDataCollector:
     
     def __init__(self):
         self.market_client = MarketDataClient()
-        self.backend_client = BackendClient()
+        self.backend_client = backend_client  # 使用全局后端客户端实例
         self.request_count = 0
         self.start_time = time.time()
     
