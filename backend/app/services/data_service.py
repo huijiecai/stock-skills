@@ -623,17 +623,19 @@ class DataService:
         
         Returns:
             分时数据列表
+            
+        注意：使用trade_date字段查询，因为Tushare可能返回临近交易日的数据
         """
         conn = sqlite3.connect(self.db_path)
         cursor = conn.cursor()
         
-        # 根据 trade_time 字段过滤，只返回指定日期的数据
+        # 使用 trade_date 字段查询（反映请求的日期）
         cursor.execute('''
             SELECT trade_time, price, change_percent, volume, turnover, avg_price
             FROM stock_intraday
-            WHERE stock_code = ? AND trade_time LIKE ?
+            WHERE stock_code = ? AND trade_date = ?
             ORDER BY trade_time
-        ''', (stock_code, f"{date}%"))
+        ''', (stock_code, date))
         
         data = []
         for row in cursor.fetchall():
@@ -667,8 +669,8 @@ class DataService:
         cursor.execute('''
             SELECT COUNT(*) 
             FROM stock_intraday 
-            WHERE stock_code = ? AND trade_time LIKE ?
-        ''', (stock_code, f"{date}%"))
+            WHERE stock_code = ? AND trade_date = ?
+        ''', (stock_code, date))
         
         count = cursor.fetchone()[0]
         conn.close()
