@@ -42,6 +42,7 @@ logs/*.log
 logs/*.pid
 
 # Database
+*.db
 *.db-journal
 
 # Environment
