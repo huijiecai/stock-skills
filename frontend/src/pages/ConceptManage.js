@@ -188,7 +188,6 @@ export default function ConceptManage() {
               treeData={treeData}
               onSelect={handleSelect}
               showIcon
-              defaultExpandAll
               style={{ fontSize: '14px' }}
             />
           </Card>
