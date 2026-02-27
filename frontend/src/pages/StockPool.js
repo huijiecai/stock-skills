@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Table, Button, Modal, Form, Input, Select, message, Space } from 'antd';
-import { PlusOutlined, LineChartOutlined, SearchOutlined } from '@ant-design/icons';
+import { Table, Button, Modal, Form, Input, Select, message, Space, Tag, Tooltip, Radio, Statistic, Row, Col, Card } from 'antd';
+import { PlusOutlined, LineChartOutlined, SearchOutlined, ReloadOutlined, FilterOutlined, ClearOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { stocksAPI } from '../services/api';
 
@@ -11,6 +11,7 @@ export default function StockPool() {
   const [quotesMap, setQuotesMap] = useState({});
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [searchText, setSearchText] = useState('');
+  const [changeFilter, setChangeFilter] = useState('all'); // all, up, down, limit_up
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
@@ -19,18 +20,33 @@ export default function StockPool() {
   }, []);
 
   useEffect(() => {
-    // 搜索过滤
-    if (!searchText.trim()) {
-      setFilteredStocks(stocks);
-    } else {
+    // 搜索和筛选过滤
+    let filtered = stocks;
+    
+    // 文本搜索
+    if (searchText.trim()) {
       const text = searchText.toLowerCase();
-      const filtered = stocks.filter(stock => 
+      filtered = filtered.filter(stock => 
         stock.code.toLowerCase().includes(text) || 
         stock.name.toLowerCase().includes(text)
       );
-      setFilteredStocks(filtered);
     }
-  }, [searchText, stocks]);
+    
+    // 涨跌幅筛选
+    if (changeFilter !== 'all') {
+      filtered = filtered.filter(stock => {
+        const quote = quotesMap[stock.code];
+        if (!quote) return false;
+        
+        if (changeFilter === 'up') return quote.change_percent > 0;
+        if (changeFilter === 'down') return quote.change_percent < 0;
+        if (changeFilter === 'limit_up') return quote.change_percent >= 0.095; // 接近涨停
+        return true;
+      });
+    }
+    
+    setFilteredStocks(filtered);
+  }, [searchText, changeFilter, stocks, quotesMap]);
 
   const loadStocks = async () => {
     setLoading(true);
@@ -86,17 +102,44 @@ export default function StockPool() {
     setSearchText(e.target.value);
   };
 
-  // 格式化数值
-  const formatNumber = (num) => {
-    if (num === null || num === undefined) return '-';
-    if (num >= 100000000) {
-      return (num / 100000000).toFixed(2) + '亿';
-    }
-    if (num >= 10000) {
-      return (num / 10000).toFixed(2) + '万';
-    }
-    return num.toFixed(2);
+  const handleClearFilters = () => {
+    setSearchText('');
+    setChangeFilter('all');
   };
+
+  // 计算统计数据
+  const getStatistics = () => {
+    const upCount = stocks.filter(s => {
+      const quote = quotesMap[s.code];
+      return quote && quote.change_percent > 0;
+    }).length;
+    
+    const downCount = stocks.filter(s => {
+      const quote = quotesMap[s.code];
+      return quote && quote.change_percent < 0;
+    }).length;
+    
+    const limitUpCount = stocks.filter(s => {
+      const quote = quotesMap[s.code];
+      return quote && quote.change_percent >= 0.095;
+    }).length;
+    
+    return { upCount, downCount, limitUpCount };
+  };
+
+  const stats = getStatistics();
+
+  // 格式化数值（注释掉未使用的函数以避免警告）
+  // const formatNumber = (num) => {
+  //   if (num === null || num === undefined) return '-';
+  //   if (num >= 100000000) {
+  //     return (num / 100000000).toFixed(2) + '亿';
+  //   }
+  //   if (num >= 10000) {
+  //     return (num / 10000).toFixed(2) + '万';
+  //   }
+  //   return num.toFixed(2);
+  // };
 
   // 渲染涨跌幅
   const renderChangePercent = (value) => {
@@ -127,9 +170,13 @@ export default function StockPool() {
       key: 'code',
       width: 100,
       render: (code) => (
-        <a onClick={() => handleViewDetail({ code })} style={{ color: '#1890ff', cursor: 'pointer' }}>
+        <Button 
+          type="link" 
+          onClick={() => handleViewDetail({ code })} 
+          style={{ padding: 0, height: 'auto' }}
+        >
           {code}
-        </a>
+        </Button>
       ),
     },
     {
@@ -138,9 +185,13 @@ export default function StockPool() {
       key: 'name',
       width: 120,
       render: (name, record) => (
-        <a onClick={() => handleViewDetail(record)} style={{ color: '#1890ff', cursor: 'pointer', fontWeight: 'bold' }}>
+        <Button 
+          type="link" 
+          onClick={() => handleViewDetail(record)} 
+          style={{ padding: 0, height: 'auto', fontWeight: 'bold' }}
+        >
           {name}
-        </a>
+        </Button>
       ),
     },
     {
@@ -226,21 +277,104 @@ export default function StockPool() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>股票池管理（共 {stocks.length} 只 {filteredStocks.length < stocks.length && `/ 已筛选 ${filteredStocks.length} 只`}）</h2>
-        <Space>
-          <Input
-            placeholder="搜索股票代码或名称"
-            prefix={<SearchOutlined />}
-            value={searchText}
-            onChange={handleSearch}
-            style={{ width: 250 }}
-            allowClear
-          />
-          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-            添加股票
-          </Button>
+      <div style={{ marginBottom: 16 }}>
+        <h2>股票池管理</h2>
+        
+        {/* 统计信息 */}
+        <Row gutter={16} style={{ marginBottom: 16 }}>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic title="总股票数" value={stocks.length} suffix="只" />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic 
+                title="上涨" 
+                value={stats.upCount} 
+                valueStyle={{ color: '#cf1322' }}
+                suffix="只" 
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic 
+                title="下跌" 
+                value={stats.downCount}
+                valueStyle={{ color: '#3f8600' }}
+                suffix="只" 
+              />
+            </Card>
+          </Col>
+          <Col span={6}>
+            <Card size="small">
+              <Statistic 
+                title="涨停" 
+                value={stats.limitUpCount}
+                valueStyle={{ color: '#cf1322' }}
+                suffix="只" 
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {/* 操作栏 */}
+        <Space size="middle" style={{ width: '100%', justifyContent: 'space-between' }}>
+          <Space>
+            <Input
+              placeholder="搜索股票代码或名称"
+              prefix={<SearchOutlined />}
+              value={searchText}
+              onChange={handleSearch}
+              style={{ width: 250 }}
+              allowClear
+            />
+            <Radio.Group 
+              value={changeFilter} 
+              onChange={(e) => setChangeFilter(e.target.value)}
+              buttonStyle="solid"
+            >
+              <Radio.Button value="all">
+                全部 <Tag>{stocks.length}</Tag>
+              </Radio.Button>
+              <Radio.Button value="up">
+                <span style={{ color: '#cf1322' }}>上涨 {stats.upCount}</span>
+              </Radio.Button>
+              <Radio.Button value="down">
+                <span style={{ color: '#3f8600' }}>下跌 {stats.downCount}</span>
+              </Radio.Button>
+              <Radio.Button value="limit_up">
+                <span style={{ color: '#cf1322' }}>涨停 {stats.limitUpCount}</span>
+              </Radio.Button>
+            </Radio.Group>
+            <Tooltip title="清除筛选">
+              <Button 
+                icon={<ClearOutlined />} 
+                onClick={handleClearFilters}
+                disabled={searchText === '' && changeFilter === 'all'}
+              >
+                清除
+              </Button>
+            </Tooltip>
+          </Space>
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={loadStocks} loading={loading}>
+              刷新
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+              添加股票
+            </Button>
+          </Space>
         </Space>
+        
+        {filteredStocks.length < stocks.length && (
+          <div style={{ marginTop: 8 }}>
+            <Tag color="blue">
+              <FilterOutlined /> 已筛选 {filteredStocks.length} / {stocks.length} 只股票
+            </Tag>
+          </div>
+        )}
       </div>
 
       <Table

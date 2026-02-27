@@ -34,7 +34,7 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
     // 处理数据
     const times = data.map(item => item.trade_time.substring(11, 16)); // HH:MM
     const prices = data.map(item => item.price);
-    const avgPrices = data.map(item => item.avg_price);
+    // const avgPrices = data.map(item => item.avg_price); // 暂时未使用
     const volumes = data.map(item => item.volume);
 
     // 计算涨跌幅

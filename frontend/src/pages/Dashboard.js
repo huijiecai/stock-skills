@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Row, Col, Statistic, Table, Tag, Spin, DatePicker, Space, Typography } from 'antd';
-import { ArrowUpOutlined, ArrowDownOutlined, FireOutlined, CalendarOutlined } from '@ant-design/icons';
+import { Card, Row, Col, Statistic, Table, Tag, Spin, DatePicker, Space, Typography, Button, message } from 'antd';
+import { ArrowUpOutlined, ArrowDownOutlined, FireOutlined, CalendarOutlined, LeftOutlined, RightOutlined, ReloadOutlined } from '@ant-design/icons';
 import { marketAPI, analysisAPI, stocksAPI } from '../services/api';
 import dayjs from 'dayjs';
 
-const { Title } = Typography;
+const { Title, Text } = Typography;
 
 export default function Dashboard() {
   const [loading, setLoading] = useState(true);
@@ -15,6 +15,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date]);
 
   const loadData = async () => {
@@ -31,9 +32,29 @@ export default function Dashboard() {
       setPopularity(popularityRes.data.data);
     } catch (error) {
       console.error('加载数据失败:', error);
+      message.error('加载数据失败，请重试');
     } finally {
       setLoading(false);
     }
+  };
+
+  // 日期导航
+  const goToPreviousDay = () => {
+    const prevDay = dayjs(date).subtract(1, 'day');
+    setDate(prevDay.format('YYYY-MM-DD'));
+  };
+
+  const goToNextDay = () => {
+    const nextDay = dayjs(date).add(1, 'day');
+    if (nextDay.isAfter(dayjs(), 'day')) {
+      message.warning('不能选择未来日期');
+      return;
+    }
+    setDate(nextDay.format('YYYY-MM-DD'));
+  };
+
+  const goToToday = () => {
+    setDate(dayjs().format('YYYY-MM-DD'));
   };
 
   const getPhaseColor = (phase) => {
@@ -48,35 +69,56 @@ export default function Dashboard() {
       dataIndex: 'rank',
       key: 'rank',
       width: 60,
+      fixed: 'left',
+      render: (rank) => {
+        let color = '#999';
+        if (rank === 1) color = '#cf1322';
+        else if (rank === 2) color = '#fa8c16';
+        else if (rank === 3) color = '#faad14';
+        return <Tag color={color} style={{ fontWeight: 'bold' }}>{rank}</Tag>;
+      },
     },
     {
       title: '股票代码',
       dataIndex: 'stock_code',
       key: 'stock_code',
       width: 100,
+      render: (code) => <Text copyable style={{ fontFamily: 'monospace' }}>{code}</Text>,
     },
     {
       title: '股票名称',
       dataIndex: 'stock_name',
       key: 'stock_name',
       width: 120,
+      render: (name) => <Text strong>{name}</Text>,
     },
     {
       title: '涨跌幅',
       dataIndex: 'change_percent',
       key: 'change_percent',
       width: 100,
+      align: 'right',
       render: (value) => (
-        <span style={{ color: value >= 0 ? '#cf1322' : '#3f8600' }}>
-          {(value * 100).toFixed(2)}%
+        <span style={{ 
+          color: value >= 0 ? '#cf1322' : '#3f8600',
+          fontWeight: 'bold',
+          fontSize: '14px'
+        }}>
+          {value >= 0 ? '+' : ''}{(value * 100).toFixed(2)}%
         </span>
       ),
+      sorter: (a, b) => a.change_percent - b.change_percent,
     },
     {
       title: '成交额',
       dataIndex: 'turnover',
       key: 'turnover',
-      render: (value) => `${(value / 100000000).toFixed(2)}亿`,
+      width: 120,
+      align: 'right',
+      render: (value) => (
+        <Text>{(value / 100000000).toFixed(2)}亿</Text>
+      ),
+      sorter: (a, b) => a.turnover - b.turnover,
     },
   ];
 
@@ -91,8 +133,22 @@ export default function Dashboard() {
           <CalendarOutlined style={{ marginRight: 8 }} />
           市场总览
         </Title>
-        <Space>
-          <span style={{ fontSize: '14px', color: '#666' }}>选择日期：</span>
+        <Space size="middle">
+          <Button.Group>
+            <Button icon={<LeftOutlined />} onClick={goToPreviousDay}>
+              上一天
+            </Button>
+            <Button onClick={goToToday}>
+              今天
+            </Button>
+            <Button 
+              icon={<RightOutlined />} 
+              onClick={goToNextDay}
+              disabled={dayjs(date).isSame(dayjs(), 'day')}
+            >
+              下一天
+            </Button>
+          </Button.Group>
           <DatePicker
             value={dayjs(date)}
             onChange={(dateObj) => {
@@ -104,21 +160,28 @@ export default function Dashboard() {
             placeholder="选择日期"
             allowClear={false}
             disabledDate={(current) => {
-              // 不允许选择未来的日期
               return current && current > dayjs().endOf('day');
             }}
           />
+          <Button icon={<ReloadOutlined />} onClick={loadData} loading={loading}>
+            刷新
+          </Button>
         </Space>
       </div>
 
-      <Card style={{ marginBottom: 16, background: '#f0f2f5' }}>
+      <Card style={{ marginBottom: 16, background: '#f0f2f5', borderLeft: '4px solid #1890ff' }}>
         <div style={{ textAlign: 'center' }}>
-          <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
-            {date}
+          <Space size="large">
+            <Title level={4} style={{ margin: 0, color: '#1890ff' }}>
+              {dayjs(date).format('YYYY年MM月DD日')}
+            </Title>
             {date === dayjs().format('YYYY-MM-DD') && (
-              <Tag color="green" style={{ marginLeft: 8 }}>今日</Tag>
+              <Tag color="green" style={{ fontSize: 14, padding: '4px 12px' }}>
+                今日
+              </Tag>
             )}
-          </Title>
+            <Text type="secondary">{dayjs(date).format('dddd')}</Text>
+          </Space>
         </div>
       </Card>
       
@@ -169,7 +232,16 @@ export default function Dashboard() {
       </Row>
 
       {/* 人气榜 */}
-      <Card title="人气榜 Top 30" style={{ marginBottom: 24 }}>
+      <Card 
+        title={
+          <Space>
+            <FireOutlined style={{ color: '#fa541c' }} />
+            <span>人气榜 Top 30</span>
+            <Tag color="orange">{popularity.length}只</Tag>
+          </Space>
+        } 
+        style={{ marginBottom: 24 }}
+      >
         <Table
           columns={popularityColumns}
           dataSource={popularity}

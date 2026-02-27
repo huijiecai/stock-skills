@@ -20,10 +20,12 @@ export default function StockDetail() {
   useEffect(() => {
     loadQuote();
     loadChartData(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
   useEffect(() => {
     loadChartData(activeTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedDate]);
 
   const loadQuote = async () => {

@@ -1,16 +1,45 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Card, Input, Button, List, Typography, Space, Tag, Spin, Alert } from 'antd';
-import { SendOutlined, RobotOutlined, UserOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Card, Input, Button, List, Typography, Space, Tag, Spin, Alert, Dropdown, Menu } from 'antd';
+import { SendOutlined, RobotOutlined, UserOutlined, ReloadOutlined, ThunderboltOutlined, HistoryOutlined, DownloadOutlined } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 
 const { Title, Text } = Typography;
 const { TextArea } = Input;
+
+// 快捷指令模板
+const QUICK_COMMANDS = [
+  { key: '1', label: '今天市场情绪怎么样？', icon: '📊' },
+  { key: '2', label: '帮我分析002342', icon: '🔍' },
+  { key: '3', label: '当前有哪些热门概念？', icon: '🔥' },
+  { key: '4', label: '今天涨停的股票有哪些？', icon: '📈' },
+  { key: '5', label: '分析一下半导体板块', icon: '💻' },
+  { key: '6', label: '龙头战法的核心要点是什么？', icon: '🎯' },
+];
 
 export default function ChatAnalysis() {
   const [messages, setMessages] = useState([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+
+  // 从localStorage加载历史记录
+  useEffect(() => {
+    const savedMessages = localStorage.getItem('chatHistory');
+    if (savedMessages) {
+      try {
+        setMessages(JSON.parse(savedMessages));
+      } catch (e) {
+        console.error('加载历史记录失败:', e);
+      }
+    }
+  }, []);
+
+  // 保存历史记录到localStorage
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem('chatHistory', JSON.stringify(messages));
+    }
+  }, [messages]);
 
   // 自动滚动到底部
   const scrollToBottom = () => {
@@ -129,7 +158,43 @@ export default function ChatAnalysis() {
   // 清空对话
   const handleClear = () => {
     setMessages([]);
+    localStorage.removeItem('chatHistory');
   };
+
+  // 导出对话记录
+  const handleExport = () => {
+    if (messages.length === 0) {
+      return;
+    }
+    
+    const exportContent = messages.map(msg => {
+      return `[${msg.timestamp}] ${msg.role === 'user' ? '用户' : 'AI助手'}:\n${msg.content}\n`;
+    }).join('\n---\n\n');
+    
+    const blob = new Blob([exportContent], { type: 'text/plain;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `对话记录_${new Date().toISOString().slice(0, 10)}.txt`;
+    link.click();
+  };
+
+  // 使用快捷指令
+  const handleQuickCommand = ({ key }) => {
+    const command = QUICK_COMMANDS.find(cmd => cmd.key === key);
+    if (command) {
+      setInputValue(command.label);
+    }
+  };
+
+  const quickCommandMenu = (
+    <Menu onClick={handleQuickCommand}>
+      {QUICK_COMMANDS.map(cmd => (
+        <Menu.Item key={cmd.key} icon={<span>{cmd.icon}</span>}>
+          {cmd.label}
+        </Menu.Item>
+      ))}
+    </Menu>
+  );
 
   // 按Enter发送（Shift+Enter换行）
   const handleKeyPress = (e) => {
@@ -151,8 +216,23 @@ export default function ChatAnalysis() {
             <RobotOutlined style={{ fontSize: 24, color: '#1890ff' }} />
             <Title level={3} style={{ margin: 0 }}>龙头战法智能分析</Title>
             <Tag color="green">AI助手</Tag>
+            {messages.length > 0 && (
+              <Tag color="blue">
+                <HistoryOutlined /> {messages.length}条对话
+              </Tag>
+            )}
           </Space>
-          <Button icon={<ReloadOutlined />} onClick={handleClear}>清空对话</Button>
+          <Space>
+            <Dropdown overlay={quickCommandMenu} placement="bottomRight">
+              <Button icon={<ThunderboltOutlined />}>快捷指令</Button>
+            </Dropdown>
+            {messages.length > 0 && (
+              <Button icon={<DownloadOutlined />} onClick={handleExport}>
+                导出
+              </Button>
+            )}
+            <Button icon={<ReloadOutlined />} onClick={handleClear}>清空对话</Button>
+          </Space>
         </div>
       </Card>
 
@@ -169,17 +249,17 @@ export default function ChatAnalysis() {
               你可以问我关于股票分析、龙头战法、市场情绪等问题
             </Text>
             <div style={{ marginTop: 24 }}>
-              <Text type="secondary">示例问题：</Text>
+              <Text type="secondary">快捷指令：</Text>
               <div style={{ marginTop: 12 }}>
-                <Tag style={{ margin: 4, cursor: 'pointer' }} onClick={() => setInputValue('今天市场情绪怎么样？')}>
-                  今天市场情绪怎么样？
-                </Tag>
-                <Tag style={{ margin: 4, cursor: 'pointer' }} onClick={() => setInputValue('帮我分析002342')}>
-                  帮我分析002342
-                </Tag>
-                <Tag style={{ margin: 4, cursor: 'pointer' }} onClick={() => setInputValue('当前有哪些热门概念？')}>
-                  当前有哪些热门概念？
-                </Tag>
+                {QUICK_COMMANDS.slice(0, 3).map(cmd => (
+                  <Tag 
+                    key={cmd.key}
+                    style={{ margin: 4, cursor: 'pointer', padding: '4px 12px', fontSize: '14px' }} 
+                    onClick={() => setInputValue(cmd.label)}
+                  >
+                    {cmd.icon} {cmd.label}
+                  </Tag>
+                ))}
               </div>
             </div>
           </div>
