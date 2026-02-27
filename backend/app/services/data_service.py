@@ -50,11 +50,11 @@ class DataService:
     
     def add_stock_to_concept(self, stock_code: str, concept_name: str, is_core: bool, note: str):
         """添加股票到概念"""
-        return self.stock_concept_manager.add_stock(stock_code, concept_name, is_core, note)
+        return self.stock_concept_manager.add_stock_to_concept(stock_code, concept_name, is_core, note)
     
     def remove_stock_from_concept(self, stock_code: str, concept_name: str):
         """从概念中移除股票"""
-        return self.stock_concept_manager.remove_stock(stock_code, concept_name)
+        return self.stock_concept_manager.remove_stock_from_concept(stock_code, concept_name)
     
     # ==================== 新增：股票池管理 ====================
     
