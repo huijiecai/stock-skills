@@ -650,6 +650,32 @@ class DataService:
         return data
 
 
+    def check_intraday_exists(self, stock_code: str, date: str) -> bool:
+        """
+        检查指定股票指定日期的分时数据是否存在
+        
+        Args:
+            stock_code: 股票代码
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            True if data exists, False otherwise
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT COUNT(*) 
+            FROM stock_intraday 
+            WHERE stock_code = ? AND trade_time LIKE ?
+        ''', (stock_code, f"{date}%"))
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        return count > 0
+
+
 # 单例
 _data_service: Optional[DataService] = None
 

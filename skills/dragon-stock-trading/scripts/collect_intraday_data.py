@@ -51,15 +51,18 @@ class IntradayDataCollector:
             self.request_count = 0
             self.start_time = time.time()
     
-    def collect(self, date: str):
+    def collect(self, date: str, force: bool = False):
         """
-        采集指定日期的分时数据
+        采集指定日期的分时数据（支持增量采集）
         
         Args:
             date: 交易日期（YYYY-MM-DD）
+            force: 是否强制重新采集（即使已存在）
         """
         print(f"\n{'='*60}")
         print(f"📅 开始采集分时数据: {date}")
+        if force:
+            print(f"🔄 强制重新采集模式")
         print(f"{'='*60}\n")
         
         # 获取股票池
@@ -68,6 +71,7 @@ class IntradayDataCollector:
         
         success_count = 0
         failed_count = 0
+        skipped_count = 0
         total_records = 0
         
         for i, stock in enumerate(stocks, 1):
@@ -78,7 +82,16 @@ class IntradayDataCollector:
             # 跳过 ST 股票
             if 'ST' in name.upper():
                 print(f"  [{i}/{len(stocks)}] ⚠️  跳过ST股票: {code} {name}")
+                skipped_count += 1
                 continue
+            
+            # 检查是否已存在数据（除非强制采集）
+            if not force:
+                exists = self.backend_client.get_stock_intraday_existence(code, date)
+                if exists:
+                    print(f"  [{i}/{len(stocks)}] ⏭️  跳过已存在: {code} {name}")
+                    skipped_count += 1
+                    continue
             
             try:
                 # 限流
@@ -114,19 +127,25 @@ class IntradayDataCollector:
         print(f"{'='*60}")
         print(f"  成功: {success_count} 只")
         print(f"  失败: {failed_count} 只")
+        print(f"  跳过: {skipped_count} 只")
         print(f"  总记录数: {total_records} 条")
         print(f"{'='*60}\n")
 
 
 def main():
     """命令行入口"""
-    if len(sys.argv) > 1:
-        date = sys.argv[1]
-    else:
-        date = datetime.now().strftime('%Y-%m-%d')
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='分时数据采集器')
+    parser.add_argument('date', nargs='?', default=datetime.now().strftime('%Y-%m-%d'),
+                       help='交易日期 (YYYY-MM-DD)，默认为今天')
+    parser.add_argument('-f', '--force', action='store_true',
+                       help='强制重新采集（即使数据已存在）')
+    
+    args = parser.parse_args()
     
     collector = IntradayDataCollector()
-    collector.collect(date)
+    collector.collect(args.date, force=args.force)
 
 
 if __name__ == "__main__":

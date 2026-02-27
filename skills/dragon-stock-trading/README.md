@@ -38,6 +38,46 @@ skills/dragon-stock-trading/
 - **reference/** - 详细完整，说明"怎么做"
 - LLM 根据需求自动查找 reference 文档
 
+## 开发规范
+
+### 数据访问原则 ⚠️
+
+**所有对数据库的操作必须通过后端 API 接口，禁止直接读取数据库文件**
+
+理由：
+1. **统一数据校验** - 后端接口包含完整的数据验证逻辑
+2. **事务一致性** - 保证数据操作的原子性和一致性
+3. **权限控制** - 通过API层控制不同角色的数据访问权限
+4. **易于维护** - 业务逻辑集中在一个地方，便于修改和扩展
+
+**正确的做法**：
+```python
+# ✅ 正确：通过后端API查询
+from scripts.backend_client import BackendClient
+client = BackendClient()
+result = client.get_stock_intraday_existence("000001", "2026-02-26")
+
+# 或者直接调用后端接口
+import requests
+response = requests.get("http://localhost:8000/api/stocks/intraday-exists/000001/2026-02-26")
+```
+
+**错误的做法**：
+```python
+# ❌ 错误：直接读取数据库（违反规范）
+import sqlite3
+conn = sqlite3.connect("../../data/dragon_stock.db")
+cursor = conn.cursor()
+cursor.execute("SELECT COUNT(*) FROM stock_intraday WHERE stock_code=? AND trade_date=?", ...)
+```
+
+### 代码结构规范
+
+1. **分层清晰** - 严格区分 scripts/（实现）、reference/（文档）、tests/（测试）
+2. **命名规范** - 使用下划线命名法（snake_case）
+3. **异常处理** - 所有外部调用必须包含try-except
+4. **日志记录** - 关键操作必须输出日志，便于调试
+
 ## 核心功能
 
 ### 6类数据能力

@@ -192,6 +192,20 @@ async def get_intraday_data(stock_code: str, date: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.get("/intraday-exists/{stock_code}/{date}")
+async def check_intraday_exists(stock_code: str, date: str):
+    """检查指定股票指定日期的分时数据是否存在"""
+    try:
+        data_service = get_data_service()
+        exists = data_service.check_intraday_exists(stock_code, date)
+        return {
+            "success": True,
+            "exists": exists
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{code}/quote")
 async def get_stock_quote(code: str):
     """获取股票实时行情"""

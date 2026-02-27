@@ -165,6 +165,25 @@ class BackendClient:
         result = self._get(f"/stocks/intraday/{stock_code}/{date}")
         return result.get("data", [])
 
+
+    def get_stock_intraday_existence(self, stock_code: str, date: str) -> bool:
+        """
+        检查指定股票指定日期的分时数据是否存在
+        
+        Args:
+            stock_code: 股票代码
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            True if data exists, False otherwise
+        """
+        try:
+            result = self._get(f"/stocks/intraday-exists/{stock_code}/{date}")
+            return result.get("exists", False)
+        except Exception:
+            # 如果API调用失败，默认返回False（假设不存在）
+            return False
+
 if __name__ == "__main__":
     # 测试
     client = BackendClient()

@@ -1,20 +1,36 @@
 import React, { useState, useEffect } from 'react';
 import { Table, Button, Modal, Form, Input, Select, message, Space } from 'antd';
-import { PlusOutlined, LineChartOutlined } from '@ant-design/icons';
+import { PlusOutlined, LineChartOutlined, SearchOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import { stocksAPI } from '../services/api';
 
 export default function StockPool() {
   const [loading, setLoading] = useState(false);
   const [stocks, setStocks] = useState([]);
+  const [filteredStocks, setFilteredStocks] = useState([]);
   const [quotesMap, setQuotesMap] = useState({});
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [searchText, setSearchText] = useState('');
   const [form] = Form.useForm();
   const navigate = useNavigate();
 
   useEffect(() => {
     loadStocks();
   }, []);
+
+  useEffect(() => {
+    // 搜索过滤
+    if (!searchText.trim()) {
+      setFilteredStocks(stocks);
+    } else {
+      const text = searchText.toLowerCase();
+      const filtered = stocks.filter(stock => 
+        stock.code.toLowerCase().includes(text) || 
+        stock.name.toLowerCase().includes(text)
+      );
+      setFilteredStocks(filtered);
+    }
+  }, [searchText, stocks]);
 
   const loadStocks = async () => {
     setLoading(true);
@@ -23,6 +39,7 @@ export default function StockPool() {
       const res = await stocksAPI.getList();
       const stockList = res.data.stocks || [];
       setStocks(stockList);
+      setFilteredStocks(stockList);
 
       // 批量获取行情
       if (stockList.length > 0) {
@@ -63,6 +80,10 @@ export default function StockPool() {
   const handleViewDetail = (stock) => {
     // 跳转到详情页
     navigate(`/stocks/${stock.code}`);
+  };
+
+  const handleSearch = (e) => {
+    setSearchText(e.target.value);
   };
 
   // 格式化数值
@@ -204,20 +225,32 @@ export default function StockPool() {
   return (
     <div>
       <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2>股票池管理（共 {stocks.length} 只）</h2>
-        <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
-          添加股票
-        </Button>
+        <h2>股票池管理（共 {stocks.length} 只 {filteredStocks.length < stocks.length && `/ 已筛选 ${filteredStocks.length} 只`}）</h2>
+        <Space>
+          <Input
+            placeholder="搜索股票代码或名称"
+            prefix={<SearchOutlined />}
+            value={searchText}
+            onChange={handleSearch}
+            style={{ width: 250 }}
+            allowClear
+          />
+          <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
+            添加股票
+          </Button>
+        </Space>
       </div>
 
       <Table
         columns={columns}
-        dataSource={stocks}
+        dataSource={filteredStocks}
         rowKey="code"
         loading={loading}
         pagination={{
-          pageSize: 20,
+          pageSize: 10,
           showTotal: (total) => `共 ${total} 只股票`,
+          showSizeChanger: true,
+          pageSizeOptions: ['10', '20', '50', '100'],
         }}
         scroll={{ x: 1200 }}
       />
