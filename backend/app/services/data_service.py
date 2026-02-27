@@ -369,6 +369,18 @@ class DataService:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
+            # 获取价格数据
+            close_price = stock.get('close', 0.0)
+            pre_close = stock.get('pre_close', 0.0)
+            
+            # 涨跌额：优先使用提供的值，否则自动计算
+            change_amount = stock.get('change')
+            if change_amount is None or change_amount == 0.0:
+                change_amount = close_price - pre_close if pre_close != 0 else 0.0
+            
+            # 涨跌幅：使用数据源提供的值（更准确）
+            change_percent = stock.get('change_percent', 0.0)
+            
             cursor.execute('''
                 INSERT OR REPLACE INTO stock_daily
                 (trade_date, stock_code, stock_name, market, 
@@ -384,10 +396,10 @@ class DataService:
                 stock.get('open', 0.0),
                 stock.get('high', 0.0),
                 stock.get('low', 0.0),
-                stock.get('close', 0.0),
-                stock.get('pre_close', 0.0),
-                stock.get('change', 0.0),
-                stock.get('change_percent', 0.0),
+                close_price,
+                pre_close,
+                change_amount,
+                change_percent,
                 stock.get('volume', 0),
                 stock.get('turnover', 0.0),
                 stock.get('turnover_rate', 0.0),

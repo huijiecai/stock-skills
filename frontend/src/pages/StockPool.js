@@ -103,7 +103,7 @@ export default function StockPool() {
     if (value === null || value === undefined) return '-';
     const color = value >= 0 ? '#f5222d' : '#52c41a';
     const prefix = value >= 0 ? '+' : '';
-    return <span style={{ color, fontWeight: 'bold' }}>{prefix}{value.toFixed(2)}%</span>;
+    return <span style={{ color, fontWeight: 'bold' }}>{prefix}{(value * 100).toFixed(2)}%</span>;
   };
 
   // 渲染涨跌额
@@ -178,6 +178,7 @@ export default function StockPool() {
         return quote ? renderChange(quote.change) : '-';
       },
     },
+    /* 隐藏成交量和成交额列，优先显示涨跌额
     {
       title: '成交量',
       key: 'volume',
@@ -205,6 +206,7 @@ export default function StockPool() {
       width: 80,
       render: (market) => market === 'SZ' ? '深圳' : '上海',
     },
+    */
     {
       title: '操作',
       key: 'action',
@@ -252,7 +254,7 @@ export default function StockPool() {
           showSizeChanger: true,
           pageSizeOptions: ['10', '20', '50', '100'],
         }}
-        scroll={{ x: 1200 }}
+        scroll={{ x: 800 }}
       />
 
       <Modal

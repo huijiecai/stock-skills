@@ -155,7 +155,7 @@ export default function StockDetail() {
                   {' '}
                   {quote.change >= 0 ? '+' : ''}{quote.change?.toFixed(2)}
                   {' '}
-                  ({quote.change_percent >= 0 ? '+' : ''}{quote.change_percent?.toFixed(2)}%)
+                  ({quote.change_percent >= 0 ? '+' : ''}{(quote.change_percent * 100)?.toFixed(2)}%)
                 </div>
               </div>
             </Col>

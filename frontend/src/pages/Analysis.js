@@ -106,7 +106,7 @@ export default function Analysis() {
                 </Descriptions.Item>
                 <Descriptions.Item label="涨跌幅">
                   <span style={{ color: analysisResult.change_percent >= 0 ? '#cf1322' : '#3f8600' }}>
-                    {analysisResult.change_percent.toFixed(2)}%
+                    {(analysisResult.change_percent * 100).toFixed(2)}%
                   </span>
                 </Descriptions.Item>
                 <Descriptions.Item label="成交额">
