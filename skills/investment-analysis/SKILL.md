@@ -497,16 +497,16 @@ docs/
 **详细模板**：
 - [公司分析模板](templates/company-template.md)
 - [行业分析模板](templates/industry-template.md)
-- [概念池更新指南](templates/concept-update-guide.md)
+
+**参考指南**：
+- [概念池更新指南](reference/concept-update.md) - 如何更新概念股票池体系
+- [概念归属判定指南](reference/concept-mapping.md) - 如何判定公司应归属哪个概念
 
 **信息来源**：
 - [信息来源参考](reference/info-sources.md) - 完整的数据源列表和访问方法
 
 **示例文档**：
 - [分析示例](reference/examples.md) - 完整的公司和行业分析案例
-
-**验证标准**：
-- `docs/概念股票池体系.md` - 概念归属验证标准
 
 ---
 
