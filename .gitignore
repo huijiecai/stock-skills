@@ -44,6 +44,10 @@ logs/*.pid
 # Database
 *.db
 *.db-journal
+*.sqlite
+*.sqlite3
+**/data/*.db
+**/data/*.db-journal
 
 # Environment
 .env
