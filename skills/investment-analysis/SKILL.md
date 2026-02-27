@@ -1,6 +1,6 @@
 ---
 name: investment-analysis
-description: Analyze companies and industries for investment research. Generate standardized company analysis reports, industry analysis documents, and update concept stock pool. Use when user asks to analyze a company (股票、公司), research an industry (行业), or mentions specific stock codes/names. Automatically suggest analysis when user discusses stocks or industries.
+description: 投资分析工具，用于公司分析、行业研究和概念池管理。当用户提到股票代码、公司名称、行业分析时自动触发。生成标准化的分析报告并保存到docs目录。
 ---
 
 # 投资分析 Skill
@@ -348,35 +348,6 @@ description: Analyze companies and industries for investment research. Generate 
 
 **验证标准**：
 - `docs/概念股票池体系.md` - 概念归属验证标准
-- `skills/dragon-stock-trading/股票验证操作手册.md` - 详细验证流程
-
----
-
-## 常见问题
-
-**Q: 找不到公司的年报数据怎么办？**
-A: 
-1. 巨潮资讯网搜索（http://www.cninfo.com.cn）
-2. 东方财富个股页面查看财务数据
-3. 如果是新上市公司，可能数据不全，标注说明
-
-**Q: 行业分析的深度如何把握？**
-A: 
-- 对于已有产业链（如半导体），聚焦细分领域
-- 对于新产业链，先做整体概览，再逐步细化
-- 参考现有文档的深度和结构
-
-**Q: 概念归属不确定怎么办？**
-A: 
-1. 查看公司主营业务占比
-2. 参考东方财富/同花顺的概念标签
-3. 询问用户意见
-4. 标记为"待进一步确认"
-
-**Q: 如何避免重复分析？**
-A: 
-- 分析前先检查 `docs/公司分析/` 是否已有该公司文档
-- 如已存在，询问是否更新现有文档
 
 ---
 
