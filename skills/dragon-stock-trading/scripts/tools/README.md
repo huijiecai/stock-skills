@@ -37,17 +37,17 @@ python collect_intraday_data.py --days 60
 
 ```bash
 # 采集某一天的市场数据
-python run_full_collection.py --step market --start-date 2026-02-28 --end-date 2026-02-28
+python run_full_collection.py --step market --start-date 2026-02-26 --end-date 2026-02-26
 
 # 采集某一天的分时数据
-python run_full_collection.py --step intraday --start-date 2026-02-28 --end-date 2026-02-28
+python run_full_collection.py --step intraday --start-date 2026-02-26 --end-date 2026-02-26
 
 # 采集某个日期范围的数据
-python run_full_collection.py --step market --start-date 2026-02-20 --end-date 2026-02-28
+python run_full_collection.py --step market --start-date 2026-02-20 --end-date 2026-02-26
 
 # 或者直接使用独立脚本
-python collect_market_data.py --start 2026-02-28 --end 2026-02-28
-python collect_intraday_data.py --start 2026-02-28 --end 2026-02-28
+python collect_market_data.py --start 2026-02-26 --end 2026-02-26
+python collect_intraday_data.py --start 2026-02-26 --end 2026-02-26
 ```
 
 ### 4. 日常维护
@@ -66,7 +66,7 @@ python collect_intraday_data.py --days 1
 |------|------|------|
 | `--days N` | 采集最近 N 天 | `--days 60` |
 | `--start YYYY-MM-DD` | 开始日期 | `--start 2025-12-01` |
-| `--end YYYY-MM-DD` | 结束日期 | `--end 2026-02-28` |
+| `--end YYYY-MM-DD` | 结束日期 | `--end 2026-02-26` |
 | `--force` | 强制重新采集 | `--force` |
 | `--step STEP` | 执行步骤 | `--step market` |
 
@@ -87,10 +87,10 @@ tail -f collection.log
 curl http://localhost:8000/api/stocks | jq '.total'
 
 # 检查市场数据
-curl "http://localhost:8000/api/market/sentiment?date=2026-02-28" | jq
+curl "http://localhost:8000/api/market/sentiment?date=2026-02-26" | jq
 
 # 检查分时数据
-curl "http://localhost:8000/api/stocks/intraday/000001/2026-02-28" | jq '.total'
+curl "http://localhost:8000/api/stocks/intraday/000001/2026-02-26" | jq '.total'
 ```
 
 ## ⏱️ 预计耗时

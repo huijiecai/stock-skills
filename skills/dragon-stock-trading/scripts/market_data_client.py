@@ -199,6 +199,7 @@ class MarketDataClient:
             }
         except Exception as e:
             print(f"  ⚠️  获取涨跌停统计失败: {e}")
+            print(f"  💡 可能原因：日期非交易日、Tushare API 无权限或数据未更新")
             return None
     
     def get_market_snapshot(self, date: str = None) -> Optional[Dict]:
