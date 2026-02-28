@@ -31,8 +31,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 from collections import deque
 
-# 添加脚本目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加脚本目录到路径（上级目录，因为依赖模块在 scripts/ 下）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from market_data_client import MarketDataClient
 from backend_client import backend_client

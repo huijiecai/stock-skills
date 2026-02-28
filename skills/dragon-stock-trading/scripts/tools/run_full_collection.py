@@ -30,8 +30,8 @@ import argparse
 from pathlib import Path
 from datetime import datetime, timedelta
 
-# 添加脚本目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加脚本目录到路径（上级目录，因为依赖模块在 scripts/ 下）
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
 def print_header(title: str):

@@ -19,8 +19,9 @@ from pathlib import Path
 from typing import List, Dict, Tuple
 from datetime import datetime
 
-# 添加脚本目录到路径
-sys.path.insert(0, str(Path(__file__).parent))
+# 添加脚本目录到路径（上级目录，因为 backend_client.py 在 scripts/ 下）
+scripts_dir = str(Path(__file__).resolve().parent.parent)
+sys.path.insert(0, scripts_dir)
 
 from backend_client import backend_client
 
@@ -30,7 +31,9 @@ class StockPoolImporter:
     
     def __init__(self):
         self.backend_client = backend_client
-        self.doc_path = Path(__file__).parent.parent.parent / "docs/概念股票池体系.md"
+        # 脚本在 skills/dragon-stock-trading/scripts/tools/，文档在项目根目录的 docs/
+        # 路径计算：tools -> scripts -> dragon-stock-trading -> skills -> stock (项目根目录)
+        self.doc_path = Path(__file__).resolve().parent.parent.parent.parent.parent / "docs/概念股票池体系.md"
         
         if not self.doc_path.exists():
             raise FileNotFoundError(f"概念股票池体系文档不存在：{self.doc_path}")
