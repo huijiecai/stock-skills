@@ -60,7 +60,7 @@ def step_collect_market_data(days: int = 60):
     """Step 2: 采集市场数据"""
     print_header(f"Step 2: 采集最近 {days} 天的市场数据")
     
-    from collect_market_data_optimized import MarketDataCollectorOptimized
+    from collect_market_data import MarketDataCollectorOptimized
     
     # 计算日期范围
     end_date = datetime.now().strftime('%Y-%m-%d')
