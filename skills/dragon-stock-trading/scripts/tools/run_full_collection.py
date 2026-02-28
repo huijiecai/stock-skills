@@ -76,7 +76,7 @@ def step_collect_intraday_data(days: int = 60):
     """Step 3: 采集分时数据"""
     print_header(f"Step 3: 采集最近 {days} 天的分时数据")
     
-    from collect_intraday_data_optimized import IntradayDataCollectorOptimized
+    from collect_intraday_data import IntradayDataCollectorOptimized
     
     # 计算日期范围
     end_date = datetime.now().strftime('%Y-%m-%d')
