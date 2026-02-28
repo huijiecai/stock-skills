@@ -1,14 +1,14 @@
-# 数据采集脚本使用说明
+# 数据采集工具使用说明
 
 ## 📋 概述
 
-本目录包含以下数据采集脚本：
+`tools/` 子目录包含以下数据采集工具：
 
-| 脚本名称 | 功能 | 使用场景 |
+| 工具名称 | 功能 | 使用场景 |
 |---------|------|---------|
 | `import_stock_pool.py` | 从概念股票池体系文档导入股票到后端 | 首次初始化股票池 |
-| `collect_market_data_optimized.py` | 采集市场数据（优化版） | 每日行情数据采集 |
-| `collect_intraday_data_optimized.py` | 采集分时数据（优化版） | 每日分时数据采集 |
+| `collect_market_data.py` | 采集市场数据（支持日期范围、断点续传） | 批量采集历史数据 |
+| `collect_intraday_data.py` | 采集分时数据（支持日期范围、增量采集） | 批量采集历史分时数据 |
 | `run_full_collection.py` | 一键执行所有任务 | 完整数据初始化 |
 
 ## 🚀 快速开始
@@ -17,7 +17,7 @@
 
 ```bash
 # 进入脚本目录
-cd skills/dragon-stock-trading/scripts
+cd skills/dragon-stock-trading/scripts/tools
 
 # 一键执行：导入股票池 + 采集最近 60 天数据
 python run_full_collection.py
@@ -40,10 +40,10 @@ python run_full_collection.py --step intraday --days 60
 
 ```bash
 # 采集今日市场数据
-python collect_market_data_optimized.py --days 1
+python collect_market_data.py --days 1
 
 # 采集今日分时数据
-python collect_intraday_data_optimized.py --days 1
+python collect_intraday_data.py --days 1
 ```
 
 ## 📖 详细说明
@@ -91,20 +91,20 @@ python import_stock_pool.py
 
 ---
 
-### 脚本 2: collect_market_data_optimized.py
+### 脚本 2: collect_market_data.py
 
 **功能**：采集指定日期范围的市场数据和个股行情
 
 **使用方法**：
 ```bash
 # 采集最近 60 天
-python collect_market_data_optimized.py --days 60
+python collect_market_data.py --days 60
 
 # 采集指定日期范围
-python collect_market_data_optimized.py --start 2025-12-01 --end 2026-02-28
+python collect_market_data.py --start 2025-12-01 --end 2026-02-28
 
 # 强制重新采集（不跳过已存在的数据）
-python collect_market_data_optimized.py --days 60 --force
+python collect_market_data.py --days 60 --force
 ```
 
 **参数说明**：
@@ -130,20 +130,20 @@ python collect_market_data_optimized.py --days 60 --force
 
 ---
 
-### 脚本 3: collect_intraday_data_optimized.py
+### 脚本 3: collect_intraday_data.py
 
 **功能**：采集指定日期范围的分时数据
 
 **使用方法**：
 ```bash
 # 采集最近 60 天
-python collect_intraday_data_optimized.py --days 60
+python collect_intraday_data.py --days 60
 
 # 采集指定日期范围
-python collect_intraday_data_optimized.py --start 2025-12-01 --end 2026-02-28
+python collect_intraday_data.py --start 2025-12-01 --end 2026-02-28
 
 # 强制重新采集
-python collect_intraday_data_optimized.py --days 60 --force
+python collect_intraday_data.py --days 60 --force
 ```
 
 **参数说明**：与市场数据脚本相同

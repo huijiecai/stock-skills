@@ -3,7 +3,7 @@
 ## 🚀 一键执行（推荐）
 
 ```bash
-cd skills/dragon-stock-trading/scripts
+cd skills/dragon-stock-trading/scripts/tools
 
 # 完整执行：导入股票池 + 采集最近 60 天数据
 ./quick_start.sh
@@ -24,20 +24,20 @@ python import_stock_pool.py
 ### Step 2: 采集市场数据
 ```bash
 # 最近 60 天
-python collect_market_data_optimized.py --days 60
+python collect_market_data.py --days 60
 
 # 指定日期范围
-python collect_market_data_optimized.py \
+python collect_market_data.py \
   --start 2025-12-01 --end 2026-02-28
 ```
 
 ### Step 3: 采集分时数据
 ```bash
 # 最近 60 天
-python collect_intraday_data_optimized.py --days 60
+python collect_intraday_data.py --days 60
 
 # 指定日期范围
-python collect_intraday_data_optimized.py \
+python collect_intraday_data.py \
   --start 2025-12-01 --end 2026-02-28
 ```
 
