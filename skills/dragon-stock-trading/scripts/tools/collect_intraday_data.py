@@ -100,17 +100,11 @@ class IntradayDataCollectorOptimized:
         self._setup_logging()
     
     def _setup_logging(self):
-        """配置日志"""
-        log_dir = Path(__file__).parent.parent.parent / "logs"
-        log_dir.mkdir(exist_ok=True)
-        
-        log_file = log_dir / f"intraday_collector_{datetime.now().strftime('%Y%m%d')}.log"
-        
+        """配置日志（仅控制台输出）"""
         logging.basicConfig(
             level=logging.INFO,
             format='%(asctime)s - %(levelname)s - %(message)s',
             handlers=[
-                logging.FileHandler(log_file, encoding='utf-8'),
                 logging.StreamHandler(sys.stdout)
             ]
         )
