@@ -67,6 +67,7 @@ class TushareClient:
                 )
             
             if df is None or df.empty:
+                # 静默返回 None（由上层处理重试）
                 return None
             
             return {

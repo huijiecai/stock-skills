@@ -174,11 +174,21 @@ class MarketDataCollectorOptimized:
             # 限流
             self.rate_limiter.wait_if_needed()
             
-            # 获取行情数据
-            quote = self.market_client.get_stock_quote(code, market, date)
+            # 获取行情数据（带重试机制）
+            quote = None
+            max_retries = 3
+            for attempt in range(max_retries):
+                quote = self.market_client.get_stock_quote(code, market, date)
+                if quote:
+                    break
+                
+                # 如果失败且还有重试次数，等待后重试
+                if attempt < max_retries - 1:
+                    self.logger.debug(f"  重试 {attempt + 1}/{max_retries}: {code} {name}")
+                    time.sleep(0.5)  # 等待 0.5 秒后重试
             
             if not quote:
-                self.logger.warning(f"{code} {name} - 未获取到行情数据")
+                self.logger.warning(f"{code} {name} - 重试 {max_retries} 次后仍未获取到行情数据")
                 return None
             
             # 提取涨跌幅
