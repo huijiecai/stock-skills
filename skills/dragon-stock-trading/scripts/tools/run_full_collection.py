@@ -132,7 +132,7 @@ def main():
             # 只采集市场数据
             days = args.days
             if args.start_date and args.end_date:
-                from collect_market_data_optimized import MarketDataCollectorOptimized
+                from collect_market_data import MarketDataCollectorOptimized
                 collector = MarketDataCollectorOptimized()
                 collector.collect_range(
                     start_date=args.start_date,
@@ -146,7 +146,7 @@ def main():
             # 只采集分时数据
             days = args.days
             if args.start_date and args.end_date:
-                from collect_intraday_data_optimized import IntradayDataCollectorOptimized
+                from collect_intraday_data import IntradayDataCollectorOptimized
                 collector = IntradayDataCollectorOptimized()
                 collector.collect_range(
                     start_date=args.start_date,

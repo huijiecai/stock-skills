@@ -33,7 +33,24 @@ python collect_market_data.py --days 60
 python collect_intraday_data.py --days 60
 ```
 
-### 3. 日常维护
+### 3. 采集指定日期的数据
+
+```bash
+# 采集某一天的市场数据
+python run_full_collection.py --step market --start-date 2026-02-28 --end-date 2026-02-28
+
+# 采集某一天的分时数据
+python run_full_collection.py --step intraday --start-date 2026-02-28 --end-date 2026-02-28
+
+# 采集某个日期范围的数据
+python run_full_collection.py --step market --start-date 2026-02-20 --end-date 2026-02-28
+
+# 或者直接使用独立脚本
+python collect_market_data.py --start 2026-02-28 --end 2026-02-28
+python collect_intraday_data.py --start 2026-02-28 --end 2026-02-28
+```
+
+### 4. 日常维护
 
 ```bash
 # 采集今日市场数据
