@@ -56,36 +56,42 @@ def step_import_stock_pool():
     print("\n✅ Step 1 完成：股票池导入成功\n")
 
 
-def step_collect_market_data(days: int = 60, force: bool = False):
+def step_collect_market_data(days: int = 60, force: bool = False, start_date: str = None, end_date: str = None):
     """Step 2: 采集市场数据"""
-    print_header(f"Step 2: 采集最近 {days} 天的市场数据{'（强制模式）' if force else ''}")
+    print_header(f"Step 2: 采集市场数据{'（强制模式）' if force else ''}")
     
     from collect_market_data import MarketDataCollectorOptimized
     
     # 计算日期范围
-    end_date = datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+    if not start_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+    
+    print(f"📅 采集范围：{start_date} ~ {end_date}")
     
     collector = MarketDataCollectorOptimized()
     collector.collect_range(start_date=start_date, end_date=end_date, force=force)
     
-    print(f"\n✅ Step 2 完成：已采集 {days} 天的市场数据\n")
+    print(f"\n✅ Step 2 完成：市场数据采集完成\n")
 
 
-def step_collect_intraday_data(days: int = 60, force: bool = False):
+def step_collect_intraday_data(days: int = 60, force: bool = False, start_date: str = None, end_date: str = None):
     """Step 3: 采集分时数据"""
-    print_header(f"Step 3: 采集最近 {days} 天的分时数据{'（强制模式）' if force else ''}")
+    print_header(f"Step 3: 采集分时数据{'（强制模式）' if force else ''}")
     
     from collect_intraday_data import IntradayDataCollectorOptimized
     
     # 计算日期范围
-    end_date = datetime.now().strftime('%Y-%m-%d')
-    start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+    if not start_date:
+        end_date = datetime.now().strftime('%Y-%m-%d')
+        start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
+    
+    print(f"📅 采集范围：{start_date} ~ {end_date}")
     
     collector = IntradayDataCollectorOptimized()
     collector.collect_range(start_date=start_date, end_date=end_date, force=force)
     
-    print(f"\n✅ Step 3 完成：已采集 {days} 天的分时数据\n")
+    print(f"\n✅ Step 3 完成：分时数据采集完成\n")
 
 
 def main():
@@ -125,8 +131,18 @@ def main():
         if args.step == 'all':
             # 全部执行
             step_import_stock_pool()
-            step_collect_market_data(days=args.days, force=args.force)
-            step_collect_intraday_data(days=args.days, force=args.force)
+            step_collect_market_data(
+                days=args.days, 
+                force=args.force,
+                start_date=args.start_date,
+                end_date=args.end_date
+            )
+            step_collect_intraday_data(
+                days=args.days, 
+                force=args.force,
+                start_date=args.start_date,
+                end_date=args.end_date
+            )
             
         elif args.step == 'import':
             # 只导入股票池
