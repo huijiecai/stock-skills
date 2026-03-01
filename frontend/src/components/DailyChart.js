@@ -34,6 +34,8 @@ const DailyChart = ({ data, stockCode, stockName }) => {
     const dates = data.map(item => item.date);
     const ohlcData = data.map(item => [item.open, item.close, item.low, item.high]);
     const volumes = data.map(item => item.volume);
+    // 保存原始数据用于tooltip显示
+    const rawData = data;
 
     // 计算均线
     const ma5 = calculateMA(data.map(d => d.close), 5);
@@ -56,18 +58,35 @@ const DailyChart = ({ data, stockCode, stockName }) => {
           type: 'cross'
         },
         formatter: function (params) {
-          let result = params[0].axisValue + '<br/>';
+          const dataIndex = params[0].dataIndex;
+          const item = rawData[dataIndex];
+          let result = `<strong>${params[0].axisValue}</strong><br/>`;
+          result += `─────────────<br/>`;
+          result += `开盘: ${item.open?.toFixed(2)}<br/>`;
+          result += `收盘: ${item.close?.toFixed(2)}<br/>`;
+          result += `最高: ${item.high?.toFixed(2)}<br/>`;
+          result += `最低: ${item.low?.toFixed(2)}<br/>`;
+          result += `─────────────<br/>`;
+          // 涨跌幅
+          const changePct = item.change_percent;
+          const changeSign = changePct >= 0 ? '+' : '';
+          const changeColor = changePct >= 0 ? '#f5222d' : '#52c41a';
+          result += `涨跌幅: <span style="color:${changeColor}">${changeSign}${(changePct * 100).toFixed(2)}%</span><br/>`;
+          // 成交量（万手）
+          const volWan = (item.volume / 10000).toFixed(2);
+          result += `成交量: ${volWan}万手<br/>`;
+          // 成交额（亿元）
+          const amtYi = (item.turnover / 100000000).toFixed(2);
+          result += `成交额: ${amtYi}亿元<br/>`;
+          // 换手率
+          if (item.turnover_rate !== null && item.turnover_rate !== undefined) {
+            result += `换手率: ${(item.turnover_rate * 100).toFixed(2)}%<br/>`;
+          }
+          result += `─────────────<br/>`;
+          // 均线数据
           params.forEach(p => {
-            if (p.componentSubType === 'candlestick') {
-              const data = p.data;
-              result += `开盘: ${data[1]}<br/>`;
-              result += `收盘: ${data[2]}<br/>`;
-              result += `最低: ${data[3]}<br/>`;
-              result += `最高: ${data[4]}<br/>`;
-            } else if (p.seriesName.includes('MA')) {
-              result += `${p.seriesName}: ${p.data?.toFixed(2) || '-'}<br/>`;
-            } else if (p.seriesName === '成交量') {
-              result += `成交量: ${(p.data / 10000).toFixed(2)}万手<br/>`;
+            if (p.seriesName && p.seriesName.includes('MA') && p.data !== null) {
+              result += `${p.seriesName}: ${p.data.toFixed(2)}<br/>`;
             }
           });
           return result;

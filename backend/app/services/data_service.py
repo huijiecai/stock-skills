@@ -538,9 +538,11 @@ class DataService:
                 high_price as high,
                 low_price as low,
                 close_price as close,
+                pre_close,
                 volume,
                 turnover,
-                change_percent
+                change_percent,
+                turnover_rate
             FROM stock_daily
             WHERE stock_code = ? AND trade_date BETWEEN ? AND ?
             ORDER BY trade_date ASC
@@ -554,9 +556,11 @@ class DataService:
                 'high': row[2],
                 'low': row[3],
                 'close': row[4],
-                'volume': row[5],
-                'turnover': row[6],
-                'change_percent': row[7]
+                'pre_close': row[5],
+                'volume': row[6],
+                'turnover': row[7],
+                'change_percent': row[8],
+                'turnover_rate': row[9]
             })
         
         conn.close()

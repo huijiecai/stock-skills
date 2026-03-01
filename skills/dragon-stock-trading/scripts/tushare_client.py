@@ -296,6 +296,50 @@ class TushareClient:
             return None
 
 
+    def get_daily_basic(self, trade_date: str) -> Optional[Dict]:
+        """
+        批量获取指定日期所有股票的每日基本面指标（包括换手率）
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            
+        Returns:
+            字典 {股票代码: 换手率}
+            换手率单位为小数，如 0.05 表示 5%
+        """
+        try:
+            df = self.pro.daily_basic(
+                trade_date=trade_date,
+                fields='ts_code,turnover_rate'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            # 转换为字典 {股票代码: 换手率}
+            result = {}
+            for _, row in df.iterrows():
+                ts_code = row['ts_code']
+                code = ts_code.split('.')[0]
+                # turnover_rate 单位是%，需要转换为小数
+                turnover_rate = row['turnover_rate']
+                if turnover_rate is not None and not self.isNaN(turnover_rate):
+                    result[code] = turnover_rate / 100.0
+            
+            return result
+        except Exception as e:
+            print(f"Tushare API错误 (每日基本面): {e}")
+            return None
+
+
+    def isNaN(self, value):
+        """检查是否为 NaN"""
+        import math
+        return math.isnan(value) if isinstance(value, float) else False
+
+
 # 模块级别初始化全局客户端实例
 def _init_tushare_client() -> TushareClient:
     """初始化Tushare客户端"""

@@ -111,6 +111,25 @@ class MarketDataClient:
         self._request_count += 1
         return result
     
+    def get_daily_basic(self, date: str) -> Dict[str, float]:
+        """
+        获取指定日期所有股票的换手率
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            
+        Returns:
+            字典 {股票代码: 换手率}，换手率为小数（如 0.05 表示 5%）
+        """
+        trade_date = date.replace('-', '')
+        data = self._api.get_daily_basic(trade_date)
+        
+        if not data:
+            return {}
+        
+        self._request_count += 1
+        return data
+    
     def get_stock_info(self, stock_code: str, market: str = None) -> Optional[Dict]:
         """
         获取股票基本信息

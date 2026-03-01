@@ -187,8 +187,16 @@ class MarketDataCollectorOptimized:
             
             self.logger.info(f"  ✅ 获取到 {len(all_quotes)} 只股票行情")
             
-            # Step 4: 过滤股票池并构建数据
-            self.logger.info("  Step 4: 处理股票池数据...")
+            # Step 4: 获取换手率数据
+            self.logger.info("  Step 4: 获取换手率数据...")
+            turnover_rates = self.market_client.get_daily_basic(date)
+            if turnover_rates:
+                self.logger.info(f"  ✅ 获取到 {len(turnover_rates)} 只股票换手率")
+            else:
+                self.logger.warning("  ⚠️ 未获取到换手率数据，使用默认值 0")
+            
+            # Step 5: 过滤股票池并构建数据
+            self.logger.info("  Step 5: 处理股票池数据...")
             stocks_data = []
             pool_limit_up = 0
             pool_limit_down = 0
@@ -233,7 +241,7 @@ class MarketDataCollectorOptimized:
                     "change_percent": change_percent,
                     "volume": quote.get('vol', 0),
                     "turnover": quote.get('amt', 0.0),
-                    "turnover_rate": quote.get('tr', 0.0),
+                    "turnover_rate": turnover_rates.get(code, 0.0),
                     "is_limit_up": is_limit_up,
                     "is_limit_down": is_limit_down,
                     "limit_up_time": "",
@@ -252,8 +260,8 @@ class MarketDataCollectorOptimized:
             self.logger.info(f"  ✅ 股票池有效数据：{len(stocks_data)} 只")
             self.logger.info(f"  📊 涨停：{pool_limit_up} 只，跌停：{pool_limit_down} 只")
             
-            # Step 5: 保存到后端
-            self.logger.info("  Step 5: 保存数据...")
+            # Step 6: 保存到后端
+            self.logger.info("  Step 6: 保存数据...")
             result = self.backend_client.collect_market_data(
                 date=date,
                 market_data=market_data,
