@@ -4,7 +4,7 @@
 竞价数据批量采集器
 
 功能：
-1. 批量采集指定日期范围的竞价数据（全市场）
+1. 批量采集指定日期范围的竞价数据（仅股票池中的股票）
 2. 支持跳过已存在的数据
 
 使用方法：
@@ -51,17 +51,22 @@ class AuctionDataCollector:
     
     def collect_range(self, start_date: str, end_date: str, force: bool = False):
         """
-        批量采集竞价数据
+        批量采集竞价数据（仅股票池中的股票）
         
         Args:
             start_date: 开始日期
             end_date: 结束日期
             force: 是否强制重新采集
         """
+        # 获取股票池列表
+        all_stocks = backend_client.get_all_stocks()
+        stock_codes = [s['code'] for s in all_stocks]
+        
         print("=" * 60)
         print("竞价数据批量采集器")
         print("=" * 60)
         print(f"\n📅 采集范围：{start_date} ~ {end_date}")
+        print(f"📊 股票池：{len(stock_codes)} 只")
         print(f"🔄 强制模式：{'是' if force else '否'}")
         print("=" * 60 + "\n")
         
@@ -79,8 +84,8 @@ class AuctionDataCollector:
                 continue
             
             try:
-                # 获取竞价数据
-                auction_data = get_auction_data(date)
+                # 获取竞价数据（仅股票池中的股票）
+                auction_data = get_auction_data(date, stock_codes)
                 
                 if not auction_data:
                     print(f"  {date}: ⚠️ 无数据")

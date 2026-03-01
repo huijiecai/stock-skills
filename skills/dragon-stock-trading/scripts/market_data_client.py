@@ -575,52 +575,71 @@ class MarketDataClient:
     def reset_request_count(self):
         """重置请求计数"""
         self._request_count = 0
+    
+    def get_auction_data(self, date: str, stock_codes: List[str] = None) -> Dict[str, Dict]:
+        """
+        获取指定日期的竞价数据
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            stock_codes: 股票代码列表（可选，不传则返回全部）
+            
+        Returns:
+            字典 {股票代码: {open_vol, open_amount, open_vwap, close_vol, close_amount, close_vwap}}
+        """
+        trade_date = date.replace('-', '')
+        
+        result = {}
+        
+        # 获取开盘竞价数据
+        open_data = tushare_client.get_auction_open(trade_date)
+        if open_data and open_data.get('items'):
+            for item in open_data['items']:
+                # item: [ts_code, trade_date, close, open, high, low, vol, amount, vwap]
+                ts_code = item[0]
+                stock_code = ts_code.split('.')[0]
+                # 如果指定了股票列表，只保留列表中的股票
+                if stock_codes is None or stock_code in stock_codes:
+                    result[stock_code] = {
+                        'open_vol': item[6],       # 成交量（股）
+                        'open_amount': item[7],    # 成交额（元）
+                        'open_vwap': item[8]       # 均价
+                    }
+        
+        # 获取收盘竞价数据
+        close_data = tushare_client.get_auction_close(trade_date)
+        if close_data and close_data.get('items'):
+            for item in close_data['items']:
+                ts_code = item[0]
+                stock_code = ts_code.split('.')[0]
+                # 如果指定了股票列表，只保留列表中的股票
+                if stock_codes is None or stock_code in stock_codes:
+                    if stock_code not in result:
+                        result[stock_code] = {}
+                    result[stock_code]['close_vol'] = item[6]
+                    result[stock_code]['close_amount'] = item[7]
+                    result[stock_code]['close_vwap'] = item[8]
+        
+        self._request_count += 2  # 开盘+收盘两次API调用
+        return result
 
 
 # 模块级别全局实例
 market_data_client = MarketDataClient()
 
 
-def get_auction_data(date: str) -> Dict[str, Dict]:
+def get_auction_data(date: str, stock_codes: List[str] = None) -> Dict[str, Dict]:
     """
-    获取指定日期的竞价数据（模块级函数）
+    获取指定日期的竞价数据（模块级函数，委托给实例方法）
     
     Args:
         date: 交易日期（YYYY-MM-DD）
+        stock_codes: 股票代码列表（可选，不传则返回全部）
         
     Returns:
         字典 {股票代码: {open_vol, open_amount, open_vwap, close_vol, close_amount, close_vwap}}
     """
-    trade_date = date.replace('-', '')
-    
-    result = {}
-    
-    # 获取开盘竞价数据
-    open_data = tushare_client.get_auction_open(trade_date)
-    if open_data and open_data.get('items'):
-        for item in open_data['items']:
-            # item: [ts_code, trade_date, close, open, high, low, vol, amount, vwap]
-            ts_code = item[0]
-            stock_code = ts_code.split('.')[0]
-            result[stock_code] = {
-                'open_vol': item[6],       # 成交量（股）
-                'open_amount': item[7],    # 成交额（元）
-                'open_vwap': item[8]       # 均价
-            }
-    
-    # 获取收盘竞价数据
-    close_data = tushare_client.get_auction_close(trade_date)
-    if close_data and close_data.get('items'):
-        for item in close_data['items']:
-            ts_code = item[0]
-            stock_code = ts_code.split('.')[0]
-            if stock_code not in result:
-                result[stock_code] = {}
-            result[stock_code]['close_vol'] = item[6]
-            result[stock_code]['close_amount'] = item[7]
-            result[stock_code]['close_vwap'] = item[8]
-    
-    return result
+    return market_data_client.get_auction_data(date, stock_codes)
 
 
 def main():
