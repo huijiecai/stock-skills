@@ -19,8 +19,6 @@ class MarketDataClient:
     
     def __init__(self):
         """初始化客户端"""
-        # 使用全局Tushare客户端实例
-        self._api = tushare_client
         self._request_count = 0
     
     def get_stock_quote(self, stock_code: str, market: str = None, date: str = None) -> Optional[Dict]:
@@ -48,7 +46,7 @@ class MarketDataClient:
         trade_date = date.replace('-', '') if date else ""
         
         # 委托给底层API获取数据
-        data = self._api.get_stock_daily(ts_code=ts_code, trade_date=trade_date)
+        data = tushare_client.get_stock_daily(ts_code=ts_code, trade_date=trade_date)
         
         if data and data.get('items'):
             item = data['items'][0]
@@ -82,7 +80,7 @@ class MarketDataClient:
         trade_date = date.replace('-', '')
         
         # 批量获取
-        data = self._api.get_daily_all(trade_date)
+        data = tushare_client.get_daily_all(trade_date)
         
         if not data or not data.get('items'):
             return {}
@@ -121,7 +119,7 @@ class MarketDataClient:
                   dv_ratio, dv_ttm, total_share, float_share, free_share, total_mv, circ_mv
         """
         trade_date = date.replace('-', '')
-        data = self._api.get_daily_basic(trade_date)
+        data = tushare_client.get_daily_basic(trade_date)
         
         if not data:
             return {}
@@ -150,7 +148,7 @@ class MarketDataClient:
             ts_code = stock_code
         
         # 委托给底层API获取数据
-        data = self._api.get_stock_basic(ts_code=ts_code)
+        data = tushare_client.get_stock_basic(ts_code=ts_code)
         
         if data and data.get('items'):
             item = data['items'][0]
@@ -184,7 +182,7 @@ class MarketDataClient:
         ts_code = index_mapping.get(index_code, f"{index_code}.SH")
         
         # 委托给底层API获取数据
-        data = self._api.get_index_daily(ts_code=ts_code)
+        data = tushare_client.get_index_daily(ts_code=ts_code)
         
         if data and data.get('items'):
             item = data['items'][0]
@@ -221,7 +219,7 @@ class MarketDataClient:
         
         try:
             # 一次性获取所有涨跌停数据（不指定limit_type）
-            all_limit_data = self._api.get_limit_list(trade_date)
+            all_limit_data = tushare_client.get_limit_list(trade_date)
             
             if not all_limit_data or not all_limit_data.get('items'):
                 return None
@@ -347,7 +345,7 @@ class MarketDataClient:
         trade_date = date.replace('-', '')
         
         # 获取日线数据
-        data = self._api.get_stock_daily(ts_code=ts_code, trade_date=trade_date)
+        data = tushare_client.get_stock_daily(ts_code=ts_code, trade_date=trade_date)
         
         if data and data.get('items') and len(data['items']) > 0:
             item = data['items'][0]
@@ -383,7 +381,7 @@ class MarketDataClient:
         trade_date = date.replace('-', '')
         
         # 调用底层API获取分时数据
-        data = self._api.get_stock_intraday(ts_code, trade_date)
+        data = tushare_client.get_stock_intraday(ts_code, trade_date)
         
         if not data or not data.get('items'):
             return []
@@ -448,7 +446,7 @@ class MarketDataClient:
             ts_code = stock_code
         
         # 调用底层API获取分时数据
-        data = self._api.get_stock_intraday_range(ts_code, start_date, end_date)
+        data = tushare_client.get_stock_intraday_range(ts_code, start_date, end_date)
         
         if not data or not data.get('items'):
             return {}
@@ -525,7 +523,7 @@ class MarketDataClient:
         
         try:
             # 获取日线数据
-            daily_data = self._api.get_stock_daily(
+            daily_data = tushare_client.get_stock_daily(
                 f"{stock_code}.{market}" if '.' not in stock_code else stock_code,
                 start_date=start_date.replace('-', ''),
                 end_date=end_date.replace('-', '')
