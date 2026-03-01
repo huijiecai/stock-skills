@@ -33,6 +33,11 @@ from datetime import datetime, timedelta
 # 添加脚本目录到路径（上级目录，因为依赖模块在 scripts/ 下）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# ==================== 直接导入模块级别实例 ====================
+from import_stock_pool import stock_pool_importer
+from collect_market_data import market_collector
+from collect_intraday_data import intraday_collector
+
 
 def print_header(title: str):
     """打印标题"""
@@ -45,10 +50,7 @@ def step_import_stock_pool():
     """Step 1: 导入股票池"""
     print_header("Step 1: 导入股票池到后端数据库")
     
-    from import_stock_pool import StockPoolImporter
-    
-    importer = StockPoolImporter()
-    success = importer.run()
+    success = stock_pool_importer.run()
     
     if not success:
         raise Exception("股票池导入失败")
@@ -60,8 +62,6 @@ def step_collect_market_data(days: int = 60, force: bool = False, start_date: st
     """Step 2: 采集市场数据"""
     print_header(f"Step 2: 采集市场数据{'（强制模式）' if force else ''}")
     
-    from collect_market_data import MarketDataCollectorOptimized
-    
     # 计算日期范围
     if not start_date:
         end_date = datetime.now().strftime('%Y-%m-%d')
@@ -69,8 +69,7 @@ def step_collect_market_data(days: int = 60, force: bool = False, start_date: st
     
     print(f"📅 采集范围：{start_date} ~ {end_date}")
     
-    collector = MarketDataCollectorOptimized()
-    collector.collect_range(start_date=start_date, end_date=end_date, force=force)
+    market_collector.collect_range(start_date=start_date, end_date=end_date, force=force)
     
     print(f"\n✅ Step 2 完成：市场数据采集完成\n")
 
@@ -79,8 +78,6 @@ def step_collect_intraday_data(days: int = 60, force: bool = False, start_date: 
     """Step 3: 采集分时数据"""
     print_header(f"Step 3: 采集分时数据{'（强制模式）' if force else ''}")
     
-    from collect_intraday_data import IntradayDataCollectorOptimized
-    
     # 计算日期范围
     if not start_date:
         end_date = datetime.now().strftime('%Y-%m-%d')
@@ -88,8 +85,7 @@ def step_collect_intraday_data(days: int = 60, force: bool = False, start_date: 
     
     print(f"📅 采集范围：{start_date} ~ {end_date}")
     
-    collector = IntradayDataCollectorOptimized()
-    collector.collect_range(start_date=start_date, end_date=end_date, force=force)
+    intraday_collector.collect_range(start_date=start_date, end_date=end_date, force=force)
     
     print(f"\n✅ Step 3 完成：分时数据采集完成\n")
 
@@ -150,31 +146,21 @@ def main():
             
         elif args.step == 'market':
             # 只采集市场数据
-            days = args.days
-            if args.start_date and args.end_date:
-                from collect_market_data import MarketDataCollectorOptimized
-                collector = MarketDataCollectorOptimized()
-                collector.collect_range(
-                    start_date=args.start_date,
-                    end_date=args.end_date,
-                    force=args.force
-                )
-            else:
-                step_collect_market_data(days=days, force=args.force)
+            step_collect_market_data(
+                days=args.days,
+                force=args.force,
+                start_date=args.start_date,
+                end_date=args.end_date
+            )
             
         elif args.step == 'intraday':
             # 只采集分时数据
-            days = args.days
-            if args.start_date and args.end_date:
-                from collect_intraday_data import IntradayDataCollectorOptimized
-                collector = IntradayDataCollectorOptimized()
-                collector.collect_range(
-                    start_date=args.start_date,
-                    end_date=args.end_date,
-                    force=args.force
-                )
-            else:
-                step_collect_intraday_data(days=days, force=args.force)
+            step_collect_intraday_data(
+                days=args.days,
+                force=args.force,
+                start_date=args.start_date,
+                end_date=args.end_date
+            )
         
         print("\n" + "=" * 70)
         print("  🎉 全部任务完成！")

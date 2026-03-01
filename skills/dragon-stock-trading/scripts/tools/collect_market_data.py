@@ -284,7 +284,7 @@ class MarketDataCollectorOptimized:
             return False, 0
     
     def collect_range(self, start_date: str, end_date: str, 
-                     force: bool = False, save_interval: int = 10):
+                     force: bool = False, save_interval: int = 10, reverse: bool = True):
         """
         采集指定日期范围的数据
         
@@ -293,17 +293,23 @@ class MarketDataCollectorOptimized:
             end_date: 结束日期（YYYY-MM-DD）
             force: 是否强制重新采集
             save_interval: 保存进度的间隔（每 N 个日期保存一次）
+            reverse: 是否从新到旧采集（默认 True，从新到旧）
         """
         print("=" * 60)
         print("市场数据采集器（优化版）")
         print("=" * 60)
         print(f"\n📅 采集范围：{start_date} ~ {end_date}")
         print(f"🔄 强制模式：{'是' if force else '否'}")
+        print(f"📅 采集顺序：{'从新到旧' if reverse else '从旧到新'}")
         print(f"💾 保存间隔：每 {save_interval} 个日期")
         print(f"{'=' * 60}\n")
         
         # 获取交易日期列表
         trading_dates = self._get_trading_dates(start_date, end_date)
+        
+        # 从新到旧采集（默认）
+        if reverse:
+            trading_dates = list(reversed(trading_dates))
         total_dates = len(trading_dates)
         
         self.logger.info(f"✅ 找到 {total_dates} 个交易日")
@@ -402,3 +408,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+market_collector = MarketDataCollectorOptimized()
