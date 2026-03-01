@@ -158,6 +158,33 @@ class DataService:
             print(f"移除股票失败: {e}")
             return False
     
+    def reactivate_stock(self, stock_code: str) -> bool:
+        """
+        重新激活股票（将软删除的股票恢复为活跃状态）
+        
+        Args:
+            stock_code: 股票代码
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute('''
+                UPDATE stock_pool
+                SET is_active = 1
+                WHERE stock_code = ?
+            ''', (stock_code,))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"重新激活股票失败: {e}")
+            return False
+    
     def sync_stock_info(self, stock_code: str, stock_name: str, market: str, board_type: str) -> bool:
         """
         同步股票信息到 stock_info 表

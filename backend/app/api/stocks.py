@@ -79,10 +79,20 @@ async def add_stock(stock: StockPoolAdd):
     try:
         data_service = get_data_service()
         
-        # 检查是否已存在
+        # 检查是否已存在（包括软删除的）
         existing_stocks = data_service.get_stock_pool(active_only=False)
-        if any(s['code'] == stock.code for s in existing_stocks):
-            raise HTTPException(status_code=400, detail="股票已存在")
+        existing = next((s for s in existing_stocks if s['code'] == stock.code), None)
+        
+        if existing:
+            # 如果已存在但是软删除状态，重新激活
+            if not existing.get('is_active', True):
+                data_service.reactivate_stock(stock.code)
+                return {
+                    "success": True,
+                    "message": "股票已重新激活"
+                }
+            else:
+                raise HTTPException(status_code=400, detail="股票已存在")
         
         # 添加股票
         success = data_service.add_stock_to_pool(

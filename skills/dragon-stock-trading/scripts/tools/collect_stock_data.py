@@ -41,6 +41,14 @@ from market_data_client import market_data_client
 class StockDataCollector:
     """单股票数据采集器"""
     
+    # 板块类型映射
+    BOARD_TYPE_MAP = {
+        '主板': '主板',
+        '创业板': '创业板',
+        '科创板': '科创板',
+        '北交所': '北交所',
+    }
+    
     def __init__(self):
         self._setup_logging()
     
@@ -90,6 +98,80 @@ class StockDataCollector:
         else:
             return 0.10  # 主板
     
+    def _get_board_type(self, code: str) -> str:
+        """根据股票代码判断板块类型"""
+        if code.startswith('688'):
+            return '科创板'
+        elif code.startswith('300'):
+            return '创业板'
+        elif code.startswith('8') or code.startswith('4'):
+            return '北交所'
+        else:
+            return '主板'
+    
+    def _ensure_stock_in_pool(self, code: str) -> Dict:
+        """
+        确保股票在 stock_pool 和 stock_info 中存在
+        
+        Args:
+            code: 股票代码
+            
+        Returns:
+            股票信息字典 {'name': ..., 'market': ...}
+        """
+        # 检查股票池
+        all_stocks = backend_client.get_all_stocks()
+        stock_info = next((s for s in all_stocks if s['code'] == code), None)
+        
+        if stock_info:
+            self.logger.info(f"  ✅ 股票已在池中: {stock_info.get('name', code)}")
+            return {
+                'name': stock_info.get('name', ''),
+                'market': stock_info.get('market', 'SZ' if not code.startswith('6') else 'SH')
+            }
+        
+        # 不在池中，从 Tushare 获取信息
+        self.logger.info(f"  📥 股票不在池中，从 Tushare 获取信息...")
+        
+        ts_code = self._get_market_code(code)
+        basic_info = tushare_client.get_stock_basic(ts_code)
+        
+        if not basic_info or not basic_info.get('items'):
+            self.logger.warning(f"  ⚠️ 未获取到股票基本信息，使用默认值")
+            stock_name = ""
+        else:
+            item = basic_info['items'][0]
+            # fields: ts_code, name, area, industry, market(主板/创业板), list_date
+            stock_name = item[1] if len(item) > 1 else ""
+        
+        # market 根据股票代码判断（SH/SZ）
+        market = 'SH' if code.startswith('6') else 'SZ'
+        
+        # 添加到股票池
+        board_type = self._get_board_type(code)
+        
+        try:
+            # 添加到 stock_pool（market 使用 SH/SZ）
+            backend_client.add_stock_to_pool(code, stock_name, market, f"自动添加 ({board_type})")
+            self.logger.info(f"  ✅ 已添加到股票池: {stock_name or code}")
+            
+            # 同步到 stock_info
+            backend_client.sync_stock_info([{
+                'stock_code': code,
+                'stock_name': stock_name,
+                'market': market,
+                'board_type': board_type
+            }])
+            self.logger.info(f"  ✅ 已同步到 stock_info: {board_type}")
+            
+        except Exception as e:
+            self.logger.warning(f"  ⚠️ 添加股票信息失败: {e}")
+        
+        return {
+            'name': stock_name,
+            'market': market
+        }
+    
     def collect_daily(self, code: str, start_date: str, end_date: str, force: bool = False) -> int:
         """
         收集单只股票的日线数据（批量查询）
@@ -116,6 +198,12 @@ class StockDataCollector:
         end_compact = end_date.replace('-', '')
         
         try:
+            # Step 0: 确保股票在股票池中
+            self.logger.info("Step 0: 检查股票池...")
+            stock_info = self._ensure_stock_in_pool(code)
+            stock_name = stock_info.get('name', '')
+            market = stock_info.get('market', 'SZ' if not code.startswith('6') else 'SH')
+            
             # Step 1: 一次性获取日期范围内的所有日线数据
             self.logger.info("Step 1: 批量获取日线数据...")
             daily_data = None
@@ -192,8 +280,8 @@ class StockDataCollector:
                 # 构建保存数据
                 stock_data = {
                     "code": code,
-                    "name": "",
-                    "market": "SH" if code.startswith('6') else "SZ",
+                    "name": stock_name,
+                    "market": market,
                     "open": data_dict.get('open', 0),
                     "high": data_dict.get('high', 0),
                     "low": data_dict.get('low', 0),
