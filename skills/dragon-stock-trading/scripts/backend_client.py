@@ -7,31 +7,38 @@ Backend Client - 后端API客户端
 """
 
 import requests
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 from datetime import datetime
 from config_loader import ConfigLoader
 import math
 
 
-def _clean_nan_values(data: Dict) -> Dict:
+def _clean_nan_values(data: Union[Dict, List]) -> Union[Dict, List]:
     """
     清理数据中的 NaN 值，转换为 None
     
     Args:
-        data: 原始数据字典
+        data: 原始数据（字典或列表）
         
     Returns:
-        清理后的数据字典
+        清理后的数据
     """
-    result = {}
-    for key, value in data.items():
-        if isinstance(value, float) and math.isnan(value):
-            result[key] = None
-        elif isinstance(value, dict):
-            result[key] = _clean_nan_values(value)
-        else:
-            result[key] = value
-    return result
+    if isinstance(data, list):
+        return [_clean_nan_values(item) for item in data]
+    elif isinstance(data, dict):
+        result = {}
+        for key, value in data.items():
+            if isinstance(value, float) and math.isnan(value):
+                result[key] = None
+            elif isinstance(value, dict):
+                result[key] = _clean_nan_values(value)
+            elif isinstance(value, list):
+                result[key] = _clean_nan_values(value)
+            else:
+                result[key] = value
+        return result
+    else:
+        return data
 
 
 class BackendClient:
@@ -49,7 +56,7 @@ class BackendClient:
         self.base_url = base_url
         self.api_base = f"{base_url}/api"
     
-    def _post(self, endpoint: str, data: Dict, timeout: int = 30) -> Dict:
+    def _post(self, endpoint: str, data: Union[Dict, List], timeout: int = 30) -> Dict:
         """发送POST请求"""
         url = f"{self.api_base}{endpoint}"
         try:
