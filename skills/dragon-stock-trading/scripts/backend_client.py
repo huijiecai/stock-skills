@@ -245,6 +245,28 @@ class BackendClient:
             # 如果API调用失败，默认返回False（假设不存在）
             return False
     
+    def get_stock_intraday_existence_batch(self, stock_code: str, dates: List[str]) -> Dict[str, bool]:
+        """
+        批量检查指定股票多个日期的分时数据是否存在
+        
+        Args:
+            stock_code: 股票代码
+            dates: 交易日期列表（YYYY-MM-DD）
+        
+        Returns:
+            {日期: 是否存在} 字典
+        """
+        if not dates:
+            return {}
+        
+        try:
+            # 调用后端批量检查接口
+            result = self._post(f"/stocks/intraday-exists-batch/{stock_code}", {"dates": dates})
+            return result.get("exists", {})
+        except Exception:
+            # 如果API调用失败，默认全部返回False
+            return {date: False for date in dates}
+    
     def check_market_data_exists(self, date: str) -> bool:
         """
         检查指定日期的市场数据是否存在

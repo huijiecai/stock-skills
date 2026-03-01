@@ -274,6 +274,27 @@ async def check_intraday_exists(stock_code: str, date: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/intraday-exists-batch/{stock_code}")
+async def check_intraday_exists_batch(stock_code: str, request: dict):
+    """批量检查指定股票多个日期的分时数据是否存在"""
+    try:
+        dates = request.get("dates", [])
+        if not dates:
+            return {"success": True, "exists": {}}
+        
+        data_service = get_data_service()
+        exists_dict = {}
+        for date in dates:
+            exists_dict[date] = data_service.check_intraday_exists(stock_code, date)
+        
+        return {
+            "success": True,
+            "exists": exists_dict
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/{code}/quote")
 async def get_stock_quote(code: str):
     """获取股票实时行情"""

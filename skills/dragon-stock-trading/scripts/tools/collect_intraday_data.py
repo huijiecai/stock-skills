@@ -64,14 +64,6 @@ class IntradayDataCollectorOptimized:
             force: 是否强制重新采集
             reverse: 是否从新到旧采集（默认 True，从新到旧）
         """
-        print("=" * 60)
-        print("分时数据采集器（批量查询优化版）")
-        print("=" * 60)
-        print(f"\n📅 采集范围：{start_date} ~ {end_date}")
-        print(f"🔄 强制模式：{'是' if force else '否'}")
-        print(f"📅 采集顺序：{'从新到旧' if reverse else '从旧到新'}")
-        print("=" * 60 + "\n")
-        
         # 获取交易日列表（只调用一次，复用 stock_data_collector 的重试逻辑）
         trading_dates = stock_data_collector.get_trading_dates(start_date, end_date)
         
@@ -82,6 +74,7 @@ class IntradayDataCollectorOptimized:
         # 从新到旧采集（默认）
         if reverse:
             trading_dates = list(reversed(trading_dates))
+        
         
         self.logger.info(f"✅ 交易日数：{len(trading_dates)} 天")
         

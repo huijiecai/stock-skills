@@ -321,13 +321,17 @@ class StockDataCollector:
             print(f"🔄 强制模式：{'是' if force else '否'}")
             print("=" * 60 + "\n")
         
-        # 获取需要采集的日期（排除已存在的）
-        dates_to_collect = []
-        for date in trading_dates:
-            if force or not backend_client.get_stock_intraday_existence(code, date):
-                dates_to_collect.append(date)
-            elif verbose:
-                print(f"  {date}: ⏭️ 已存在")
+        # 获取需要采集的日期（批量检查存在性）
+        if force:
+            dates_to_collect = list(trading_dates)
+        else:
+            # 批量检查已存在的日期（一次 API 调用）
+            exists_dict = backend_client.get_stock_intraday_existence_batch(code, trading_dates)
+            dates_to_collect = [d for d in trading_dates if not exists_dict.get(d, False)]
+            if verbose:
+                for date in trading_dates:
+                    if exists_dict.get(date, False):
+                        print(f"  {date}: ⏭️ 已存在")
         
         if not dates_to_collect:
             if verbose:
