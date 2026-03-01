@@ -484,27 +484,26 @@ def main():
     """命令行入口"""
     import argparse
     
-    parser = argparse.ArgumentParser(description='单股票数据采集器')
+    parser = argparse.ArgumentParser(description='股票数据采集器')
     parser.add_argument('--code', type=str, default=None,
-                       help='股票代码（如 000001）')
+                       help='股票代码（如 000001，竞价采集时无需指定）')
     parser.add_argument('--days', type=int, default=60,
                        help='采集最近 N 天的数据（默认 60 天）')
     parser.add_argument('--start', type=str, default=None,
                        help='开始日期（YYYY-MM-DD）')
     parser.add_argument('--end', type=str, default=None,
                        help='结束日期（YYYY-MM-DD）')
-    parser.add_argument('--intraday', action='store_true',
-                       help='同时收集分时数据')
-    parser.add_argument('--auction', action='store_true',
-                       help='收集竞价数据（全市场，无需指定 --code）')
+    parser.add_argument('--method', type=str, default='daily',
+                       choices=['daily', 'intraday', 'all', 'auction'],
+                       help='采集方法：daily=日线, intraday=分时, all=日线+分时, auction=竞价（默认 daily）')
     parser.add_argument('--force', action='store_true',
                        help='强制重新采集')
     
     args = parser.parse_args()
     
     # 验证参数
-    if not args.auction and not args.code:
-        parser.error("必须指定 --code 或 --auction")
+    if args.method != 'auction' and not args.code:
+        parser.error("非竞价采集必须指定 --code")
     
     # 计算日期范围
     if args.start:
@@ -518,17 +517,16 @@ def main():
     collector = StockDataCollector()
     
     try:
-        # 收集竞价数据（全市场）
-        if args.auction:
+        # 收集竞价数据（股票池）
+        if args.method == 'auction':
             collector.collect_auction(start_date, end_date, args.force)
-        
-        # 收集单只股票数据
-        if args.code:
+        elif args.code:
             # 收集日线数据
-            collector.collect_daily(args.code, start_date, end_date, args.force)
+            if args.method in ['daily', 'all']:
+                collector.collect_daily(args.code, start_date, end_date, args.force)
             
-            # 如果指定，收集分时数据
-            if args.intraday:
+            # 收集分时数据
+            if args.method in ['intraday', 'all']:
                 collector.collect_intraday(args.code, start_date, end_date, args.force)
         
         print("\n🎉 采集任务成功完成！")

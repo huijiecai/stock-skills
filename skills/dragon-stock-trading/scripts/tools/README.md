@@ -72,8 +72,11 @@ python collect_stock_data.py --code 000021 --days 60
 # 采集指定日期范围
 python collect_stock_data.py --code 000021 --start 2026-01-01 --end 2026-02-28
 
+# 采集分时数据
+python collect_stock_data.py --code 000021 --method intraday --days 30
+
 # 同时收集日线和分时数据
-python collect_stock_data.py --code 000021 --days 30 --intraday
+python collect_stock_data.py --code 000021 --method all --days 30
 
 # 强制重新采集
 python collect_stock_data.py --code 000021 --days 30 --force
@@ -83,6 +86,19 @@ python collect_stock_data.py --code 000021 --days 30 --force
 - 股票池新增股票后，只需采集该股票的历史数据
 - 比重新运行 `collect_market_data.py` 快得多（单只股票 vs 全量股票）
 
+### 6. 采集竞价数据
+
+```bash
+# 采集最近60天的竞价数据（仅股票池中的股票）
+python collect_stock_data.py --method auction --days 60
+
+# 采集指定日期范围
+python collect_stock_data.py --method auction --start 2026-01-01 --end 2026-02-28
+
+# 或使用 run_full_collection.py
+python run_full_collection.py --step auction --days 60
+```
+
 ## ⚙️ 常用参数
 
 | 参数 | 说明 | 示例 |
@@ -91,7 +107,12 @@ python collect_stock_data.py --code 000021 --days 30 --force
 | `--start YYYY-MM-DD` | 开始日期 | `--start 2025-12-01` |
 | `--end YYYY-MM-DD` | 结束日期 | `--end 2026-02-26` |
 | `--force` | 强制重新采集 | `--force` |
-| `--step STEP` | 执行步骤 | `--step market` |
+| `--step STEP` | 执行步骤（run_full_collection） | `--step market` |
+| `--method METHOD` | 采集方法（collect_stock_data） | `--method all` |
+
+**`--step` 可选值**：`all`, `import`, `market`, `intraday`, `auction`
+
+**`--method` 可选值**：`daily`, `intraday`, `all`, `auction`
 
 ## 🔍 后台运行（长时间执行）
 
