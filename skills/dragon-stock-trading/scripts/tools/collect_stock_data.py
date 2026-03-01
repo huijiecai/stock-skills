@@ -62,18 +62,8 @@ class StockDataCollector:
             self.logger.info(f"获取到 {len(trading_dates)} 个交易日")
             return trading_dates
         
-        # 回退到简单逻辑
-        self.logger.warning("交易日历 API 调用失败，使用简单周末排除逻辑")
-        dates = []
-        current = datetime.strptime(start_date, '%Y-%m-%d')
-        end = datetime.strptime(end_date, '%Y-%m-%d')
-        
-        while current <= end:
-            if current.weekday() < 5:
-                dates.append(current.strftime('%Y-%m-%d'))
-            current += timedelta(days=1)
-        
-        return dates
+        # API 调用失败，抛出异常（不允许回退）
+        raise RuntimeError(f"交易日历 API 调用失败，无法获取 {start_date} ~ {end_date} 的交易日数据")
     
     def _ensure_stock_in_pool(self, code: str) -> Dict:
         """
