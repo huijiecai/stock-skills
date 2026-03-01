@@ -169,8 +169,20 @@ class IntradayDataCollectorOptimized:
             # 限流
             self.rate_limiter.wait_if_needed()
             
-            # 获取分时数据
-            intraday_data = self.market_client.get_stock_intraday(code, market, date)
+            # 获取分时数据（带重试，最多5次）
+            import time
+            intraday_data = None
+            for attempt in range(5):
+                intraday_data = self.market_client.get_stock_intraday(code, market, date)
+                if intraday_data is not None:
+                    break
+                if attempt < 4:
+                    self.logger.debug(f"  ⚠️ {code} {name} 获取失败，重试 {attempt + 2}/5...")
+                    time.sleep(1)
+            
+            if intraday_data is None:
+                self.logger.error(f"  ❌ {code} {name} - 获取分时数据失败（已重试5次），停止采集")
+                return False, -1  # 返回 -1 表示需要停止整个采集
             
             if not intraday_data:
                 self.logger.debug(f"  ⚠️  {code} {name} - 无分时数据")
@@ -216,6 +228,10 @@ class IntradayDataCollectorOptimized:
                 self.logger.info(f"  进度：{i}/{len(stocks)} (成功:{success_count}, 失败:{failed_count})")
             
             success, records = self._collect_stock_intraday(stock, date, force)
+            
+            # records == -1 表示需要停止整个采集
+            if records == -1:
+                return success_count, failed_count, -1
             
             if success:
                 success_count += 1
@@ -275,6 +291,11 @@ class IntradayDataCollectorOptimized:
             print(f"\n[{i}/{total_dates}] ", end='')
             
             success, failed, records = self._collect_date_intraday(date, all_stocks, force)
+            
+            # records == -1 表示需要停止整个采集
+            if records == -1:
+                self.logger.error("❌ 采集过程中断，停止后续采集")
+                break
             
             total_success += success
             total_failed += failed

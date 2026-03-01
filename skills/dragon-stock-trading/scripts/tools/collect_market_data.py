@@ -130,6 +130,8 @@ class MarketDataCollectorOptimized:
         Returns:
             (是否成功，采集的股票数量)
         """
+        import time
+        
         try:
             # 检查是否已存在（非强制模式）
             if not force:
@@ -140,12 +142,19 @@ class MarketDataCollectorOptimized:
             
             self.logger.info(f"\n📅 开始采集：{date}")
             
-            # Step 1: 获取市场概况
+            # Step 1: 获取市场概况（带重试，最多5次）
             self.logger.info("  Step 1: 获取市场概况...")
-            market_data = self.market_client.get_market_snapshot(date)
+            market_data = None
+            for attempt in range(5):
+                market_data = self.market_client.get_market_snapshot(date)
+                if market_data:
+                    break
+                if attempt < 4:
+                    self.logger.warning(f"  ⚠️ 获取市场概况失败，重试 {attempt + 2}/5...")
+                    time.sleep(2)
             
             if not market_data:
-                self.logger.error(f"  ❌ 无法获取市场概况数据")
+                self.logger.error("  ❌ 获取市场概况失败（已重试5次），停止采集")
                 return False, 0
             
             self.logger.info(f"  ✅ 涨停：{market_data['limit_up_count']} 只，"
@@ -161,12 +170,19 @@ class MarketDataCollectorOptimized:
             
             self.logger.info(f"  ✅ 股票池总数：{len(all_stocks)} 只")
             
-            # Step 3: 批量获取所有股票行情（一次请求，约1秒）
+            # Step 3: 批量获取所有股票行情（带重试，最多5次）
             self.logger.info("  Step 3: 批量获取行情数据...")
-            all_quotes = self.market_client.get_daily_all(date)
+            all_quotes = None
+            for attempt in range(5):
+                all_quotes = self.market_client.get_daily_all(date)
+                if all_quotes:
+                    break
+                if attempt < 4:
+                    self.logger.warning(f"  ⚠️ 批量获取行情失败，重试 {attempt + 2}/5...")
+                    time.sleep(3)
             
             if not all_quotes:
-                self.logger.error("  ❌ 批量获取行情数据失败")
+                self.logger.error("  ❌ 批量获取行情数据失败（已重试5次），停止采集")
                 return False, 0
             
             self.logger.info(f"  ✅ 获取到 {len(all_quotes)} 只股票行情")
