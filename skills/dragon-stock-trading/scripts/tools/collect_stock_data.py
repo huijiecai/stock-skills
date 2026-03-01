@@ -323,8 +323,8 @@ class StockDataCollector:
         success_count = 0
         total_dates = len(dates_to_collect)
         
-        # 分批采集（每批最多 5 天，避免超过 API 返回限制 8000 条）
-        batch_size = 5
+        # 分批采集（每批最多 30 天，避免超过 API 返回限制 8000 条）
+        batch_size = 30
         for batch_start in range(0, total_dates, batch_size):
             batch_dates = dates_to_collect[batch_start:batch_start + batch_size]
             batch_end_idx = min(batch_start + batch_size, total_dates)
