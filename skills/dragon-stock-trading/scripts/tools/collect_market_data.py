@@ -187,13 +187,13 @@ class MarketDataCollectorOptimized:
             
             self.logger.info(f"  ✅ 获取到 {len(all_quotes)} 只股票行情")
             
-            # Step 4: 获取换手率数据
-            self.logger.info("  Step 4: 获取换手率数据...")
-            turnover_rates = self.market_client.get_daily_basic(date)
-            if turnover_rates:
-                self.logger.info(f"  ✅ 获取到 {len(turnover_rates)} 只股票换手率")
+            # Step 4: 获取每日基本面数据（换手率、量比、估值等）
+            self.logger.info("  Step 4: 获取每日基本面数据...")
+            daily_basic = self.market_client.get_daily_basic(date)
+            if daily_basic:
+                self.logger.info(f"  ✅ 获取到 {len(daily_basic)} 只股票基本面数据")
             else:
-                self.logger.warning("  ⚠️ 未获取到换手率数据，使用默认值 0")
+                self.logger.warning("  ⚠️ 未获取到基本面数据，使用默认值")
             
             # Step 5: 过滤股票池并构建数据
             self.logger.info("  Step 5: 处理股票池数据...")
@@ -241,7 +241,23 @@ class MarketDataCollectorOptimized:
                     "change_percent": change_percent,
                     "volume": quote.get('vol', 0),
                     "turnover": quote.get('amt', 0.0),
-                    "turnover_rate": turnover_rates.get(code, 0.0),
+                    # 基本面数据
+                    "turnover_rate": daily_basic.get(code, {}).get('turnover_rate'),
+                    "turnover_rate_f": daily_basic.get(code, {}).get('turnover_rate_f'),
+                    "volume_ratio": daily_basic.get(code, {}).get('volume_ratio'),
+                    "pe": daily_basic.get(code, {}).get('pe'),
+                    "pe_ttm": daily_basic.get(code, {}).get('pe_ttm'),
+                    "pb": daily_basic.get(code, {}).get('pb'),
+                    "ps": daily_basic.get(code, {}).get('ps'),
+                    "ps_ttm": daily_basic.get(code, {}).get('ps_ttm'),
+                    "dv_ratio": daily_basic.get(code, {}).get('dv_ratio'),
+                    "dv_ttm": daily_basic.get(code, {}).get('dv_ttm'),
+                    "total_share": daily_basic.get(code, {}).get('total_share'),
+                    "float_share": daily_basic.get(code, {}).get('float_share'),
+                    "free_share": daily_basic.get(code, {}).get('free_share'),
+                    "total_mv": daily_basic.get(code, {}).get('total_mv'),
+                    "circ_mv": daily_basic.get(code, {}).get('circ_mv'),
+                    # 涨跌停数据
                     "is_limit_up": is_limit_up,
                     "is_limit_down": is_limit_down,
                     "limit_up_time": "",

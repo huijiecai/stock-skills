@@ -298,19 +298,20 @@ class TushareClient:
 
     def get_daily_basic(self, trade_date: str) -> Optional[Dict]:
         """
-        批量获取指定日期所有股票的每日基本面指标（包括换手率）
+        批量获取指定日期所有股票的每日基本面指标
         
         Args:
             trade_date: 交易日期（格式：20260226）
             
         Returns:
-            字典 {股票代码: 换手率}
-            换手率单位为小数，如 0.05 表示 5%
+            字典 {股票代码: {字段: 值, ...}}
+            包含: close, turnover_rate, turnover_rate_f, volume_ratio, pe, pe_ttm, pb, ps, ps_ttm,
+                  dv_ratio, dv_ttm, total_share, float_share, free_share, total_mv, circ_mv
         """
         try:
             df = self.pro.daily_basic(
                 trade_date=trade_date,
-                fields='ts_code,turnover_rate'
+                fields='ts_code,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv'
             )
             
             if df is None or df.empty:
@@ -318,15 +319,33 @@ class TushareClient:
             
             self._request_count += 1
             
-            # 转换为字典 {股票代码: 换手率}
+            # 转换为字典 {股票代码: {字段: 值}}
             result = {}
             for _, row in df.iterrows():
                 ts_code = row['ts_code']
                 code = ts_code.split('.')[0]
-                # turnover_rate 单位是%，需要转换为小数
-                turnover_rate = row['turnover_rate']
-                if turnover_rate is not None and not self.isNaN(turnover_rate):
-                    result[code] = turnover_rate / 100.0
+                
+                result[code] = {
+                    'close': row['close'] if row['close'] is not None and not self.isNaN(row['close']) else None,
+                    # 换手率（%）转换为小数
+                    'turnover_rate': row['turnover_rate'] / 100.0 if row['turnover_rate'] is not None and not self.isNaN(row['turnover_rate']) else None,
+                    # 换手率（自由流通股，%）转换为小数
+                    'turnover_rate_f': row['turnover_rate_f'] / 100.0 if row['turnover_rate_f'] is not None and not self.isNaN(row['turnover_rate_f']) else None,
+                    'volume_ratio': row['volume_ratio'] if row['volume_ratio'] is not None and not self.isNaN(row['volume_ratio']) else None,
+                    'pe': row['pe'] if row['pe'] is not None and not self.isNaN(row['pe']) else None,
+                    'pe_ttm': row['pe_ttm'] if row['pe_ttm'] is not None and not self.isNaN(row['pe_ttm']) else None,
+                    'pb': row['pb'] if row['pb'] is not None and not self.isNaN(row['pb']) else None,
+                    'ps': row['ps'] if row['ps'] is not None and not self.isNaN(row['ps']) else None,
+                    'ps_ttm': row['ps_ttm'] if row['ps_ttm'] is not None and not self.isNaN(row['ps_ttm']) else None,
+                    # 股息率（%）转换为小数
+                    'dv_ratio': row['dv_ratio'] / 100.0 if row['dv_ratio'] is not None and not self.isNaN(row['dv_ratio']) else None,
+                    'dv_ttm': row['dv_ttm'] / 100.0 if row['dv_ttm'] is not None and not self.isNaN(row['dv_ttm']) else None,
+                    'total_share': row['total_share'] if row['total_share'] is not None and not self.isNaN(row['total_share']) else None,
+                    'float_share': row['float_share'] if row['float_share'] is not None and not self.isNaN(row['float_share']) else None,
+                    'free_share': row['free_share'] if row['free_share'] is not None and not self.isNaN(row['free_share']) else None,
+                    'total_mv': row['total_mv'] if row['total_mv'] is not None and not self.isNaN(row['total_mv']) else None,
+                    'circ_mv': row['circ_mv'] if row['circ_mv'] is not None and not self.isNaN(row['circ_mv']) else None,
+                }
             
             return result
         except Exception as e:

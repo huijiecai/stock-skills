@@ -385,9 +385,11 @@ class DataService:
                 INSERT OR REPLACE INTO stock_daily
                 (trade_date, stock_code, stock_name, market, 
                  open_price, high_price, low_price, close_price, pre_close,
-                 change_amount, change_percent, volume, turnover, turnover_rate,
+                 change_amount, change_percent, volume, turnover, turnover_rate, turnover_rate_f,
+                 volume_ratio, pe, pe_ttm, pb, ps, ps_ttm, dv_ratio, dv_ttm,
+                 total_share, float_share, free_share, total_mv, circ_mv,
                  is_limit_up, is_limit_down, limit_up_time, streak_days)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 date,
                 stock.get('code'),
@@ -402,7 +404,23 @@ class DataService:
                 change_percent,
                 stock.get('volume', 0),
                 stock.get('turnover', 0.0),
-                stock.get('turnover_rate', 0.0),
+                stock.get('turnover_rate'),
+                stock.get('turnover_rate_f'),
+                # 基本面数据
+                stock.get('volume_ratio'),
+                stock.get('pe'),
+                stock.get('pe_ttm'),
+                stock.get('pb'),
+                stock.get('ps'),
+                stock.get('ps_ttm'),
+                stock.get('dv_ratio'),
+                stock.get('dv_ttm'),
+                stock.get('total_share'),
+                stock.get('float_share'),
+                stock.get('free_share'),
+                stock.get('total_mv'),
+                stock.get('circ_mv'),
+                # 涨跌停数据
                 stock.get('is_limit_up', 0),
                 stock.get('is_limit_down', 0),
                 stock.get('limit_up_time', ''),
@@ -542,7 +560,21 @@ class DataService:
                 volume,
                 turnover,
                 change_percent,
-                turnover_rate
+                turnover_rate,
+                turnover_rate_f,
+                volume_ratio,
+                pe,
+                pe_ttm,
+                pb,
+                ps,
+                ps_ttm,
+                dv_ratio,
+                dv_ttm,
+                total_share,
+                float_share,
+                free_share,
+                total_mv,
+                circ_mv
             FROM stock_daily
             WHERE stock_code = ? AND trade_date BETWEEN ? AND ?
             ORDER BY trade_date ASC
@@ -560,7 +592,21 @@ class DataService:
                 'volume': row[6],
                 'turnover': row[7],
                 'change_percent': row[8],
-                'turnover_rate': row[9]
+                'turnover_rate': row[9],
+                'turnover_rate_f': row[10],
+                'volume_ratio': row[11],
+                'pe': row[12],
+                'pe_ttm': row[13],
+                'pb': row[14],
+                'ps': row[15],
+                'ps_ttm': row[16],
+                'dv_ratio': row[17],
+                'dv_ttm': row[18],
+                'total_share': row[19],
+                'float_share': row[20],
+                'free_share': row[21],
+                'total_mv': row[22],
+                'circ_mv': row[23]
             })
         
         conn.close()
