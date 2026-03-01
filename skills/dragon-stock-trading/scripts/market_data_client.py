@@ -506,42 +506,65 @@ class MarketDataClient:
         return result
     
     def _get_prev_closes_range(self, stock_code: str, market: str, 
-                                start_date: str, end_date: str) -> Dict[str, float]:
+                                start_date: str, end_date: str,
+                                max_retries: int = 5) -> Dict[str, float]:
         """
-        获取时间范围内各日期的昨收价
+        获取时间范围内各日期的昨收价（带重试）
         
         Args:
             stock_code: 股票代码
             market: 市场代码
             start_date: 开始日期
             end_date: 结束日期
+            max_retries: 最大重试次数（默认5次）
             
         Returns:
             {日期: 昨收价} 字典
+            
+        Raises:
+            RuntimeError: 获取失败时抛出异常
         """
         prev_closes = {}
+        ts_code = f"{stock_code}.{market}" if '.' not in stock_code else stock_code
+        start = start_date.replace('-', '')
+        end = end_date.replace('-', '')
         
-        try:
-            # 获取日线数据
-            daily_data = tushare_client.get_stock_daily(
-                f"{stock_code}.{market}" if '.' not in stock_code else stock_code,
-                start_date=start_date.replace('-', ''),
-                end_date=end_date.replace('-', '')
-            )
+        last_error = None
+        for attempt in range(max_retries):
+            try:
+                daily_data = tushare_client.get_stock_daily(
+                    ts_code,
+                    start_date=start,
+                    end_date=end
+                )
+                
+                if daily_data and daily_data.get('items'):
+                    for item in daily_data['items']:
+                        # item结构: [ts_code, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount]
+                        if len(item) > 6:
+                            trade_date = str(item[1])  # YYYYMMDD
+                            pre_close = float(item[6])  # pre_close
+                            # 转换日期格式
+                            date_str = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:8]}"
+                            prev_closes[date_str] = pre_close
+                    
+                    if prev_closes:
+                        return prev_closes
+                    
+                    # 有数据但无昨收价，也视为失败
+                    last_error = f"日线数据无昨收价字段: {ts_code}"
+                else:
+                    last_error = f"日线数据为空: {ts_code} ({start} ~ {end})"
+                    
+            except Exception as e:
+                last_error = e
             
-            if daily_data and daily_data.get('items'):
-                for item in daily_data['items']:
-                    # item结构: [ts_code, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount]
-                    if len(item) > 6:
-                        trade_date = str(item[1])  # YYYYMMDD
-                        pre_close = float(item[6])  # pre_close
-                        # 转换日期格式
-                        date_str = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:8]}"
-                        prev_closes[date_str] = pre_close
-        except Exception as e:
-            print(f"获取昨收价失败: {e}")
+            # 重试前等待
+            if attempt < max_retries - 1:
+                import time
+                time.sleep(2)
         
-        return prev_closes
+        raise RuntimeError(f"获取昨收价失败（已重试{max_retries}次）: {last_error}")
     
     def get_request_count(self) -> int:
         """获取请求计数"""
