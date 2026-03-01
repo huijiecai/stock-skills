@@ -23,6 +23,41 @@ class IntradayDataRequest(BaseModel):
     intraday_data: List[Dict]
 
 
+class StockDailyData(BaseModel):
+    """单股票日线数据请求模型"""
+    date: str
+    code: str
+    name: str = ""
+    market: str = ""
+    open: float = 0.0
+    high: float = 0.0
+    low: float = 0.0
+    close: float = 0.0
+    pre_close: float = 0.0
+    change_percent: float = 0.0
+    volume: float = 0
+    turnover: float = 0.0
+    turnover_rate: float = None
+    turnover_rate_f: float = None
+    volume_ratio: float = None
+    pe: float = None
+    pe_ttm: float = None
+    pb: float = None
+    ps: float = None
+    ps_ttm: float = None
+    dv_ratio: float = None
+    dv_ttm: float = None
+    total_share: float = None
+    float_share: float = None
+    free_share: float = None
+    total_mv: float = None
+    circ_mv: float = None
+    is_limit_up: int = 0
+    is_limit_down: int = 0
+    limit_up_time: str = ""
+    streak_days: int = 0
+
+
 @router.get("")
 async def get_stocks():
     """获取股票池（从数据库读取）"""
@@ -88,6 +123,29 @@ async def delete_stock(code: str):
             
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/daily")
+async def save_stock_daily(data: StockDailyData):
+    """
+    保存单股票日线数据
+    
+    供 collect_market_data.py（批量循环调用）和 collect_stock_data.py（单股票调用）使用
+    """
+    try:
+        data_service = get_data_service()
+        stock_dict = data.model_dump()
+        success = data_service.save_stock_daily(data.date, stock_dict)
+        
+        if success:
+            return {
+                "success": True,
+                "message": f"保存成功 {data.code} {data.date}"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="保存失败")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

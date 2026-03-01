@@ -51,12 +51,12 @@ class BackendClient:
     
     def collect_market_data(self, date: str, market_data: Dict, stocks: List[Dict]) -> Dict:
         """
-        提交市场数据采集结果
+        提交市场情绪数据（仅市场概况，向后兼容）
         
         Args:
             date: 交易日期（YYYY-MM-DD）
             market_data: 市场概况数据
-            stocks: 涨停个股列表
+            stocks: 涨停个股列表（已废弃，不再使用）
         
         Returns:
             采集结果
@@ -64,8 +64,40 @@ class BackendClient:
         return self._post("/market/collect", {
             "date": date,
             "market_data": market_data,
-            "stocks": stocks
+            "stocks": []  # 空列表，个股数据通过 save_stock_daily 逐个保存
         })
+    
+    def collect_market_sentiment(self, date: str, market_data: Dict) -> Dict:
+        """
+        提交市场情绪数据（仅市场概况）
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            market_data: 市场概况数据
+        
+        Returns:
+            保存结果
+        """
+        return self._post("/market/collect", {
+            "date": date,
+            "market_data": market_data,
+            "stocks": []
+        })
+    
+    def save_stock_daily(self, date: str, stock_data: Dict) -> Dict:
+        """
+        保存单股票日线数据
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            stock_data: 股票日线数据字典
+        
+        Returns:
+            保存结果
+        """
+        data = {"date": date}
+        data.update(stock_data)
+        return self._post("/stocks/daily", data)
     
     def add_stock_to_pool(self, code: str, name: str, market: str, note: str = "") -> Dict:
         """

@@ -277,16 +277,31 @@ class MarketDataCollectorOptimized:
             self.logger.info(f"  ✅ 股票池有效数据：{len(stocks_data)} 只")
             self.logger.info(f"  📊 涨停：{pool_limit_up} 只，跌停：{pool_limit_down} 只")
             
-            # Step 6: 保存到后端
-            self.logger.info("  Step 6: 保存数据...")
-            result = self.backend_client.collect_market_data(
+            # Step 6: 保存市场情绪
+            self.logger.info("  Step 6: 保存市场情绪...")
+            result = self.backend_client.collect_market_sentiment(
                 date=date,
-                market_data=market_data,
-                stocks=stocks_data
+                market_data=market_data
             )
             
-            saved_count = result.get('stocks_saved', 0)
-            self.logger.info(f"  ✅ 保存成功：{saved_count}/{len(stocks_data)} 只")
+            if not result.get('success'):
+                self.logger.error("  ❌ 市场情绪保存失败")
+                return False, 0
+            
+            self.logger.info(f"  ✅ 市场情绪保存成功")
+            
+            # Step 7: 逐个保存股票数据
+            self.logger.info("  Step 7: 保存股票数据...")
+            saved_count = 0
+            for stock in stocks_data:
+                try:
+                    result = self.backend_client.save_stock_daily(date, stock)
+                    if result.get('success'):
+                        saved_count += 1
+                except Exception as e:
+                    self.logger.warning(f"    ⚠️ 保存 {stock.get('code')} 失败: {e}")
+            
+            self.logger.info(f"  ✅ 股票数据保存成功：{saved_count}/{len(stocks_data)} 只")
             
             return True, saved_count
             

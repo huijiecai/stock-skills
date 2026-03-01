@@ -39,9 +39,9 @@ async def get_today_market_sentiment():
 @router.post("/collect")
 async def collect_market_data(request: MarketCollectRequest):
     """
-    接收数据采集脚本提交的市场数据
+    接收市场情绪数据（仅市场概况，不包含个股）
     
-    供 skills/scripts/market_fetcher.py 调用
+    供 collect_market_data.py 调用
     
     Args:
         request: 市场数据采集请求
@@ -52,25 +52,17 @@ async def collect_market_data(request: MarketCollectRequest):
     try:
         data_service = get_data_service()
         
-        # 保存市场概况
+        # 只保存市场概况（个股数据通过 /stocks/daily 接口逐个保存）
         market_success = data_service.save_market_sentiment(
             request.date,
             request.market_data
         )
         
-        # 保存个股数据
-        stock_success_count = 0
-        for stock in request.stocks:
-            if data_service.save_stock_daily(request.date, stock):
-                stock_success_count += 1
-        
         return {
             "success": True,
             "date": request.date,
-            "market_saved": market_success,
-            "stocks_count": len(request.stocks),
-            "stocks_saved": stock_success_count
+            "market_saved": market_success
         }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"数据采集失败: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"市场数据保存失败: {str(e)}")
