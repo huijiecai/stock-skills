@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Button, Tabs, DatePicker, Card, Statistic, Row, Col, Spin, message } from 'antd';
 import { ArrowLeftOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
-import { stocksAPI } from '../services/api';
+import { stocksAPI, marketAPI } from '../services/api';
 import IntradayChart from '../components/IntradayChart';
 import DailyChart from '../components/DailyChart';
 
@@ -13,18 +13,38 @@ export default function StockDetail() {
   const [loading, setLoading] = useState(false);
   const [quote, setQuote] = useState(null);
   const [activeTab, setActiveTab] = useState('intraday');
-  const [selectedDate, setSelectedDate] = useState(dayjs());
+  const [selectedDate, setSelectedDate] = useState(null);  // 初始为 null，加载后设置
   const [intradayData, setIntradayData] = useState([]);
   const [dailyData, setDailyData] = useState([]);
 
   useEffect(() => {
-    loadQuote();
-    loadChartData(activeTab);
+    // 先加载最近交易日，再加载图表数据
+    initPage();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [code]);
 
+  const initPage = async () => {
+    try {
+      // 获取最近交易日
+      const res = await marketAPI.getLatestTradingDate();
+      const latestDate = res.data.date || dayjs().format('YYYY-MM-DD');
+      setSelectedDate(dayjs(latestDate));
+      
+      // 加载行情和图表数据
+      loadQuote();
+      loadChartData('intraday', dayjs(latestDate));
+    } catch (error) {
+      // 获取失败时使用当前日期
+      setSelectedDate(dayjs());
+      loadQuote();
+      loadChartData('intraday', dayjs());
+    }
+  };
+
   useEffect(() => {
-    loadChartData(activeTab);
+    if (selectedDate) {
+      loadChartData(activeTab);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, selectedDate]);
 
@@ -37,12 +57,18 @@ export default function StockDetail() {
     }
   };
 
-  const loadChartData = async (tab) => {
+  const loadChartData = async (tab, date = null) => {
     setLoading(true);
+    const useDate = date || selectedDate;
+    if (!useDate) {
+      setLoading(false);
+      return;
+    }
+    
     try {
       if (tab === 'intraday') {
         // 加载分时数据
-        const res = await stocksAPI.getIntraday(code, selectedDate.format('YYYY-MM-DD'));
+        const res = await stocksAPI.getIntraday(code, useDate.format('YYYY-MM-DD'));
         setIntradayData(res.data.data || []);
       } else if (tab === 'daily') {
         // 加载日K线数据（最近1年）
@@ -75,6 +101,12 @@ export default function StockDetail() {
     navigate('/stocks');
   };
 
+  // 从K线图跳转到分时图
+  const handleJumpToIntraday = (date) => {
+    setSelectedDate(dayjs(date));
+    setActiveTab('intraday');
+  };
+
   // 渲染价格颜色
   const getPriceColor = (value) => {
     if (!value) return '#000';
@@ -85,7 +117,7 @@ export default function StockDetail() {
     {
       key: 'intraday',
       label: '分时图',
-      children: loading ? (
+      children: loading || !selectedDate ? (
         <div style={{ textAlign: 'center', padding: '100px' }}>
           <Spin size="large" />
         </div>
@@ -110,6 +142,7 @@ export default function StockDetail() {
           data={dailyData}
           stockCode={code}
           stockName={quote?.name || code}
+          onDateClick={handleJumpToIntraday}
         />
       ),
     },
@@ -207,7 +240,7 @@ export default function StockDetail() {
       {/* 图表区域 */}
       <Card>
         <div style={{ marginBottom: 16 }}>
-          {activeTab === 'intraday' && (
+          {activeTab === 'intraday' && selectedDate && (
             <DatePicker 
               value={selectedDate}
               onChange={handleDateChange}

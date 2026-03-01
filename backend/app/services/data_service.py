@@ -765,6 +765,26 @@ class DataService:
         conn.close()
         
         return count > 0
+    
+    def get_latest_trading_date(self) -> Optional[str]:
+        """
+        获取最近交易日（从 stock_daily 表查询最新交易日期）
+        
+        Returns:
+            最近交易日期（格式：YYYY-MM-DD），如果没有数据返回 None
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT MAX(trade_date) 
+            FROM stock_daily
+        ''')
+        
+        result = cursor.fetchone()[0]
+        conn.close()
+        
+        return result
 
 
 # 单例

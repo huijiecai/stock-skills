@@ -7,8 +7,9 @@ import * as echarts from 'echarts';
  * @param {Array} props.data - K线数据 [{date, open, high, low, close, volume, turnover}]
  * @param {String} props.stockCode - 股票代码
  * @param {String} props.stockName - 股票名称
+ * @param {Function} props.onDateClick - 点击日期回调，用于跳转到分时图
  */
-const DailyChart = ({ data, stockCode, stockName }) => {
+const DailyChart = ({ data, stockCode, stockName, onDateClick }) => {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -93,6 +94,8 @@ const DailyChart = ({ data, stockCode, stockName }) => {
               result += `${p.seriesName}: ${p.data.toFixed(2)}<br/>`;
             }
           });
+          // 点击提示
+          result += `<span style="color:#1890ff;font-size:12px">💡 点击查看分时图</span>`;
           return result;
         }
       },
@@ -258,6 +261,20 @@ const DailyChart = ({ data, stockCode, stockName }) => {
 
     chartInstance.current.setOption(option);
 
+    // 点击事件：跳转到分时图
+    if (onDateClick) {
+      chartInstance.current.off('click');  // 先移除旧事件
+      chartInstance.current.on('click', function(params) {
+        if (params.componentType === 'series') {
+          const dataIndex = params.dataIndex;
+          const date = dates[dataIndex];
+          if (date) {
+            onDateClick(date);
+          }
+        }
+      });
+    }
+
     // 响应式调整
     const handleResize = () => {
       chartInstance.current?.resize();
@@ -268,7 +285,7 @@ const DailyChart = ({ data, stockCode, stockName }) => {
     return () => {
       window.removeEventListener('resize', handleResize);
     };
-  }, [data, stockCode, stockName]);
+  }, [data, stockCode, stockName, onDateClick]);
 
   // 组件卸载时销毁图表
   useEffect(() => {

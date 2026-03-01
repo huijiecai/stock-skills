@@ -14,6 +14,7 @@ const api = axios.create({
 export const marketAPI = {
   getSentiment: (date) => api.get(`/market/sentiment/${date}`),
   getTodaySentiment: () => api.get('/market/sentiment'),
+  getLatestTradingDate: () => api.get('/market/latest-trading-date'),
 };
 
 // 股票API

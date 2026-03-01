@@ -6,6 +6,25 @@ from app.models.requests import MarketCollectRequest
 router = APIRouter()
 
 
+@router.get("/latest-trading-date")
+async def get_latest_trading_date():
+    """
+    获取最近交易日
+    
+    Returns:
+        最近交易日期（格式：YYYY-MM-DD）
+    """
+    try:
+        data_service = get_data_service()
+        latest_date = data_service.get_latest_trading_date()
+        return {
+            "success": True,
+            "date": latest_date
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/sentiment/{date}")
 async def get_market_sentiment(date: str):
     """
