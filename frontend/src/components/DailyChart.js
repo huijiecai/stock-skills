@@ -82,6 +82,10 @@ const DailyChart = ({ data, stockCode, stockName }) => {
           if (item.turnover_rate !== null && item.turnover_rate !== undefined) {
             result += `换手率: ${(item.turnover_rate * 100).toFixed(2)}%<br/>`;
           }
+          // 实换率（自由流通股换手率）
+          if (item.turnover_rate_f !== null && item.turnover_rate_f !== undefined) {
+            result += `实换率: ${(item.turnover_rate_f * 100).toFixed(2)}%<br/>`;
+          }
           result += `─────────────<br/>`;
           // 均线数据
           params.forEach(p => {
