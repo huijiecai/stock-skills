@@ -75,11 +75,9 @@ class IntradayDataCollectorOptimized:
         if reverse:
             trading_dates = list(reversed(trading_dates))
         
-        
-        self.logger.info(f"✅ 交易日数：{len(trading_dates)} 天")
+        self.logger.info(f"📅 交易日数：{len(trading_dates)} 天，采集顺序：{'从新到旧' if reverse else '从旧到新'}")
         
         # 获取股票池
-        self.logger.info("\n📋 获取股票池...")
         all_stocks = backend_client.get_all_stocks()
         
         if not all_stocks:
@@ -87,18 +85,19 @@ class IntradayDataCollectorOptimized:
             return
         
         total_stocks = len(all_stocks)
-        self.logger.info(f"✅ 股票池总数：{total_stocks} 只")
+        self.logger.info(f"📋 股票池总数：{total_stocks} 只，强制模式：{'是' if force else '否'}")
         
         # 统计信息
         total_success = 0
         total_failed = 0
+        total_skipped = 0
         
         # 遍历所有股票，传入已获取的交易日列表
         for i, stock in enumerate(all_stocks, 1):
             code = stock['code']
             name = stock.get('name', '')
             
-            print(f"\n[{i}/{total_stocks}] {code} {name}")
+            print(f"[{i}/{total_stocks}] {code} {name}", end="")
             
             try:
                 # 复用 collect_stock_data 的批量查询方法，传入交易日列表
@@ -111,27 +110,21 @@ class IntradayDataCollectorOptimized:
                 
                 if success_count > 0:
                     total_success += success_count
+                    print(f" ✅ {success_count}天")
                 else:
-                    total_failed += 1
+                    total_skipped += 1
+                    print(" ⏭️ 已存在")
                 
             except Exception as e:
-                self.logger.error(f"  ❌ 采集失败: {e}")
+                self.logger.error(f" ❌ 失败: {e}")
                 total_failed += 1
             
             # 每 10 只股票休息 2 秒（避免 API 疲劳）
-            if i % 10 == 0:
-                self.logger.info(f"  ⏱️ 休息 2 秒... (已完成 {i}/{total_stocks})")
+            if i % 10 == 0 and i < total_stocks:
                 time.sleep(2)
         
         # 最终统计
-        print(f"\n{'=' * 60}")
-        self.logger.info("✅ 采集完成！")
-        self.logger.info(f"{'=' * 60}")
-        self.logger.info(f"📊 最终统计:")
-        self.logger.info(f"  股票总数：{total_stocks} 只")
-        self.logger.info(f"  成功采集：{total_success} 天")
-        self.logger.info(f"  失败：{total_failed} 只")
-        self.logger.info(f"{'=' * 60}\n")
+        self.logger.info(f"\n✅ 采集完成！成功：{total_success}天，跳过：{total_skipped}只，失败：{total_failed}只")
 
 
 def main():
