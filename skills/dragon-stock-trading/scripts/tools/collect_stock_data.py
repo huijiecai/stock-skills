@@ -140,16 +140,14 @@ class StockDataCollector:
                 
                 data_dict = dict(zip(fields, item))
                 
-                # 获取基本面数据（带重试，最多5次）
-                daily_basic = None
+                # 获取基本面数据（使用 ts_code 直接获取单只股票，带重试最多5次）
+                basic_data = None
                 for attempt in range(5):
-                    daily_basic = tushare_client.get_daily_basic(date_compact)
-                    if daily_basic:
+                    basic_data = tushare_client.get_daily_basic(ts_code=ts_code)
+                    if basic_data:
                         break
                     if attempt < 4:
                         time.sleep(1)
-                
-                basic_data = daily_basic.get(code, {}) if daily_basic else {}
                 
                 # 判断涨跌停
                 close_price = data_dict.get('close', 0)
