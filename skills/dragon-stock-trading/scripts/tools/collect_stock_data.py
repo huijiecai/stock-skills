@@ -36,18 +36,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from tushare_client import tushare_client
 from backend_client import backend_client
 from market_data_client import market_data_client
+from stock_utils import get_board_type, get_market, get_ts_code, is_limit_up, is_limit_down
 
 
 class StockDataCollector:
     """单股票数据采集器"""
-    
-    # 板块类型映射
-    BOARD_TYPE_MAP = {
-        '主板': '主板',
-        '创业板': '创业板',
-        '科创板': '科创板',
-        '北交所': '北交所',
-    }
     
     def __init__(self):
         self._setup_logging()
@@ -82,33 +75,6 @@ class StockDataCollector:
         
         return dates
     
-    def _get_market_code(self, code: str) -> str:
-        """根据股票代码获取市场后缀"""
-        if code.startswith('6'):
-            return f"{code}.SH"
-        else:
-            return f"{code}.SZ"
-    
-    def _get_limit_rate(self, code: str) -> float:
-        """根据股票代码获取涨跌停幅度"""
-        if code.startswith('688') or code.startswith('300'):
-            return 0.20  # 科创板/创业板
-        elif code.startswith('8') or code.startswith('4'):
-            return 0.30  # 北交所
-        else:
-            return 0.10  # 主板
-    
-    def _get_board_type(self, code: str) -> str:
-        """根据股票代码判断板块类型"""
-        if code.startswith('688'):
-            return '科创板'
-        elif code.startswith('300'):
-            return '创业板'
-        elif code.startswith('8') or code.startswith('4'):
-            return '北交所'
-        else:
-            return '主板'
-    
     def _ensure_stock_in_pool(self, code: str) -> Dict:
         """
         确保股票在 stock_pool 和 stock_info 中存在
@@ -127,13 +93,13 @@ class StockDataCollector:
             self.logger.info(f"  ✅ 股票已在池中: {stock_info.get('name', code)}")
             return {
                 'name': stock_info.get('name', ''),
-                'market': stock_info.get('market', 'SZ' if not code.startswith('6') else 'SH')
+                'market': stock_info.get('market', get_market(code))
             }
         
         # 不在池中，从 Tushare 获取信息
         self.logger.info(f"  📥 股票不在池中，从 Tushare 获取信息...")
         
-        ts_code = self._get_market_code(code)
+        ts_code = get_ts_code(code)
         basic_info = tushare_client.get_stock_basic(ts_code)
         
         if not basic_info or not basic_info.get('items'):
@@ -145,10 +111,10 @@ class StockDataCollector:
             stock_name = item[1] if len(item) > 1 else ""
         
         # market 根据股票代码判断（SH/SZ）
-        market = 'SH' if code.startswith('6') else 'SZ'
+        market = get_market(code)
         
         # 添加到股票池
-        board_type = self._get_board_type(code)
+        board_type = get_board_type(code)
         
         try:
             # 添加到 stock_pool（market 使用 SH/SZ）
@@ -193,7 +159,7 @@ class StockDataCollector:
         print(f"🔄 强制模式：{'是' if force else '否'}")
         print("=" * 60 + "\n")
         
-        ts_code = self._get_market_code(code)
+        ts_code = get_ts_code(code)
         start_compact = start_date.replace('-', '')
         end_compact = end_date.replace('-', '')
         
@@ -202,7 +168,7 @@ class StockDataCollector:
             self.logger.info("Step 0: 检查股票池...")
             stock_info = self._ensure_stock_in_pool(code)
             stock_name = stock_info.get('name', '')
-            market = stock_info.get('market', 'SZ' if not code.startswith('6') else 'SH')
+            market = stock_info.get('market', get_market(code))
             
             # Step 1: 一次性获取日期范围内的所有日线数据
             self.logger.info("Step 1: 批量获取日线数据...")
@@ -254,7 +220,6 @@ class StockDataCollector:
             items = daily_data['items']
             
             success_count = 0
-            limit_rate = self._get_limit_rate(code)
             
             for item in items:
                 data_dict = dict(zip(fields, item))
@@ -264,18 +229,12 @@ class StockDataCollector:
                 # 获取对应日期的基本面数据
                 basic = basic_data.get(trade_date_raw, {})
                 
-                # 判断涨跌停
+                # 判断涨跌停（使用公共函数）
                 close_price = data_dict.get('close', 0)
                 pre_close = data_dict.get('pre_close', 0)
                 
-                if pre_close > 0:
-                    limit_up_price = round(pre_close * (1 + limit_rate), 2)
-                    limit_down_price = round(pre_close * (1 - limit_rate), 2)
-                    is_limit_up = 1 if close_price >= limit_up_price - 0.01 else 0
-                    is_limit_down = 1 if close_price <= limit_down_price + 0.01 else 0
-                else:
-                    is_limit_up = 0
-                    is_limit_down = 0
+                limit_up = 1 if is_limit_up(close_price, pre_close, code) else 0
+                limit_down = 1 if is_limit_down(close_price, pre_close, code) else 0
                 
                 # 构建保存数据
                 stock_data = {
@@ -305,8 +264,8 @@ class StockDataCollector:
                     "free_share": basic.get('free_share'),
                     "total_mv": basic.get('total_mv'),
                     "circ_mv": basic.get('circ_mv'),
-                    "is_limit_up": is_limit_up,
-                    "is_limit_down": is_limit_down,
+                    "is_limit_up": limit_up,
+                    "is_limit_down": limit_down,
                     "limit_up_time": "",
                     "streak_days": 0
                 }
@@ -353,8 +312,8 @@ class StockDataCollector:
         print(f"📅 采集范围：{start_date} ~ {end_date}")
         print("=" * 60 + "\n")
         
-        ts_code = self._get_market_code(code)
         trading_dates = self._get_trading_dates(start_date, end_date)
+        market = get_market(code)
         
         success_count = 0
         
@@ -373,7 +332,7 @@ class StockDataCollector:
                 for attempt in range(5):
                     intraday_list = market_data_client.get_stock_intraday(
                         code, 
-                        "SH" if code.startswith('6') else "SZ", 
+                        market, 
                         date
                     )
                     if intraday_list:

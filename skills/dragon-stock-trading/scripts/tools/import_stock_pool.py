@@ -24,6 +24,7 @@ scripts_dir = str(Path(__file__).resolve().parent.parent)
 sys.path.insert(0, scripts_dir)
 
 from backend_client import backend_client
+from stock_utils import get_board_type, get_market
 
 
 class StockPoolImporter:
@@ -63,11 +64,8 @@ class StockPoolImporter:
                 # 去除名称中的特殊符号（如 ✅ ⚪）
                 name = re.sub(r'[✅⚪❌]\s*', '', name).strip()
                 
-                # 判断市场
-                if code.startswith(('6', '5')):
-                    market = 'SH'
-                else:
-                    market = 'SZ'
+                # 判断市场（使用公共函数）
+                market = get_market(code)
                 
                 stocks.append({
                     'code': code,
@@ -202,15 +200,8 @@ class StockPoolImporter:
             name = stock['name']
             market = stock['market']
             
-            # 判断板块类型
-            if code.startswith('688'):
-                board_type = '科创板'
-            elif code.startswith('300') or code.startswith('301'):
-                board_type = '创业板'
-            elif code.startswith('8') or code.startswith('4'):
-                board_type = '北交所'
-            else:
-                board_type = '主板'
+            # 判断板块类型（使用公共函数）
+            board_type = get_board_type(code)
             
             stocks_to_sync.append({
                 'stock_code': code,
