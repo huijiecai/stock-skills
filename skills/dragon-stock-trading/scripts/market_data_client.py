@@ -69,6 +69,48 @@ class MarketDataClient:
             }
         return None
     
+    def get_daily_all(self, date: str) -> Dict[str, Dict]:
+        """
+        批量获取指定日期所有股票的日线数据
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            
+        Returns:
+            字典 {股票代码: 行情数据}
+            行情数据包含: ld(收盘价), chp(涨跌幅), vol(成交量), amt(成交额), 
+                        o(开盘价), h(最高价), l(最低价), p(昨收价)
+        """
+        # 转换日期格式
+        trade_date = date.replace('-', '')
+        
+        # 批量获取
+        data = self._api.get_daily_all(trade_date)
+        
+        if not data or not data.get('items'):
+            return {}
+        
+        result = {}
+        for item in data['items']:
+            # item: [ts_code, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount]
+            ts_code = item[0]  # 如 000001.SZ
+            stock_code = ts_code.split('.')[0]  # 提取股票代码 000001
+            
+            result[stock_code] = {
+                'ld': item[5],                  # close 收盘价
+                'chp': item[8] / 100.0,         # pct_chg 涨跌幅
+                'vol': item[9],                 # volume 成交量（手）
+                'amt': item[10] * 1000,         # amount 成交额（千元 -> 元）
+                'o': item[2],                   # open 开盘价
+                'h': item[3],                   # high 最高价
+                'l': item[4],                   # low 最低价
+                'p': item[6],                   # pre_close 昨收价
+                'tr': 0.0                       # turnover_rate
+            }
+        
+        self._request_count += 1
+        return result
+    
     def get_stock_info(self, stock_code: str, market: str = None) -> Optional[Dict]:
         """
         获取股票基本信息

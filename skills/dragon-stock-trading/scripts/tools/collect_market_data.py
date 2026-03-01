@@ -1,35 +1,28 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-市场数据采集器 - 优化版（支持长时间执行、断点续传）
+市场数据采集器 - 优化版
 
 优化特性：
-1. ✅ 支持采集指定日期范围的数据（最近 2 个月）
-2. ✅ 自动跳过已采集的日期（断点续传）
-3. ✅ 失败重试机制（网络异常自动重试 3 次）
-4. ✅ 限流保护（遵守 API 频次限制）
-5. ✅ 详细日志记录（便于排查问题）
-6. ✅ 进度保存（每 10 个日期保存一次进度）
-7. ✅ 错误容忍（单只股票失败不影响整体）
+1. ✅ 支持采集指定日期范围的数据
+2. ✅ 使用真实交易日历（排除节假日）
+3. ✅ 批量获取行情数据（一次请求获取全部，约1秒）
+4. ✅ 自动跳过已采集的日期（断点续传）
+5. ✅ 精确涨停判断（基于涨停价计算）
 
 使用方法：
-    # 采集最近 2 个月数据
-    python collect_market_data_optimized.py --days 60
-    
     # 采集指定日期范围
-    python collect_market_data_optimized.py --start 2025-12-01 --end 2026-02-28
+    python collect_market_data.py --start 2026-01-05 --end 2026-02-28
     
-    # 强制重新采集（不跳过已存在的数据）
-    python collect_market_data_optimized.py --days 60 --force
+    # 强制重新采集
+    python collect_market_data.py --start 2026-01-05 --end 2026-02-28 --force
 """
 
 import sys
-import time
 import logging
 from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
-from collections import deque
 
 # 添加脚本目录到路径（上级目录，因为依赖模块在 scripts/ 下）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -39,50 +32,12 @@ from backend_client import backend_client
 from tushare_client import tushare_client
 
 
-class RateLimiter:
-    """限流器 - 控制 API 调用频率"""
-    
-    def __init__(self, max_requests: int = 200, window_seconds: int = 60):
-        """
-        初始化限流器
-        
-        Args:
-            max_requests: 窗口期内最大请求数
-            window_seconds: 窗口期时长（秒）
-        """
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-        self.requests = deque()
-    
-    def wait_if_needed(self):
-        """如果达到限流则等待"""
-        now = time.time()
-        
-        # 移除超出窗口期的请求
-        while self.requests and now - self.requests[0] > self.window_seconds:
-            self.requests.popleft()
-        
-        # 如果达到限流，等待
-        if len(self.requests) >= self.max_requests:
-            sleep_time = self.window_seconds - (now - self.requests[0]) + 1
-            print(f"\n⏱️  达到限流上限，等待 {sleep_time:.1f} 秒...")
-            time.sleep(sleep_time)
-            # 清理过期请求
-            now = time.time()
-            while self.requests and now - self.requests[0] > self.window_seconds:
-                self.requests.popleft()
-        
-        # 记录当前请求
-        self.requests.append(now)
-
-
 class MarketDataCollectorOptimized:
     """优化的市场数据采集器"""
     
     def __init__(self):
         self.market_client = MarketDataClient()
         self.backend_client = backend_client
-        self.rate_limiter = RateLimiter(max_requests=180, window_seconds=60)  # 保守设置
         
         # 配置日志
         self._setup_logging()
@@ -164,89 +119,6 @@ class MarketDataCollectorOptimized:
         else:
             return 0.10  # 主板/中小板 10%
     
-    def _process_single_stock(self, stock: Dict, date: str) -> Optional[Dict]:
-        """
-        处理单只股票
-        
-        Args:
-            stock: 股票信息
-            date: 交易日期
-            
-        Returns:
-            股票数据字典或 None
-        """
-        code = stock['code']
-        name = stock.get('name', '')
-        market = stock['market']
-        
-        # 跳过 ST 股票
-        if 'ST' in name.upper():
-            self.logger.debug(f"跳过 ST 股票：{code} {name}")
-            return None
-        
-        try:
-            # 限流
-            self.rate_limiter.wait_if_needed()
-            
-            # 获取行情数据（带重试机制）
-            quote = None
-            max_retries = 3
-            for attempt in range(max_retries):
-                quote = self.market_client.get_stock_quote(code, market, date)
-                if quote:
-                    break
-                
-                # 如果失败且还有重试次数，等待后重试
-                if attempt < max_retries - 1:
-                    self.logger.debug(f"  重试 {attempt + 1}/{max_retries}: {code} {name}")
-                    time.sleep(0.5)  # 等待 0.5 秒后重试
-            
-            if not quote:
-                self.logger.warning(f"{code} {name} - 重试 {max_retries} 次后仍未获取到行情数据")
-                return None
-            
-            # 提取涨跌幅
-            change_percent = quote.get('chp', 0.0)
-            close_price = quote.get('ld', 0.0)
-            pre_close = quote.get('p', 0.0)
-            
-            # 精确判断涨停/跌停（比较收盘价与涨停价/跌停价）
-            limit_rate = self._get_limit_rate(code)
-            if pre_close > 0:
-                limit_up_price = round(pre_close * (1 + limit_rate), 2)
-                limit_down_price = round(pre_close * (1 - limit_rate), 2)
-                is_limit_up = 1 if close_price >= limit_up_price - 0.01 else 0
-                is_limit_down = 1 if close_price <= limit_down_price + 0.01 else 0
-            else:
-                is_limit_up = 0
-                is_limit_down = 0
-            
-            # 构建股票数据
-            stock_data = {
-                "code": code,
-                "name": name,
-                "market": market,
-                "open": quote.get('o', 0.0),
-                "high": quote.get('h', 0.0),
-                "low": quote.get('l', 0.0),
-                "close": close_price,
-                "pre_close": pre_close,
-                "change_percent": change_percent,
-                "volume": quote.get('vol', 0),
-                "turnover": quote.get('amt', 0.0),
-                "turnover_rate": quote.get('tr', 0.0),
-                "is_limit_up": is_limit_up,
-                "is_limit_down": is_limit_down,
-                "limit_up_time": "",
-                "streak_days": 0,
-            }
-            
-            return stock_data
-            
-        except Exception as e:
-            self.logger.error(f"❌ 查询 {code} {name} 失败：{e}")
-            return None
-    
     def _collect_date_data(self, date: str, force: bool = False) -> Tuple[bool, int]:
         """
         采集单个日期的数据
@@ -289,32 +161,83 @@ class MarketDataCollectorOptimized:
             
             self.logger.info(f"  ✅ 股票池总数：{len(all_stocks)} 只")
             
-            # Step 3: 采集个股数据
-            self.logger.info("  Step 3: 采集个股行情...")
+            # Step 3: 批量获取所有股票行情（一次请求，约1秒）
+            self.logger.info("  Step 3: 批量获取行情数据...")
+            all_quotes = self.market_client.get_daily_all(date)
+            
+            if not all_quotes:
+                self.logger.error("  ❌ 批量获取行情数据失败")
+                return False, 0
+            
+            self.logger.info(f"  ✅ 获取到 {len(all_quotes)} 只股票行情")
+            
+            # Step 4: 过滤股票池并构建数据
+            self.logger.info("  Step 4: 处理股票池数据...")
             stocks_data = []
             pool_limit_up = 0
             pool_limit_down = 0
             
-            for i, stock in enumerate(all_stocks, 1):
-                stock_data = self._process_single_stock(stock, date)
-                
-                if stock_data:
-                    stocks_data.append(stock_data)
-                    
-                    # 统计涨停/跌停
-                    if stock_data['is_limit_up']:
-                        pool_limit_up += 1
-                        self.logger.info(f"    🔴 涨停 {pool_limit_up}: {stock_data['code']} "
-                                       f"{stock_data['name']} ({stock_data['change_percent']:+.2f}%)")
-                    elif stock_data['is_limit_down']:
-                        pool_limit_down += 1
-                
-                # 进度显示
-                if i % 50 == 0:
-                    self.logger.info(f"  进度：{i}/{len(all_stocks)} ({len(stocks_data)} 只有效)")
+            # 构建股票池代码集合（快速查找）
+            pool_codes = {s['code'] for s in all_stocks}
+            stock_info = {s['code']: s for s in all_stocks}  # 代码 -> 股票信息
             
-            # Step 4: 保存到后端
-            self.logger.info("  Step 4: 保存数据...")
+            for code, quote in all_quotes.items():
+                if code not in pool_codes:
+                    continue  # 不在股票池中，跳过
+                
+                stock = stock_info[code]
+                name = stock.get('name', '')
+                market = stock.get('market', '')
+                
+                # 提取数据
+                change_percent = quote.get('chp', 0.0)
+                close_price = quote.get('ld', 0.0)
+                pre_close = quote.get('p', 0.0)
+                
+                # 精确判断涨停/跌停
+                limit_rate = self._get_limit_rate(code)
+                if pre_close > 0:
+                    limit_up_price = round(pre_close * (1 + limit_rate), 2)
+                    limit_down_price = round(pre_close * (1 - limit_rate), 2)
+                    is_limit_up = 1 if close_price >= limit_up_price - 0.01 else 0
+                    is_limit_down = 1 if close_price <= limit_down_price + 0.01 else 0
+                else:
+                    is_limit_up = 0
+                    is_limit_down = 0
+                
+                stock_data = {
+                    "code": code,
+                    "name": name,
+                    "market": market,
+                    "open": quote.get('o', 0.0),
+                    "high": quote.get('h', 0.0),
+                    "low": quote.get('l', 0.0),
+                    "close": close_price,
+                    "pre_close": pre_close,
+                    "change_percent": change_percent,
+                    "volume": quote.get('vol', 0),
+                    "turnover": quote.get('amt', 0.0),
+                    "turnover_rate": quote.get('tr', 0.0),
+                    "is_limit_up": is_limit_up,
+                    "is_limit_down": is_limit_down,
+                    "limit_up_time": "",
+                    "streak_days": 0,
+                }
+                
+                stocks_data.append(stock_data)
+                
+                # 统计涨停/跌停
+                if is_limit_up:
+                    pool_limit_up += 1
+                    self.logger.debug(f"    🔴 涨停: {code} {name} ({change_percent:+.2%})")
+                elif is_limit_down:
+                    pool_limit_down += 1
+            
+            self.logger.info(f"  ✅ 股票池有效数据：{len(stocks_data)} 只")
+            self.logger.info(f"  📊 涨停：{pool_limit_up} 只，跌停：{pool_limit_down} 只")
+            
+            # Step 5: 保存到后端
+            self.logger.info("  Step 5: 保存数据...")
             result = self.backend_client.collect_market_data(
                 date=date,
                 market_data=market_data,

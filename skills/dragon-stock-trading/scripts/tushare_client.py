@@ -78,6 +78,38 @@ class TushareClient:
             print(f"Tushare API错误: {e}")
             return None
     
+    def get_daily_all(self, trade_date: str) -> Optional[Dict]:
+        """
+        批量获取指定日期所有股票的日线数据（一次请求获取全部）
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            
+        Returns:
+            日线数据字典 {'items': [[...], ...], 'fields': [...]}
+            每条数据: [ts_code, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount]
+            
+        性能：一次请求获取约5000只股票，耗时约1秒
+        """
+        try:
+            df = self.pro.daily(
+                trade_date=trade_date,
+                fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
+    
     def get_index_daily(self, ts_code: str, trade_date: str = "") -> Optional[Dict]:
         """
         获取指数日线数据（使用官方SDK）
