@@ -473,11 +473,11 @@ class MarketDataClient:
                 
                 current_date = date
                 day_data = []
-                prev_close = prev_closes.get(date, 0)
                 
-                # 如果获取不到昨收价，使用当天开盘价
-                if prev_close == 0:
-                    prev_close = float(item[2])  # open
+                # 获取该日期的昨收价（必须存在，否则抛异常）
+                if date not in prev_closes:
+                    raise RuntimeError(f"缺少 {date} 的昨收价数据: {stock_code}")
+                prev_close = prev_closes[date]
             
             vol = float(item[6])  # 累计成交量（手）
             amt = float(item[7]) * 1000  # 累计成交额（千元转元）
