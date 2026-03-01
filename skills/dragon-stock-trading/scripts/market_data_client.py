@@ -11,6 +11,7 @@ from datetime import datetime
 
 # 导入全局Tushare客户端
 from tushare_client import tushare_client
+from stock_utils import get_market, get_ts_code
 
 
 class MarketDataClient:
@@ -34,16 +35,12 @@ class MarketDataClient:
         Returns:
             行情数据字典
         """
-        # 构造Tushare格式的股票代码
+        # 构造Tushare格式的股票代码（使用公共函数）
         if '.' not in stock_code:
             if market:
                 ts_code = f"{stock_code}.{market.upper()}"
             else:
-                # 自动识别市场
-                if stock_code.startswith(('6', '5')):
-                    ts_code = f"{stock_code}.SH"
-                else:
-                    ts_code = f"{stock_code}.SZ"
+                ts_code = get_ts_code(stock_code)
         else:
             ts_code = stock_code
         
@@ -143,15 +140,12 @@ class MarketDataClient:
         Returns:
             股票信息字典
         """
-        # 构造Tushare格式的股票代码
+        # 构造Tushare格式的股票代码（使用公共函数）
         if '.' not in stock_code:
             if market:
                 ts_code = f"{stock_code}.{market.upper()}"
             else:
-                if stock_code.startswith(('6', '5')):
-                    ts_code = f"{stock_code}.SH"
-                else:
-                    ts_code = f"{stock_code}.SZ"
+                ts_code = get_ts_code(stock_code)
         else:
             ts_code = stock_code
         
@@ -343,7 +337,7 @@ class MarketDataClient:
         Returns:
             前一日收盘价
         """
-        # 构造Tushare格式的股票代码
+        # 构造Tushare格式的股票代码（使用公共函数）
         if '.' not in stock_code:
             ts_code = f"{stock_code}.{market.upper()}"
         else:
@@ -379,7 +373,7 @@ class MarketDataClient:
             - turnover: 累计成交额（元）
             - avg_price: 均价
         """
-        # 构造Tushare格式的股票代码
+        # 构造Tushare格式的股票代码（使用公共函数）
         if '.' not in stock_code:
             ts_code = f"{stock_code}.{market.upper()}"
         else:

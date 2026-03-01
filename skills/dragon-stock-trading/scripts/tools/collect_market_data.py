@@ -31,6 +31,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from market_data_client import market_data_client
 from backend_client import backend_client
 from tushare_client import tushare_client
+from stock_utils import is_limit_up, is_limit_down
 
 
 class MarketDataCollectorOptimized:
@@ -99,23 +100,6 @@ class MarketDataCollectorOptimized:
         except Exception as e:
             self.logger.warning(f"检查日期 {date} 是否存在失败：{e}")
             return False
-    
-    def _get_limit_rate(self, code: str) -> float:
-        """
-        根据股票代码获取涨跌停幅度
-        
-        Args:
-            code: 股票代码
-            
-        Returns:
-            涨跌停幅度（0.10 = 10%, 0.20 = 20%, 0.30 = 30%）
-        """
-        if code.startswith('688') or code.startswith('300'):
-            return 0.20  # 科创板/创业板 20%
-        elif code.startswith('8') or code.startswith('4'):
-            return 0.30  # 北交所 30%
-        else:
-            return 0.10  # 主板/中小板 10%
     
     def _collect_date_data(self, date: str, force: bool = False) -> Tuple[bool, int]:
         """
@@ -216,16 +200,9 @@ class MarketDataCollectorOptimized:
                 close_price = quote.get('ld', 0.0)
                 pre_close = quote.get('p', 0.0)
                 
-                # 精确判断涨停/跌停
-                limit_rate = self._get_limit_rate(code)
-                if pre_close > 0:
-                    limit_up_price = round(pre_close * (1 + limit_rate), 2)
-                    limit_down_price = round(pre_close * (1 - limit_rate), 2)
-                    is_limit_up = 1 if close_price >= limit_up_price - 0.01 else 0
-                    is_limit_down = 1 if close_price <= limit_down_price + 0.01 else 0
-                else:
-                    is_limit_up = 0
-                    is_limit_down = 0
+                # 精确判断涨停/跌停（使用公共函数）
+                limit_up = 1 if is_limit_up(close_price, pre_close, code) else 0
+                limit_down = 1 if is_limit_down(close_price, pre_close, code) else 0
                 
                 stock_data = {
                     "code": code,
@@ -256,8 +233,8 @@ class MarketDataCollectorOptimized:
                     "total_mv": daily_basic.get(code, {}).get('total_mv'),
                     "circ_mv": daily_basic.get(code, {}).get('circ_mv'),
                     # 涨跌停数据
-                    "is_limit_up": is_limit_up,
-                    "is_limit_down": is_limit_down,
+                    "is_limit_up": limit_up,
+                    "is_limit_down": limit_down,
                     "limit_up_time": "",
                     "streak_days": 0,
                 }
@@ -265,10 +242,10 @@ class MarketDataCollectorOptimized:
                 stocks_data.append(stock_data)
                 
                 # 统计涨停/跌停
-                if is_limit_up:
+                if limit_up:
                     pool_limit_up += 1
                     self.logger.debug(f"    🔴 涨停: {code} {name} ({change_percent:+.2%})")
-                elif is_limit_down:
+                elif limit_down:
                     pool_limit_down += 1
             
             self.logger.info(f"  ✅ 股票池有效数据：{len(stocks_data)} 只")
