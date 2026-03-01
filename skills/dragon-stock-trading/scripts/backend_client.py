@@ -181,6 +181,24 @@ class BackendClient:
         except Exception:
             # 如果API调用失败，默认返回False（假设不存在）
             return False
+    
+    def check_market_data_exists(self, date: str) -> bool:
+        """
+        检查指定日期的市场数据是否存在
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            True if data exists, False otherwise
+        """
+        try:
+            result = self._get(f"/market/sentiment/{date}")
+            # 如果返回了数据且 success 为 True，说明数据存在
+            return result.get("success", False) and result.get("data") is not None
+        except Exception:
+            # 如果API调用失败（404等），说明数据不存在
+            return False
 
 
 # 模块级别全局实例

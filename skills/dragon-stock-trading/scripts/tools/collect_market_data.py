@@ -132,9 +132,7 @@ class MarketDataCollectorOptimized:
             True if exists, False otherwise
         """
         try:
-            # 通过查询该日期的股票数据来判断是否存在
-            # 这里简化处理，实际应该调用后端 API 检查
-            return False
+            return self.backend_client.check_market_data_exists(date)
         except Exception as e:
             self.logger.warning(f"检查日期 {date} 是否存在失败：{e}")
             return False
