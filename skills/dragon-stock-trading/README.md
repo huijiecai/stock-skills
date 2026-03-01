@@ -20,7 +20,7 @@ skills/dragon-stock-trading/
 │   ├── concept_manager.py
 │   ├── query_service.py
 │   ├── history_sync.py
-│   └── stock_fetcher.py
+│   └── (采集工具见 tools/ 目录)
 ├── data/                       # 数据层
 │   ├── dragon_stock.db        # SQLite数据库（系统自动）
 │   ├── concepts.json          # 概念配置（手工维护）
