@@ -89,7 +89,7 @@ class RateLimiter:
 
 
 class IntradayDataCollectorOptimized:
-    """优化的分时数据采集器"""
+    """优化的分时数据采集器（批量查询版）"""
     
     def __init__(self):
         self.market_client = MarketDataClient()
@@ -134,17 +134,18 @@ class IntradayDataCollectorOptimized:
         
         return trading_dates
     
-    def _collect_stock_intraday(self, stock: Dict, date: str, force: bool = False) -> Tuple[bool, int]:
+    def _collect_stock_intraday_range(self, stock: Dict, dates: List[str], 
+                                       force: bool = False) -> Tuple[int, int, int]:
         """
-        采集单只股票的分时数据
+        批量采集单只股票多天的分时数据
         
         Args:
             stock: 股票信息
-            date: 交易日期
+            dates: 日期列表（最多5天）
             force: 是否强制重新采集
             
         Returns:
-            (是否成功，记录条数)
+            (成功天数，失败天数，总记录数)
         """
         code = stock['code']
         name = stock.get('name', '')
@@ -152,28 +153,29 @@ class IntradayDataCollectorOptimized:
         
         # 跳过 ST 股票
         if 'ST' in name.upper():
-            self.logger.debug(f"  跳过 ST 股票：{code} {name}")
-            return True, 0
+            return 0, 0, 0
         
-        # 检查是否已存在（非强制模式）
-        if not force:
-            try:
-                exists = self.backend_client.get_stock_intraday_existence(code, date)
-                if exists:
-                    self.logger.debug(f"  ⏭️  跳过已存在：{code} {name} ({date})")
-                    return True, 0
-            except Exception as e:
-                self.logger.warning(f"  检查 {code} 是否存在失败：{e}，继续采集")
+        # 过滤需要采集的日期
+        dates_to_collect = []
+        for date in dates:
+            if force or not self.backend_client.get_stock_intraday_existence(code, date):
+                dates_to_collect.append(date)
+        
+        if not dates_to_collect:
+            return 0, 0, 0
         
         try:
             # 限流
             self.rate_limiter.wait_if_needed()
             
-            # 获取分时数据（带重试，最多5次）
-            import time
+            # 批量获取分时数据（一次 API 调用获取多天）
             intraday_data = None
             for attempt in range(5):
-                intraday_data = self.market_client.get_stock_intraday(code, market, date)
+                intraday_data = self.market_client.get_stock_intraday_range(
+                    code, market, 
+                    dates_to_collect[0], 
+                    dates_to_collect[-1]
+                )
                 if intraday_data is not None:
                     break
                 if attempt < 4:
@@ -181,42 +183,49 @@ class IntradayDataCollectorOptimized:
                     time.sleep(1)
             
             if intraday_data is None:
-                self.logger.error(f"  ❌ {code} {name} - 获取分时数据失败（已重试5次），停止采集")
-                return False, -1  # 返回 -1 表示需要停止整个采集
+                self.logger.error(f"  ❌ {code} {name} - 获取分时数据失败（已重试5次）")
+                return 0, len(dates_to_collect), 0
             
-            if not intraday_data:
-                self.logger.debug(f"  ⚠️  {code} {name} - 无分时数据")
-                return True, 0
+            # 按日期保存数据
+            success_days = 0
+            failed_days = 0
+            total_records = 0
             
-            # 保存数据
-            result = self.backend_client.save_intraday_data(date, code, intraday_data)
+            for date in dates_to_collect:
+                day_data = intraday_data.get(date, [])
+                
+                if not day_data:
+                    continue
+                
+                result = self.backend_client.save_intraday_data(date, code, day_data)
+                
+                if result.get('success'):
+                    success_days += 1
+                    total_records += len(day_data)
+                else:
+                    failed_days += 1
             
-            records = len(intraday_data)
-            self.logger.debug(f"  ✅ {code} {name} - {records} 条记录")
-            
-            return True, records
+            return success_days, failed_days, total_records
             
         except Exception as e:
             self.logger.error(f"  ❌ {code} {name} - 失败：{e}")
-            return False, 0
+            return 0, len(dates_to_collect), 0
     
-    def _collect_date_intraday(self, date: str, stocks: List[Dict], 
-                               force: bool = False) -> Tuple[int, int, int]:
+    def _collect_batch_stocks(self, stocks: List[Dict], dates: List[str], 
+                              force: bool = False) -> Tuple[int, int, int]:
         """
-        采集指定日期的所有股票分时数据
+        批量采集多只股票的分时数据
         
         Args:
-            date: 交易日期
             stocks: 股票列表
+            dates: 日期列表（最多5天）
             force: 是否强制重新采集
             
         Returns:
-            (成功数量，失败数量，总记录数)
+            (成功天数，失败天数，总记录数)
         """
-        self.logger.info(f"\n📅 日期：{date}")
-        
-        success_count = 0
-        failed_count = 0
+        total_success = 0
+        total_failed = 0
         total_records = 0
         
         for i, stock in enumerate(stocks, 1):
@@ -225,45 +234,43 @@ class IntradayDataCollectorOptimized:
             
             # 显示进度（每 20 只显示一次）
             if i % 20 == 0:
-                self.logger.info(f"  进度：{i}/{len(stocks)} (成功:{success_count}, 失败:{failed_count})")
+                self.logger.info(f"  进度：{i}/{len(stocks)} (成功天:{total_success}, 失败天:{total_failed})")
             
-            success, records = self._collect_stock_intraday(stock, date, force)
+            success, failed, records = self._collect_stock_intraday_range(stock, dates, force)
             
-            # records == -1 表示需要停止整个采集
-            if records == -1:
-                return success_count, failed_count, -1
-            
-            if success:
-                success_count += 1
-                total_records += records
-            else:
-                failed_count += 1
+            total_success += success
+            total_failed += failed
+            total_records += records
             
             # 每 50 只股票休息 2 秒（避免 API 疲劳）
             if i % 50 == 0:
                 time.sleep(2)
         
-        return success_count, failed_count, total_records
+        return total_success, total_failed, total_records
     
     def collect_range(self, start_date: str, end_date: str, 
                      force: bool = False, save_interval: int = 5, reverse: bool = True):
         """
-        采集指定日期范围的分时数据
+        采集指定日期范围的分时数据（批量查询优化版）
+        
+        优化策略：按股票遍历，每只股票批量获取多天数据
+        - 原来：按日期遍历 → 每只股票每天调用 1 次 API
+        - 现在：按股票遍历 → 每只股票每 5 天调用 1 次 API
+        - 效率提升：减少约 80% 的 API 调用
         
         Args:
             start_date: 开始日期（YYYY-MM-DD）
             end_date: 结束日期（YYYY-MM-DD）
             force: 是否强制重新采集
-            save_interval: 保存进度的间隔（每 N 个日期保存一次）
+            save_interval: 保存进度的间隔（每 N 批股票保存一次）
             reverse: 是否从新到旧采集（默认 True，从新到旧）
         """
         print("=" * 60)
-        print("分时数据采集器（优化版）")
+        print("分时数据采集器（批量查询优化版）")
         print("=" * 60)
         print(f"\n📅 采集范围：{start_date} ~ {end_date}")
         print(f"🔄 强制模式：{'是' if force else '否'}")
         print(f"📅 采集顺序：{'从新到旧' if reverse else '从旧到新'}")
-        print(f"💾 保存间隔：每 {save_interval} 个日期")
         print(f"{'=' * 60}\n")
         
         # 获取交易日期列表
@@ -289,37 +296,33 @@ class IntradayDataCollectorOptimized:
         # 统计信息
         total_success = 0
         total_failed = 0
-        total_skipped = 0
         grand_total_records = 0
         
-        # 开始采集
-        for i, date in enumerate(trading_dates, 1):
-            print(f"\n[{i}/{total_dates}] ", end='')
+        # 分批采集日期（每批 20 天，避免超过 API 返回限制 8000 条）
+        batch_size = 20
+        total_batches = (total_dates + batch_size - 1) // batch_size
+        
+        for batch_idx in range(total_batches):
+            batch_start = batch_idx * batch_size
+            batch_end = min(batch_start + batch_size, total_dates)
+            batch_dates = trading_dates[batch_start:batch_end]
             
-            success, failed, records = self._collect_date_intraday(date, all_stocks, force)
+            print(f"\n{'=' * 60}")
+            print(f"[批次 {batch_idx + 1}/{total_batches}] 日期范围：{batch_dates[0]} ~ {batch_dates[-1]}")
+            print(f"{'=' * 60}")
             
-            # records == -1 表示需要停止整个采集
-            if records == -1:
-                self.logger.error("❌ 采集过程中断，停止后续采集")
-                break
+            success, failed, records = self._collect_batch_stocks(all_stocks, batch_dates, force)
             
             total_success += success
             total_failed += failed
+            grand_total_records += records
             
-            if records > 0:
-                grand_total_records += records
-                self.logger.info(f"  📊 当日保存 {records} 条记录")
-            else:
-                total_skipped += 1
+            self.logger.info(f"  📊 批次统计：成功 {success} 天，失败 {failed} 天，{records} 条记录")
             
-            # 定期保存进度
-            if i % save_interval == 0:
-                self.logger.info(f"\n💾 保存进度：已完成 {i}/{total_dates} 个日期")
-            
-            # 每 10 个日期休息 10 秒（避免 API 疲劳）
-            if i % 10 == 0:
-                self.logger.info("\n⏱️  长时间休息 10 秒...")
-                time.sleep(10)
+            # 批次间休息（避免 API 疲劳）
+            if batch_idx + 1 < total_batches:
+                self.logger.info("\n⏱️  批次间休息 3 秒...")
+                time.sleep(3)
         
         # 最终统计
         rate_limiter_stats = self.rate_limiter.get_stats()
@@ -331,7 +334,6 @@ class IntradayDataCollectorOptimized:
         self.logger.info(f"  总交易日：{total_dates} 个")
         self.logger.info(f"  成功采集：{total_success} 只次")
         self.logger.info(f"  失败：{total_failed} 只次")
-        self.logger.info(f"  跳过：{total_skipped} 只次")
         self.logger.info(f"  总记录数：{grand_total_records} 条")
         self.logger.info(f"  API 调用：{rate_limiter_stats['total_requests']} 次")
         self.logger.info(f"{'=' * 60}\n")

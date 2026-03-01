@@ -232,6 +232,65 @@ class TushareClient:
                 print(f"Tushare API错误: {e}")
             return None
 
+    def get_stock_intraday_range(self, ts_code: str, start_date: str, end_date: str, 
+                                  freq: str = '1min') -> Optional[Dict]:
+        """
+        批量获取股票分时数据（支持时间范围查询）
+        
+        Args:
+            ts_code: Tushare股票代码（如 000001.SZ）
+            start_date: 开始日期（格式：20260201 或 2026-02-01）
+            end_date: 结束日期（格式：20260228 或 2026-02-28）
+            freq: 数据频度（1min/5min/15min/30min/60min）
+            
+        Returns:
+            分时数据字典 {'items': [[...], [...]], 'fields': [...]}
+            数据按 trade_time 排序，包含多天数据
+            
+        注意：
+        - 需要 5000 积分权限
+        - 一次请求最多返回 8000 条记录（约 3-4 天的 1min 数据）
+        - 建议单次查询不超过 5 个交易日
+        """
+        try:
+            from datetime import datetime
+            
+            # 统一日期格式
+            start = start_date.replace('-', '')
+            end = end_date.replace('-', '')
+            
+            # 转换为完整时间范围
+            start_dt = datetime.strptime(start, '%Y%m%d')
+            end_dt = datetime.strptime(end, '%Y%m%d')
+            
+            start_time = start_dt.strftime('%Y-%m-%d 09:00:00')
+            end_time = end_dt.strftime('%Y-%m-%d 19:00:00')
+            
+            # 调用官方SDK的分钟线接口
+            df = self.pro.stk_mins(
+                ts_code=ts_code,
+                freq=freq,
+                start_date=start_time,
+                end_date=end_time,
+                fields='ts_code,trade_time,open,high,low,close,vol,amount'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            if '没有访问权限' in str(e) or 'Permission denied' in str(e):
+                print(f"⚠️  分时接口需要5000积分权限: {e}")
+            else:
+                print(f"Tushare API错误: {e}")
+            return None
+
 
     def get_trade_calendar(self, start_date: str, end_date: str, exchange: str = 'SSE') -> List[str]:
         """

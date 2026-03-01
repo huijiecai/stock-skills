@@ -284,7 +284,7 @@ class StockDataCollector:
     
     def collect_intraday(self, code: str, start_date: str, end_date: str, force: bool = False) -> int:
         """
-        收集单只股票的分时数据
+        收集单只股票的分时数据（批量查询优化版）
         
         Args:
             code: 股票代码
@@ -296,60 +296,87 @@ class StockDataCollector:
             成功采集的天数
         """
         print("=" * 60)
-        print(f"单股票分时数据采集器")
+        print(f"单股票分时数据采集器（批量查询）")
         print("=" * 60)
         print(f"\n📊 股票代码：{code}")
         print(f"📅 采集范围：{start_date} ~ {end_date}")
+        print(f"🔄 强制模式：{'是' if force else '否'}")
         print("=" * 60 + "\n")
         
         trading_dates = self._get_trading_dates(start_date, end_date)
         market = get_market(code)
         
-        success_count = 0
+        # 获取需要采集的日期（排除已存在的）
+        dates_to_collect = []
+        for date in trading_dates:
+            if force or not backend_client.get_stock_intraday_existence(code, date):
+                dates_to_collect.append(date)
+            else:
+                print(f"  {date}: ⏭️ 已存在")
         
-        for i, date in enumerate(trading_dates, 1):
-            print(f"[{i}/{len(trading_dates)}] {date}...", end=' ')
+        if not dates_to_collect:
+            self.logger.info("✅ 所有日期已存在，无需采集")
+            return 0
+        
+        print(f"\n📋 需要采集 {len(dates_to_collect)} 个交易日")
+        
+        success_count = 0
+        total_dates = len(dates_to_collect)
+        
+        # 分批采集（每批最多 5 天，避免超过 API 返回限制 8000 条）
+        batch_size = 5
+        for batch_start in range(0, total_dates, batch_size):
+            batch_dates = dates_to_collect[batch_start:batch_start + batch_size]
+            batch_end_idx = min(batch_start + batch_size, total_dates)
             
-            # 检查是否已存在
-            if not force:
-                if backend_client.get_stock_intraday_existence(code, date):
-                    print("⏭️ 已存在")
-                    continue
+            print(f"\n[批次 {batch_start//batch_size + 1}] 采集 {batch_dates[0]} ~ {batch_dates[-1]}...")
             
             try:
-                # 获取分时数据（带重试，最多5次）
-                intraday_list = None
+                # 批量获取分时数据（一次 API 调用获取多天）
+                intraday_data = None
                 for attempt in range(5):
-                    intraday_list = market_data_client.get_stock_intraday(
+                    intraday_data = market_data_client.get_stock_intraday_range(
                         code, 
                         market, 
-                        date
+                        batch_dates[0], 
+                        batch_dates[-1]
                     )
-                    if intraday_list:
+                    if intraday_data:
                         break
                     if attempt < 4:
-                        time.sleep(1)
+                        self.logger.warning(f"  重试 {attempt + 2}/5...")
+                        time.sleep(2)
                 
-                if not intraday_list:
-                    print("⏭️ 无数据")
+                if not intraday_data:
+                    self.logger.warning(f"  ⚠️ 批次无数据")
                     continue
                 
-                # 保存到后端
-                result = backend_client.save_intraday_data(date, code, intraday_list)
+                # 按日期保存数据
+                for date in batch_dates:
+                    day_data = intraday_data.get(date, [])
+                    
+                    if not day_data:
+                        print(f"  {date}: ⏭️ 无数据")
+                        continue
+                    
+                    # 保存到后端
+                    result = backend_client.save_intraday_data(date, code, day_data)
+                    
+                    if result.get('success'):
+                        print(f"  {date}: ✅ {len(day_data)} 条")
+                        success_count += 1
+                    else:
+                        print(f"  {date}: ❌ 保存失败")
                 
-                if result.get('success'):
-                    print(f"✅ {len(intraday_list)} 条")
-                    success_count += 1
-                else:
-                    print("❌ 保存失败")
-                
-                time.sleep(0.5)
-                
+                # 批次间休息（避免 API 疲劳）
+                if batch_start + batch_size < total_dates:
+                    time.sleep(1)
+                    
             except Exception as e:
-                print(f"❌ 错误: {e}")
+                self.logger.error(f"  ❌ 批次失败: {e}")
         
         print(f"\n{'=' * 60}")
-        self.logger.info(f"✅ 采集完成！成功：{success_count}/{len(trading_dates)} 天")
+        self.logger.info(f"✅ 采集完成！成功：{success_count}/{total_dates} 天")
         print("=" * 60 + "\n")
         
         return success_count
@@ -409,3 +436,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+stock_data_collector = StockDataCollector()

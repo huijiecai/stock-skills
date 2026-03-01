@@ -420,6 +420,131 @@ class MarketDataClient:
         self._request_count += 1
         return result
     
+    def get_stock_intraday_range(self, stock_code: str, market: str, 
+                                  start_date: str, end_date: str) -> Dict[str, List[Dict]]:
+        """
+        批量获取股票分时数据（支持时间范围查询）
+        
+        Args:
+            stock_code: 股票代码（如 000001）
+            market: 市场代码（SH/SZ）
+            start_date: 开始日期（YYYY-MM-DD）
+            end_date: 结束日期（YYYY-MM-DD）
+            
+        Returns:
+            按日期分组的分时数据字典：
+            {
+                '2026-02-01': [{trade_time, price, change_percent, volume, turnover, avg_price}, ...],
+                '2026-02-02': [...],
+                ...
+            }
+            
+        注意：一次请求最多返回 8000 条记录（约 3-4 天的 1min 数据）
+        """
+        # 构造Tushare格式的股票代码
+        if '.' not in stock_code:
+            ts_code = f"{stock_code}.{market.upper()}"
+        else:
+            ts_code = stock_code
+        
+        # 调用底层API获取分时数据
+        data = self._api.get_stock_intraday_range(ts_code, start_date, end_date)
+        
+        if not data or not data.get('items'):
+            return {}
+        
+        # 获取各日期的昨收价（用于计算涨跌幅）
+        prev_closes = self._get_prev_closes_range(stock_code, market, start_date, end_date)
+        
+        # 按日期分组数据
+        result = {}
+        current_date = None
+        day_data = []
+        prev_close = 0
+        
+        for item in data['items']:
+            # item结构: [ts_code, trade_time, open, high, low, close, vol, amount]
+            trade_time = item[1]  # YYYY-MM-DD HH:MM:SS
+            date = trade_time.split(' ')[0]
+            
+            # 日期变化时，更新昨收价并保存前一天数据
+            if date != current_date:
+                # 保存前一天的数据
+                if current_date and day_data:
+                    result[current_date] = day_data
+                
+                current_date = date
+                day_data = []
+                prev_close = prev_closes.get(date, 0)
+                
+                # 如果获取不到昨收价，使用当天开盘价
+                if prev_close == 0:
+                    prev_close = float(item[2])  # open
+            
+            vol = float(item[6])  # 累计成交量（手）
+            amt = float(item[7]) * 1000  # 累计成交额（千元转元）
+            price = float(item[5])  # 当前价（close）
+            
+            # 计算均价：成交额(元) / 成交量(股)
+            avg_price = amt / (vol * 100) if vol > 0 else price
+            
+            # 计算涨跌幅
+            change_pct = (price - prev_close) / prev_close if prev_close > 0 else 0
+            
+            day_data.append({
+                'trade_time': trade_time,
+                'price': price,
+                'change_percent': change_pct,
+                'volume': int(vol),
+                'turnover': amt,
+                'avg_price': avg_price
+            })
+        
+        # 保存最后一天的数据
+        if current_date and day_data:
+            result[current_date] = day_data
+        
+        self._request_count += 1
+        return result
+    
+    def _get_prev_closes_range(self, stock_code: str, market: str, 
+                                start_date: str, end_date: str) -> Dict[str, float]:
+        """
+        获取时间范围内各日期的昨收价
+        
+        Args:
+            stock_code: 股票代码
+            market: 市场代码
+            start_date: 开始日期
+            end_date: 结束日期
+            
+        Returns:
+            {日期: 昨收价} 字典
+        """
+        prev_closes = {}
+        
+        try:
+            # 获取日线数据
+            daily_data = self._api.get_stock_daily(
+                f"{stock_code}.{market}" if '.' not in stock_code else stock_code,
+                start_date=start_date.replace('-', ''),
+                end_date=end_date.replace('-', '')
+            )
+            
+            if daily_data and daily_data.get('items'):
+                for item in daily_data['items']:
+                    # item结构: [ts_code, trade_date, open, high, low, close, pre_close, change, pct_chg, vol, amount]
+                    if len(item) > 6:
+                        trade_date = str(item[1])  # YYYYMMDD
+                        pre_close = float(item[6])  # pre_close
+                        # 转换日期格式
+                        date_str = f"{trade_date[:4]}-{trade_date[4:6]}-{trade_date[6:8]}"
+                        prev_closes[date_str] = pre_close
+        except Exception as e:
+            print(f"获取昨收价失败: {e}")
+        
+        return prev_closes
+    
     def get_request_count(self) -> int:
         """获取请求计数"""
         return self._request_count
