@@ -31,6 +31,8 @@ export const stocksAPI = {
     params: { start_date: startDate, end_date: endDate } 
   }),
   batchQuote: (codes) => api.post('/stocks/batch-quote', { codes }),
+  // 竞价数据
+  getAuction: (code, date) => api.get(`/stocks/auction/${code}/${date}`),
 };
 
 // 概念API

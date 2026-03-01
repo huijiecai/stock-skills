@@ -174,6 +174,24 @@ class DatabaseInitializer:
         ''')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_parent_concept ON concept_hierarchy(parent_concept)')
         
+        # 10. 竞价数据表
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS stock_auction (
+            trade_date TEXT NOT NULL,
+            stock_code TEXT NOT NULL,
+            open_vol INTEGER,
+            open_amount REAL,
+            open_vwap REAL,
+            close_vol INTEGER,
+            close_amount REAL,
+            close_vwap REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(trade_date, stock_code)
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_auction_date ON stock_auction(trade_date)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_auction_code ON stock_auction(stock_code)')
+        
         conn.commit()
         conn.close()
         

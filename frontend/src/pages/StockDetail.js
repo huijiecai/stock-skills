@@ -16,6 +16,7 @@ export default function StockDetail() {
   const [selectedDate, setSelectedDate] = useState(null);  // 初始为 null，加载后设置
   const [intradayData, setIntradayData] = useState([]);
   const [dailyData, setDailyData] = useState([]);
+  const [auctionData, setAuctionData] = useState(null);
 
   useEffect(() => {
     // 先加载最近交易日，再加载图表数据
@@ -70,6 +71,13 @@ export default function StockDetail() {
         // 加载分时数据
         const res = await stocksAPI.getIntraday(code, useDate.format('YYYY-MM-DD'));
         setIntradayData(res.data.data || []);
+        // 同时加载竞价数据
+        try {
+          const auctionRes = await stocksAPI.getAuction(code, useDate.format('YYYY-MM-DD'));
+          setAuctionData(auctionRes.data.data);
+        } catch {
+          setAuctionData(null);
+        }
       } else if (tab === 'daily') {
         // 加载日K线数据（最近1年）
         const endDate = dayjs().format('YYYY-MM-DD');
@@ -127,6 +135,7 @@ export default function StockDetail() {
           stockCode={code}
           stockName={quote?.name || code}
           date={selectedDate.format('YYYY-MM-DD')}
+          auctionData={auctionData}
         />
       ),
     },

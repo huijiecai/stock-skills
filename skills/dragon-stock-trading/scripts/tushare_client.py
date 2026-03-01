@@ -452,6 +452,72 @@ class TushareClient:
         import math
         return math.isnan(value) if isinstance(value, float) else False
 
+    def get_auction_open(self, trade_date: str) -> Optional[Dict]:
+        """
+        获取开盘集合竞价数据
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            
+        Returns:
+            开盘竞价数据字典 {'items': [[...], ...], 'fields': [...]}
+            每条数据: [ts_code, trade_date, close, open, high, low, vol, amount, vwap]
+        """
+        try:
+            df = self.pro.stk_auction_o(
+                trade_date=trade_date,
+                fields='ts_code,trade_date,close,open,high,low,vol,amount,vwap'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            if '没有访问权限' in str(e) or 'Permission denied' in str(e):
+                print(f"⚠️  竞价接口需要股票分钟权限: {e}")
+            else:
+                print(f"Tushare API错误 (开盘竞价): {e}")
+            return None
+
+    def get_auction_close(self, trade_date: str) -> Optional[Dict]:
+        """
+        获取收盘集合竞价数据
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            
+        Returns:
+            收盘竞价数据字典 {'items': [[...], ...], 'fields': [...]}
+            每条数据: [ts_code, trade_date, close, open, high, low, vol, amount, vwap]
+        """
+        try:
+            df = self.pro.stk_auction_c(
+                trade_date=trade_date,
+                fields='ts_code,trade_date,close,open,high,low,vol,amount,vwap'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            if '没有访问权限' in str(e) or 'Permission denied' in str(e):
+                print(f"⚠️  竞价接口需要股票分钟权限: {e}")
+            else:
+                print(f"Tushare API错误 (收盘竞价): {e}")
+            return None
+
 
 # 模块级别初始化全局客户端实例
 def _init_tushare_client() -> TushareClient:

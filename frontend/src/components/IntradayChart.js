@@ -8,8 +8,9 @@ import * as echarts from 'echarts';
  * @param {String} props.stockCode - 股票代码
  * @param {String} props.stockName - 股票名称
  * @param {String} props.date - 日期
+ * @param {Object} props.auctionData - 竞价数据 {open_vol, open_amount, close_vol, close_amount}
  */
-const IntradayChart = ({ data, stockCode, stockName, date }) => {
+const IntradayChart = ({ data, stockCode, stockName, date, auctionData }) => {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -178,12 +179,28 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
   const totalVolume = data[data.length - 1].volume || 0;
   const totalTurnover = data[data.length - 1].turnover || 0;
 
+  // 格式化竞价数据
+  const formatAuction = () => {
+    if (!auctionData) return null;
+    const openInfo = auctionData.open_vol ? `开盘竞价: ${(auctionData.open_vol / 10000).toFixed(0)}万手 / ${(auctionData.open_amount / 100000000).toFixed(2)}亿` : '';
+    const closeInfo = auctionData.close_vol ? `收盘竞价: ${(auctionData.close_vol / 10000).toFixed(0)}万手 / ${(auctionData.close_amount / 100000000).toFixed(2)}亿` : '';
+    if (openInfo || closeInfo) {
+      return <span style={{ color: '#722ed1' }}>{openInfo} {closeInfo}</span>;
+    }
+    return null;
+  };
+
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, color: '#666' }}>
         <span>累计成交额: <b style={{ color: '#1890ff' }}>{(totalTurnover / 100000000).toFixed(2)} 亿</b></span>
         <span>累计成交量: <b style={{ color: '#ff9800' }}>{(totalVolume / 100 / 10000).toFixed(2)} 万手</b></span>
       </div>
+      {formatAuction() && (
+        <div style={{ padding: '4px 0', fontSize: 12, color: '#666' }}>
+          {formatAuction()}
+        </div>
+      )}
       <div ref={chartRef} style={{ width: '100%', height: '480px' }} />
     </div>
   );

@@ -581,6 +581,48 @@ class MarketDataClient:
 market_data_client = MarketDataClient()
 
 
+def get_auction_data(date: str) -> Dict[str, Dict]:
+    """
+    获取指定日期的竞价数据（模块级函数）
+    
+    Args:
+        date: 交易日期（YYYY-MM-DD）
+        
+    Returns:
+        字典 {股票代码: {open_vol, open_amount, open_vwap, close_vol, close_amount, close_vwap}}
+    """
+    trade_date = date.replace('-', '')
+    
+    result = {}
+    
+    # 获取开盘竞价数据
+    open_data = tushare_client.get_auction_open(trade_date)
+    if open_data and open_data.get('items'):
+        for item in open_data['items']:
+            # item: [ts_code, trade_date, close, open, high, low, vol, amount, vwap]
+            ts_code = item[0]
+            stock_code = ts_code.split('.')[0]
+            result[stock_code] = {
+                'open_vol': item[6],       # 成交量（股）
+                'open_amount': item[7],    # 成交额（元）
+                'open_vwap': item[8]       # 均价
+            }
+    
+    # 获取收盘竞价数据
+    close_data = tushare_client.get_auction_close(trade_date)
+    if close_data and close_data.get('items'):
+        for item in close_data['items']:
+            ts_code = item[0]
+            stock_code = ts_code.split('.')[0]
+            if stock_code not in result:
+                result[stock_code] = {}
+            result[stock_code]['close_vol'] = item[6]
+            result[stock_code]['close_amount'] = item[7]
+            result[stock_code]['close_vwap'] = item[8]
+    
+    return result
+
+
 def main():
     """测试客户端"""
     print("="*60)

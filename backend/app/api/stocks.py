@@ -361,3 +361,58 @@ async def batch_get_quote(request: Dict):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ==================== 竞价数据接口 ====================
+
+@router.post("/auction")
+async def save_auction_data(request: Dict):
+    """保存竞价数据"""
+    try:
+        date = request.get('date')
+        auction_data = request.get('auction_data', {})
+        
+        if not date:
+            raise HTTPException(status_code=400, detail="date参数不能为空")
+        
+        data_service = get_data_service()
+        success = data_service.save_auction_data(date, auction_data)
+        
+        return {
+            "success": success,
+            "message": f"保存 {len(auction_data)} 只股票竞价数据"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/auction/{stock_code}/{date}")
+async def get_auction_data(stock_code: str, date: str):
+    """获取竞价数据"""
+    try:
+        data_service = get_data_service()
+        data = data_service.get_auction_data(stock_code, date)
+        
+        return {
+            "success": True,
+            "data": data
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/auction-exists/{date}")
+async def check_auction_exists(date: str):
+    """检查指定日期的竞价数据是否存在"""
+    try:
+        data_service = get_data_service()
+        exists = data_service.check_auction_exists(date)
+        
+        return {
+            "success": True,
+            "exists": exists
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

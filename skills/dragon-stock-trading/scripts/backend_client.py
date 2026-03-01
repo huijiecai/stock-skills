@@ -284,6 +284,55 @@ class BackendClient:
         except Exception:
             # 如果API调用失败（404等），说明数据不存在
             return False
+    
+    def save_auction_data(self, date: str, auction_data: Dict[str, Dict]) -> Dict:
+        """
+        保存竞价数据
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            auction_data: 竞价数据字典 {股票代码: {open_vol, open_amount, ...}}
+        
+        Returns:
+            保存结果
+        """
+        return self._post("/stocks/auction", {
+            "date": date,
+            "auction_data": auction_data
+        })
+    
+    def get_auction_data(self, stock_code: str, date: str) -> Optional[Dict]:
+        """
+        获取竞价数据
+        
+        Args:
+            stock_code: 股票代码
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            竞价数据字典
+        """
+        try:
+            result = self._get(f"/stocks/auction/{stock_code}/{date}")
+            return result.get("data")
+        except Exception:
+            return None
+    
+    def check_auction_exists(self, date: str) -> bool:
+        """
+        检查指定日期的竞价数据是否存在
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            True if data exists, False otherwise
+        """
+        try:
+            result = self._get(f"/stocks/auction-exists/{date}")
+            return result.get("exists", False)
+        except Exception:
+            return False
 
 
 # 模块级别全局实例

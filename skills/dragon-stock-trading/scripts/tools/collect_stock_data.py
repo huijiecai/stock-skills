@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tushare_client import tushare_client
 from backend_client import backend_client
-from market_data_client import market_data_client
+from market_data_client import market_data_client, get_auction_data
 from stock_utils import get_board_type, get_market, get_ts_code, is_limit_up, is_limit_down
 
 
@@ -408,6 +408,71 @@ class StockDataCollector:
             print("=" * 60 + "\n")
         
         return success_count
+    
+    def collect_auction(self, start_date: str, end_date: str, force: bool = False, verbose: bool = True) -> int:
+        """
+        收集竞价数据（全市场）
+        
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+            force: 是否强制重新采集
+            verbose: 是否打印详细信息
+            
+        Returns:
+            成功采集的天数
+        """
+        # 获取交易日列表
+        trading_dates = self.get_trading_dates(start_date, end_date)
+        
+        if verbose:
+            print("=" * 60)
+            print("竞价数据采集器")
+            print("=" * 60)
+            print(f"\n📅 交易日数：{len(trading_dates)} 天")
+            print(f"🔄 强制模式：{'是' if force else '否'}")
+            print("=" * 60 + "\n")
+        
+        success_count = 0
+        
+        for date in trading_dates:
+            # 检查是否已存在
+            if not force and backend_client.check_auction_exists(date):
+                if verbose:
+                    print(f"  {date}: ⏭️ 已存在")
+                continue
+            
+            try:
+                # 获取竞价数据
+                auction_data = get_auction_data(date)
+                
+                if not auction_data:
+                    if verbose:
+                        print(f"  {date}: ⚠️ 无数据")
+                    continue
+                
+                # 保存到后端
+                result = backend_client.save_auction_data(date, auction_data)
+                
+                if result.get('success'):
+                    if verbose:
+                        print(f"  {date}: ✅ {len(auction_data)} 只股票")
+                    success_count += 1
+                elif verbose:
+                    print(f"  {date}: ❌ 保存失败")
+                
+                # 避免API疲劳
+                time.sleep(0.3)
+                
+            except Exception as e:
+                self.logger.error(f"  {date}: ❌ 错误: {e}")
+        
+        if verbose:
+            print(f"\n{'=' * 60}")
+            self.logger.info(f"✅ 采集完成！成功：{success_count}/{len(trading_dates)} 天")
+            print("=" * 60 + "\n")
+        
+        return success_count
 
 
 def main():
@@ -415,7 +480,7 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='单股票数据采集器')
-    parser.add_argument('--code', type=str, required=True,
+    parser.add_argument('--code', type=str, default=None,
                        help='股票代码（如 000001）')
     parser.add_argument('--days', type=int, default=60,
                        help='采集最近 N 天的数据（默认 60 天）')
@@ -425,10 +490,16 @@ def main():
                        help='结束日期（YYYY-MM-DD）')
     parser.add_argument('--intraday', action='store_true',
                        help='同时收集分时数据')
+    parser.add_argument('--auction', action='store_true',
+                       help='收集竞价数据（全市场，无需指定 --code）')
     parser.add_argument('--force', action='store_true',
                        help='强制重新采集')
     
     args = parser.parse_args()
+    
+    # 验证参数
+    if not args.auction and not args.code:
+        parser.error("必须指定 --code 或 --auction")
     
     # 计算日期范围
     if args.start:
@@ -442,12 +513,18 @@ def main():
     collector = StockDataCollector()
     
     try:
-        # 收集日线数据
-        collector.collect_daily(args.code, start_date, end_date, args.force)
+        # 收集竞价数据（全市场）
+        if args.auction:
+            collector.collect_auction(start_date, end_date, args.force)
         
-        # 如果指定，收集分时数据
-        if args.intraday:
-            collector.collect_intraday(args.code, start_date, end_date, args.force)
+        # 收集单只股票数据
+        if args.code:
+            # 收集日线数据
+            collector.collect_daily(args.code, start_date, end_date, args.force)
+            
+            # 如果指定，收集分时数据
+            if args.intraday:
+                collector.collect_intraday(args.code, start_date, end_date, args.force)
         
         print("\n🎉 采集任务成功完成！")
         sys.exit(0)

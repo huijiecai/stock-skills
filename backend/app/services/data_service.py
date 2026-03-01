@@ -797,6 +797,102 @@ class DataService:
         conn.close()
         
         return result
+    
+    def save_auction_data(self, date: str, auction_data: Dict[str, Dict]) -> bool:
+        """
+        保存竞价数据
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+            auction_data: 竞价数据字典 {股票代码: {open_vol, open_amount, open_vwap, close_vol, close_amount, close_vwap}}
+        
+        Returns:
+            是否成功
+        """
+        try:
+            conn = sqlite3.connect(self.db_path)
+            cursor = conn.cursor()
+            
+            # 先删除已有数据（避免重复）
+            cursor.execute('DELETE FROM stock_auction WHERE trade_date = ?', (date,))
+            
+            # 批量插入
+            for stock_code, data in auction_data.items():
+                cursor.execute('''
+                    INSERT INTO stock_auction
+                    (trade_date, stock_code, open_vol, open_amount, open_vwap, 
+                     close_vol, close_amount, close_vwap)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    date, stock_code,
+                    data.get('open_vol'), data.get('open_amount'), data.get('open_vwap'),
+                    data.get('close_vol'), data.get('close_amount'), data.get('close_vwap')
+                ))
+            
+            conn.commit()
+            conn.close()
+            return True
+        except Exception as e:
+            print(f"保存竞价数据失败 {date}: {e}")
+            return False
+    
+    def get_auction_data(self, stock_code: str, date: str) -> Optional[Dict]:
+        """
+        获取指定股票指定日期的竞价数据
+        
+        Args:
+            stock_code: 股票代码
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            竞价数据字典
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT open_vol, open_amount, open_vwap, close_vol, close_amount, close_vwap
+            FROM stock_auction
+            WHERE stock_code = ? AND trade_date = ?
+        ''', (stock_code, date))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return {
+                'open_vol': row[0],
+                'open_amount': row[1],
+                'open_vwap': row[2],
+                'close_vol': row[3],
+                'close_amount': row[4],
+                'close_vwap': row[5]
+            }
+        return None
+    
+    def check_auction_exists(self, date: str) -> bool:
+        """
+        检查指定日期的竞价数据是否存在
+        
+        Args:
+            date: 交易日期（YYYY-MM-DD）
+        
+        Returns:
+            True if data exists, False otherwise
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT COUNT(*) 
+            FROM stock_auction 
+            WHERE trade_date = ?
+        ''', (date,))
+        
+        count = cursor.fetchone()[0]
+        conn.close()
+        
+        return count > 0
 
 
 # 单例
