@@ -37,11 +37,11 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
     // const avgPrices = data.map(item => item.avg_price); // 暂时未使用
     const volumes = data.map(item => item.volume);
 
-    // 计算涨跌幅
-    const firstPrice = prices[0]; // 开盘价（数据按时间升序）
+    // 获取最新价格和涨跌幅（使用后端计算的 change_percent，基于昨日收盘价）
     const currentPrice = prices[prices.length - 1]; // 最新价
-    const changePercent = ((currentPrice - firstPrice) / firstPrice * 100).toFixed(2);
-    const changeAmount = (currentPrice - firstPrice).toFixed(2);
+    const lastItem = data[data.length - 1]; // 最后一条数据
+    const changePercent = (lastItem.change_percent * 100).toFixed(2); // 后端已计算好的涨跌幅
+    const changeAmount = (currentPrice - (currentPrice / (1 + lastItem.change_percent))).toFixed(2); // 反推涨跌额
 
     // 打印调试信息（帮助排查问题）
     console.log(`[IntradayChart] ${stockCode} ${date}: ${data.length}条数据, 价格范围 ${Math.min(...prices).toFixed(2)} ~ ${Math.max(...prices).toFixed(2)}`);
@@ -71,7 +71,10 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
           params.forEach(item => {
             if (item.seriesName === '分时线') {
               const price = item.value;
-              const percent = ((price - firstPrice) / firstPrice * 100).toFixed(2);
+              // 使用分时数据中自带的 change_percent（基于昨日收盘价）
+              const dataIndex = item.dataIndex;
+              const dataItem = data[dataIndex];
+              const percent = dataItem ? (dataItem.change_percent * 100).toFixed(2) : '0.00';
               result += `${item.marker}${item.seriesName}: ${price.toFixed(2)} 元 (${percent > 0 ? '+' : ''}${percent}%)<br/>`;
             } else if (item.seriesName === '均价线') {
               result += `${item.marker}${item.seriesName}: ${item.value.toFixed(2)} 元<br/>`;
