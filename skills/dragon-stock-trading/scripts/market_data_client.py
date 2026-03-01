@@ -435,6 +435,10 @@ class MarketDataClient:
         self._request_count = 0
 
 
+# 模块级别全局实例
+market_data_client = MarketDataClient()
+
+
 def main():
     """测试客户端"""
     print("="*60)

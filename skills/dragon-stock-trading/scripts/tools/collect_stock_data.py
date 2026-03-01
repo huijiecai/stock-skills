@@ -35,6 +35,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from tushare_client import tushare_client
 from backend_client import backend_client
+from market_data_client import market_data_client
 
 
 class StockDataCollector:
@@ -91,7 +92,7 @@ class StockDataCollector:
     
     def collect_daily(self, code: str, start_date: str, end_date: str, force: bool = False) -> int:
         """
-        收集单只股票的日线数据
+        收集单只股票的日线数据（批量查询）
         
         Args:
             code: 股票代码
@@ -111,48 +112,73 @@ class StockDataCollector:
         print("=" * 60 + "\n")
         
         ts_code = self._get_market_code(code)
-        trading_dates = self._get_trading_dates(start_date, end_date)
+        start_compact = start_date.replace('-', '')
+        end_compact = end_date.replace('-', '')
         
-        success_count = 0
-        
-        for i, date in enumerate(trading_dates, 1):
-            date_compact = date.replace('-', '')  # Tushare 格式：20260226
+        try:
+            # Step 1: 一次性获取日期范围内的所有日线数据
+            self.logger.info("Step 1: 批量获取日线数据...")
+            daily_data = None
+            for attempt in range(5):
+                daily_data = tushare_client.get_stock_daily(
+                    ts_code=ts_code,
+                    start_date=start_compact,
+                    end_date=end_compact
+                )
+                if daily_data and daily_data.get('items'):
+                    break
+                if attempt < 4:
+                    self.logger.warning(f"  重试 {attempt + 2}/5...")
+                    time.sleep(2)
             
-            print(f"[{i}/{len(trading_dates)}] {date}...", end=' ')
+            if not daily_data or not daily_data.get('items'):
+                self.logger.error("❌ 未获取到日线数据")
+                return 0
             
-            try:
-                # 获取日线数据（带重试，最多5次）
-                daily_data = None
-                for attempt in range(5):
-                    daily_data = tushare_client.get_stock_daily(ts_code, date_compact)
-                    if daily_data and daily_data.get('items'):
-                        break
-                    if attempt < 4:
-                        time.sleep(1)
-                
-                if not daily_data or not daily_data.get('items'):
-                    print("⏭️ 无数据（可能非交易日）")
-                    continue
-                
-                # 解析数据
-                item = daily_data['items'][0]
-                fields = daily_data['fields']
-                
+            self.logger.info(f"  ✅ 获取到 {len(daily_data['items'])} 条日线数据")
+            
+            # Step 2: 一次性获取日期范围内的所有基本面数据
+            self.logger.info("Step 2: 批量获取基本面数据...")
+            basic_data = None
+            for attempt in range(5):
+                basic_data = tushare_client.get_daily_basic(
+                    ts_code=ts_code,
+                    start_date=start_compact,
+                    end_date=end_compact
+                )
+                if basic_data:
+                    break
+                if attempt < 4:
+                    self.logger.warning(f"  重试 {attempt + 2}/5...")
+                    time.sleep(2)
+            
+            if basic_data:
+                self.logger.info(f"  ✅ 获取到 {len(basic_data)} 条基本面数据")
+            else:
+                self.logger.warning("  ⚠️ 未获取到基本面数据")
+                basic_data = {}
+            
+            # Step 3: 合并数据并保存
+            self.logger.info("Step 3: 保存数据...")
+            
+            # 解析日线数据
+            fields = daily_data['fields']
+            items = daily_data['items']
+            
+            success_count = 0
+            limit_rate = self._get_limit_rate(code)
+            
+            for item in items:
                 data_dict = dict(zip(fields, item))
+                trade_date_raw = str(data_dict.get('trade_date', ''))
+                date = f"{trade_date_raw[:4]}-{trade_date_raw[4:6]}-{trade_date_raw[6:8]}"
                 
-                # 获取基本面数据（使用 ts_code 直接获取单只股票，带重试最多5次）
-                basic_data = None
-                for attempt in range(5):
-                    basic_data = tushare_client.get_daily_basic(ts_code=ts_code)
-                    if basic_data:
-                        break
-                    if attempt < 4:
-                        time.sleep(1)
+                # 获取对应日期的基本面数据
+                basic = basic_data.get(trade_date_raw, {})
                 
                 # 判断涨跌停
                 close_price = data_dict.get('close', 0)
                 pre_close = data_dict.get('pre_close', 0)
-                limit_rate = self._get_limit_rate(code)
                 
                 if pre_close > 0:
                     limit_up_price = round(pre_close * (1 + limit_rate), 2)
@@ -166,31 +192,31 @@ class StockDataCollector:
                 # 构建保存数据
                 stock_data = {
                     "code": code,
-                    "name": "",  # 名称从股票池获取
+                    "name": "",
                     "market": "SH" if code.startswith('6') else "SZ",
                     "open": data_dict.get('open', 0),
                     "high": data_dict.get('high', 0),
                     "low": data_dict.get('low', 0),
                     "close": close_price,
                     "pre_close": pre_close,
-                    "change_percent": data_dict.get('pct_chg', 0) / 100,  # 转换为小数
+                    "change_percent": data_dict.get('pct_chg', 0) / 100,
                     "volume": data_dict.get('vol', 0),
-                    "turnover": data_dict.get('amount', 0) * 1000,  # 千元 -> 元
-                    "turnover_rate": basic_data.get('turnover_rate'),
-                    "turnover_rate_f": basic_data.get('turnover_rate_f'),
-                    "volume_ratio": basic_data.get('volume_ratio'),
-                    "pe": basic_data.get('pe'),
-                    "pe_ttm": basic_data.get('pe_ttm'),
-                    "pb": basic_data.get('pb'),
-                    "ps": basic_data.get('ps'),
-                    "ps_ttm": basic_data.get('ps_ttm'),
-                    "dv_ratio": basic_data.get('dv_ratio'),
-                    "dv_ttm": basic_data.get('dv_ttm'),
-                    "total_share": basic_data.get('total_share'),
-                    "float_share": basic_data.get('float_share'),
-                    "free_share": basic_data.get('free_share'),
-                    "total_mv": basic_data.get('total_mv'),
-                    "circ_mv": basic_data.get('circ_mv'),
+                    "turnover": data_dict.get('amount', 0) * 1000,
+                    "turnover_rate": basic.get('turnover_rate'),
+                    "turnover_rate_f": basic.get('turnover_rate_f'),
+                    "volume_ratio": basic.get('volume_ratio'),
+                    "pe": basic.get('pe'),
+                    "pe_ttm": basic.get('pe_ttm'),
+                    "pb": basic.get('pb'),
+                    "ps": basic.get('ps'),
+                    "ps_ttm": basic.get('ps_ttm'),
+                    "dv_ratio": basic.get('dv_ratio'),
+                    "dv_ttm": basic.get('dv_ttm'),
+                    "total_share": basic.get('total_share'),
+                    "float_share": basic.get('float_share'),
+                    "free_share": basic.get('free_share'),
+                    "total_mv": basic.get('total_mv'),
+                    "circ_mv": basic.get('circ_mv'),
                     "is_limit_up": is_limit_up,
                     "is_limit_down": is_limit_down,
                     "limit_up_time": "",
@@ -198,25 +224,26 @@ class StockDataCollector:
                 }
                 
                 # 保存到后端
-                result = backend_client.save_stock_daily(date, stock_data)
-                
-                if result.get('success'):
-                    print(f"✅ 涨跌: {data_dict.get('pct_chg', 0):+.2f}%")
-                    success_count += 1
-                else:
-                    print(f"❌ 保存失败")
-                
-                # 避免请求过快
-                time.sleep(0.3)
-                
-            except Exception as e:
-                print(f"❌ 错误: {e}")
-        
-        print(f"\n{'=' * 60}")
-        self.logger.info(f"✅ 采集完成！成功：{success_count}/{len(trading_dates)} 天")
-        print("=" * 60 + "\n")
-        
-        return success_count
+                try:
+                    result = backend_client.save_stock_daily(date, stock_data)
+                    if result.get('success'):
+                        pct_chg = data_dict.get('pct_chg', 0)
+                        print(f"  {date}: ✅ 涨跌: {pct_chg:+.2f}%")
+                        success_count += 1
+                    else:
+                        print(f"  {date}: ❌ 保存失败")
+                except Exception as e:
+                    print(f"  {date}: ❌ 错误: {e}")
+            
+            print(f"\n{'=' * 60}")
+            self.logger.info(f"✅ 采集完成！成功：{success_count}/{len(items)} 天")
+            print("=" * 60 + "\n")
+            
+            return success_count
+            
+        except Exception as e:
+            self.logger.error(f"❌ 采集失败: {e}")
+            return 0
     
     def collect_intraday(self, code: str, start_date: str, end_date: str, force: bool = False) -> int:
         """
@@ -248,43 +275,27 @@ class StockDataCollector:
             
             # 检查是否已存在
             if not force:
-                try:
-                    result = backend_client._get(f"/stocks/intraday-exists/{code}/{date}")
-                    if result.get('exists'):
-                        print("⏭️ 已存在")
-                        continue
-                except:
-                    pass
+                if backend_client.get_stock_intraday_existence(code, date):
+                    print("⏭️ 已存在")
+                    continue
             
             try:
                 # 获取分时数据（带重试，最多5次）
-                intraday_data = None
+                intraday_list = None
                 for attempt in range(5):
-                    intraday_data = tushare_client.get_stk_mins(ts_code, date.replace('-', ''))
-                    if intraday_data and intraday_data.get('items'):
+                    intraday_list = market_data_client.get_stock_intraday(
+                        code, 
+                        "SH" if code.startswith('6') else "SZ", 
+                        date
+                    )
+                    if intraday_list:
                         break
                     if attempt < 4:
                         time.sleep(1)
                 
-                if not intraday_data or not intraday_data.get('items'):
+                if not intraday_list:
                     print("⏭️ 无数据")
                     continue
-                
-                # 解析并保存
-                items = intraday_data['items']
-                fields = intraday_data['fields']
-                
-                intraday_list = []
-                for item in items:
-                    data_dict = dict(zip(fields, item))
-                    intraday_list.append({
-                        "trade_time": data_dict.get('time', ''),
-                        "price": data_dict.get('price', 0),
-                        "change_percent": data_dict.get('pct_chg', 0) / 100,
-                        "volume": data_dict.get('vol', 0),
-                        "turnover": data_dict.get('amount', 0),
-                        "avg_price": data_dict.get('avg_price', 0)
-                    })
                 
                 # 保存到后端
                 result = backend_client.save_intraday_data(date, code, intraday_list)

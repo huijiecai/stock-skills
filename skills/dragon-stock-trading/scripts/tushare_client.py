@@ -35,40 +35,45 @@ class TushareClient:
         # 请求计数（用于统计）
         self._request_count = 0
     
-    def get_stock_daily(self, ts_code: str, trade_date: str = "") -> Optional[Dict]:
+    def get_stock_daily(self, ts_code: str, trade_date: str = None, 
+                        start_date: str = None, end_date: str = None) -> Optional[Dict]:
         """
         获取股票日线数据（使用官方SDK）
         
         Args:
             ts_code: Tushare股票代码（如 000001.SZ）
-            trade_date: 交易日期（格式：20260226，留空则获取最近一条）
+            trade_date: 交易日期（格式：20260226），单日查询
+            start_date: 开始日期（格式：20260101），日期范围查询
+            end_date: 结束日期（格式：20260228），日期范围查询
             
         Returns:
-            日线数据字典
+            日线数据字典 {'items': [[...], ...], 'fields': [...]}
         """
         try:
-            # 如果没有指定日期，使用 start_date 限制只返回最近数据
+            params = {'ts_code': ts_code}
+            
             if trade_date:
-                df = self.pro.daily(
-                    ts_code=ts_code,
-                    trade_date=trade_date,
-                    fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
-                )
+                params['trade_date'] = trade_date
+            elif start_date or end_date:
+                if start_date:
+                    params['start_date'] = start_date
+                if end_date:
+                    params['end_date'] = end_date
             else:
-                # 获取最近1条数据（避免返回全部历史数据导致超时）
+                # 默认获取最近7天数据
                 import datetime
-                end_date = datetime.datetime.now().strftime('%Y%m%d')
-                start_date = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
-                df = self.pro.daily(
-                    ts_code=ts_code,
-                    start_date=start_date,
-                    end_date=end_date,
-                    fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
-                )
+                params['end_date'] = datetime.datetime.now().strftime('%Y%m%d')
+                params['start_date'] = (datetime.datetime.now() - datetime.timedelta(days=7)).strftime('%Y%m%d')
+            
+            df = self.pro.daily(
+                **params,
+                fields='ts_code,trade_date,open,high,low,close,pre_close,change,pct_chg,vol,amount'
+            )
             
             if df is None or df.empty:
-                # 静默返回 None（由上层处理重试）
                 return None
+            
+            self._request_count += 1
             
             return {
                 'items': df.values.tolist(),
@@ -296,44 +301,48 @@ class TushareClient:
             return None
 
 
-    def get_daily_basic(self, trade_date: str = None, ts_code: str = None) -> Optional[Dict]:
+    def get_daily_basic(self, trade_date: str = None, ts_code: str = None,
+                        start_date: str = None, end_date: str = None) -> Optional[Dict]:
         """
         获取每日基本面指标
         
         Args:
-            trade_date: 交易日期（格式：20260226），与 ts_code 二选一
-            ts_code: 股票代码（格式：000001.SZ），与 trade_date 二选一
+            trade_date: 交易日期（格式：20260226），批量查询所有股票
+            ts_code: 股票代码（格式：000001.SZ），查询单只股票
+            start_date: 开始日期（格式：20260101），与 ts_code 配合使用
+            end_date: 结束日期（格式：20260228），与 ts_code 配合使用
             
         Returns:
-            如果指定 trade_date: 字典 {股票代码: {字段: 值, ...}}（批量）
-            如果指定 ts_code: 字典 {字段: 值, ...}（单只股票）
-            包含: close, turnover_rate, turnover_rate_f, volume_ratio, pe, pe_ttm, pb, ps, ps_ttm,
-                  dv_ratio, dv_ttm, total_share, float_share, free_share, total_mv, circ_mv
+            如果指定 trade_date: 字典 {股票代码: {字段: 值, ...}}（批量单日）
+            如果指定 ts_code + 日期范围: 字典 {日期: {字段: 值, ...}}（单只股票多日）
+            如果指定 ts_code 无日期: 字典 {字段: 值, ...}（单只股票最新）
         """
         try:
-            # 根据参数选择调用方式
+            params = {}
+            
             if ts_code:
-                # 获取单只股票的基本面数据
-                df = self.pro.daily_basic(
-                    ts_code=ts_code,
-                    fields='ts_code,trade_date,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv'
-                )
-            else:
-                # 批量获取指定日期所有股票的基本面数据
-                df = self.pro.daily_basic(
-                    trade_date=trade_date,
-                    fields='ts_code,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv'
-                )
+                params['ts_code'] = ts_code
+                if start_date:
+                    params['start_date'] = start_date
+                if end_date:
+                    params['end_date'] = end_date
+            elif trade_date:
+                params['trade_date'] = trade_date
+            
+            df = self.pro.daily_basic(
+                **params,
+                fields='ts_code,trade_date,close,turnover_rate,turnover_rate_f,volume_ratio,pe,pe_ttm,pb,ps,ps_ttm,dv_ratio,dv_ttm,total_share,float_share,free_share,total_mv,circ_mv'
+            )
             
             if df is None or df.empty:
                 return None
             
             self._request_count += 1
             
-            # 如果是单只股票查询，直接返回该股票的数据
-            if ts_code:
-                row = df.iloc[0]
+            # 辅助函数：转换单行数据
+            def parse_row(row):
                 return {
+                    'trade_date': str(row['trade_date']) if 'trade_date' in row.index and row['trade_date'] is not None else None,
                     'close': row['close'] if row['close'] is not None and not self.isNaN(row['close']) else None,
                     'turnover_rate': row['turnover_rate'] / 100.0 if row['turnover_rate'] is not None and not self.isNaN(row['turnover_rate']) else None,
                     'turnover_rate_f': row['turnover_rate_f'] / 100.0 if row['turnover_rate_f'] is not None and not self.isNaN(row['turnover_rate_f']) else None,
@@ -352,30 +361,26 @@ class TushareClient:
                     'circ_mv': row['circ_mv'] if row['circ_mv'] is not None and not self.isNaN(row['circ_mv']) else None,
                 }
             
+            # 如果是单只股票查询
+            if ts_code:
+                if start_date or end_date:
+                    # 日期范围查询：返回 {日期: {字段: 值}}
+                    result = {}
+                    for _, row in df.iterrows():
+                        trade_dt = str(row['trade_date'])
+                        result[trade_dt] = parse_row(row)
+                    return result
+                else:
+                    # 单只股票无日期范围：返回最新一条数据
+                    row = df.iloc[0]
+                    return parse_row(row)
+            
             # 批量查询：转换为字典 {股票代码: {字段: 值}}
             result = {}
             for _, row in df.iterrows():
                 ts_code_val = row['ts_code']
                 code = ts_code_val.split('.')[0]
-                
-                result[code] = {
-                    'close': row['close'] if row['close'] is not None and not self.isNaN(row['close']) else None,
-                    'turnover_rate': row['turnover_rate'] / 100.0 if row['turnover_rate'] is not None and not self.isNaN(row['turnover_rate']) else None,
-                    'turnover_rate_f': row['turnover_rate_f'] / 100.0 if row['turnover_rate_f'] is not None and not self.isNaN(row['turnover_rate_f']) else None,
-                    'volume_ratio': row['volume_ratio'] if row['volume_ratio'] is not None and not self.isNaN(row['volume_ratio']) else None,
-                    'pe': row['pe'] if row['pe'] is not None and not self.isNaN(row['pe']) else None,
-                    'pe_ttm': row['pe_ttm'] if row['pe_ttm'] is not None and not self.isNaN(row['pe_ttm']) else None,
-                    'pb': row['pb'] if row['pb'] is not None and not self.isNaN(row['pb']) else None,
-                    'ps': row['ps'] if row['ps'] is not None and not self.isNaN(row['ps']) else None,
-                    'ps_ttm': row['ps_ttm'] if row['ps_ttm'] is not None and not self.isNaN(row['ps_ttm']) else None,
-                    'dv_ratio': row['dv_ratio'] / 100.0 if row['dv_ratio'] is not None and not self.isNaN(row['dv_ratio']) else None,
-                    'dv_ttm': row['dv_ttm'] / 100.0 if row['dv_ttm'] is not None and not self.isNaN(row['dv_ttm']) else None,
-                    'total_share': row['total_share'] if row['total_share'] is not None and not self.isNaN(row['total_share']) else None,
-                    'float_share': row['float_share'] if row['float_share'] is not None and not self.isNaN(row['float_share']) else None,
-                    'free_share': row['free_share'] if row['free_share'] is not None and not self.isNaN(row['free_share']) else None,
-                    'total_mv': row['total_mv'] if row['total_mv'] is not None and not self.isNaN(row['total_mv']) else None,
-                    'circ_mv': row['circ_mv'] if row['circ_mv'] is not None and not self.isNaN(row['circ_mv']) else None,
-                }
+                result[code] = parse_row(row)
             
             return result
         except Exception as e:

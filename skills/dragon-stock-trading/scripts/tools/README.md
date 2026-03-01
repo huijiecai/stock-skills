@@ -7,6 +7,7 @@
 | `import_stock_pool.py` | 从概念股票池文档导入股票到后端 | 首次初始化股票池 |
 | `collect_market_data.py` | 采集市场数据（支持日期范围、断点续传） | 批量采集历史数据 |
 | `collect_intraday_data.py` | 采集分时数据（支持日期范围、增量采集） | 批量采集历史分时数据 |
+| `collect_stock_data.py` | 采集单只股票数据（日线+分时） | 增量采集新加入的股票 |
 | `run_full_collection.py` | 一键执行所有任务 | 完整数据初始化 |
 
 ## 🚀 快速开始
@@ -59,6 +60,28 @@ python collect_market_data.py --days 1
 # 采集今日分时数据
 python collect_intraday_data.py --days 1
 ```
+
+### 5. 增量采集单只股票
+
+当股票池新增股票时，无需重新采集所有股票数据，只需采集新增股票：
+
+```bash
+# 采集单只股票的日线数据（最近60天）
+python collect_stock_data.py --code 000021 --days 60
+
+# 采集指定日期范围
+python collect_stock_data.py --code 000021 --start 2026-01-01 --end 2026-02-28
+
+# 同时收集日线和分时数据
+python collect_stock_data.py --code 000021 --days 30 --intraday
+
+# 强制重新采集
+python collect_stock_data.py --code 000021 --days 30 --force
+```
+
+**使用场景**：
+- 股票池新增股票后，只需采集该股票的历史数据
+- 比重新运行 `collect_market_data.py` 快得多（单只股票 vs 全量股票）
 
 ## ⚙️ 常用参数
 

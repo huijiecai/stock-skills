@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Tuple
 # 添加脚本目录到路径（上级目录，因为依赖模块在 scripts/ 下）
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from market_data_client import MarketDataClient
+from market_data_client import market_data_client
 from backend_client import backend_client
 from tushare_client import tushare_client
 
@@ -37,9 +37,6 @@ class MarketDataCollectorOptimized:
     """优化的市场数据采集器"""
     
     def __init__(self):
-        self.market_client = MarketDataClient()
-        self.backend_client = backend_client
-        
         # 配置日志
         self._setup_logging()
     
@@ -98,7 +95,7 @@ class MarketDataCollectorOptimized:
             True if exists, False otherwise
         """
         try:
-            return self.backend_client.check_market_data_exists(date)
+            return backend_client.check_market_data_exists(date)
         except Exception as e:
             self.logger.warning(f"检查日期 {date} 是否存在失败：{e}")
             return False
@@ -147,7 +144,7 @@ class MarketDataCollectorOptimized:
             self.logger.info("  Step 1: 获取市场概况...")
             market_data = None
             for attempt in range(5):
-                market_data = self.market_client.get_market_snapshot(date)
+                market_data = market_data_client.get_market_snapshot(date)
                 if market_data:
                     break
                 if attempt < 4:
@@ -163,7 +160,7 @@ class MarketDataCollectorOptimized:
             
             # Step 2: 获取股票池
             self.logger.info("  Step 2: 获取股票池...")
-            all_stocks = self.backend_client.get_all_stocks()
+            all_stocks = backend_client.get_all_stocks()
             
             if not all_stocks:
                 self.logger.error("  ❌ 股票池为空，请先导入股票")
@@ -175,7 +172,7 @@ class MarketDataCollectorOptimized:
             self.logger.info("  Step 3: 批量获取行情数据...")
             all_quotes = None
             for attempt in range(5):
-                all_quotes = self.market_client.get_daily_all(date)
+                all_quotes = market_data_client.get_daily_all(date)
                 if all_quotes:
                     break
                 if attempt < 4:
@@ -190,7 +187,7 @@ class MarketDataCollectorOptimized:
             
             # Step 4: 获取每日基本面数据（换手率、量比、估值等）
             self.logger.info("  Step 4: 获取每日基本面数据...")
-            daily_basic = self.market_client.get_daily_basic(date)
+            daily_basic = market_data_client.get_daily_basic(date)
             if daily_basic:
                 self.logger.info(f"  ✅ 获取到 {len(daily_basic)} 只股票基本面数据")
             else:
@@ -279,7 +276,7 @@ class MarketDataCollectorOptimized:
             
             # Step 6: 保存市场情绪
             self.logger.info("  Step 6: 保存市场情绪...")
-            result = self.backend_client.collect_market_sentiment(
+            result = backend_client.collect_market_sentiment(
                 date=date,
                 market_data=market_data
             )
@@ -295,7 +292,7 @@ class MarketDataCollectorOptimized:
             saved_count = 0
             for stock in stocks_data:
                 try:
-                    result = self.backend_client.save_stock_daily(date, stock)
+                    result = backend_client.save_stock_daily(date, stock)
                     if result.get('success'):
                         saved_count += 1
                 except Exception as e:
