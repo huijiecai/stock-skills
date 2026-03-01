@@ -15,7 +15,6 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
 
   useEffect(() => {
     if (!data || data.length === 0) {
-      // 如果没有数据，清理图表实例
       if (chartInstance.current) {
         chartInstance.current.dispose();
         chartInstance.current = null;
@@ -23,134 +22,101 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
       return;
     }
 
-    // 初始化图表（只初始化一次）
     if (!chartInstance.current && chartRef.current) {
       chartInstance.current = echarts.init(chartRef.current);
     }
 
-    // 如果图表实例不存在，返回
     if (!chartInstance.current) return;
 
     // 处理数据
-    const times = data.map(item => item.trade_time.substring(11, 16)); // HH:MM
+    const times = data.map(item => item.trade_time.substring(11, 16));
     const prices = data.map(item => item.price);
-    // const avgPrices = data.map(item => item.avg_price); // 暂时未使用
-    const volumes = data.map(item => item.volume);
+    
+    // 计算每分钟的增量（Tushare返回的是累计值）
+    const minuteVolumes = [];
+    const minuteTurnovers = [];
+    for (let i = 0; i < data.length; i++) {
+      if (i === 0) {
+        minuteVolumes.push(Math.max(0, data[i].volume || 0));
+        minuteTurnovers.push(Math.max(0, data[i].turnover || 0));
+      } else {
+        const volDiff = (data[i].volume || 0) - (data[i - 1].volume || 0);
+        const amtDiff = (data[i].turnover || 0) - (data[i - 1].turnover || 0);
+        minuteVolumes.push(Math.max(0, volDiff < 0 ? data[i].volume : volDiff));
+        minuteTurnovers.push(Math.max(0, amtDiff < 0 ? data[i].turnover : amtDiff));
+      }
+    }
 
-    // 获取最新价格和涨跌幅（使用后端计算的 change_percent，基于昨日收盘价）
-    const currentPrice = prices[prices.length - 1]; // 最新价
-    const lastItem = data[data.length - 1]; // 最后一条数据
-    const changePercent = (lastItem.change_percent * 100).toFixed(2); // 后端已计算好的涨跌幅
-    const changeAmount = (currentPrice - (currentPrice / (1 + lastItem.change_percent))).toFixed(2); // 反推涨跌额
+    // 获取最新价格和涨跌幅
+    const currentPrice = prices[prices.length - 1];
+    const lastItem = data[data.length - 1];
+    const changePercent = (lastItem.change_percent * 100).toFixed(2);
 
-    // 打印调试信息（帮助排查问题）
-    console.log(`[IntradayChart] ${stockCode} ${date}: ${data.length}条数据, 价格范围 ${Math.min(...prices).toFixed(2)} ~ ${Math.max(...prices).toFixed(2)}`);
+    // 计算累计值
+    // volume单位：股，turnover单位：元
+    const totalVolume = data[data.length - 1].volume || 0;
+    const totalTurnover = data[data.length - 1].turnover || 0;
 
     // 配置图表
     const option = {
       title: {
         text: `${stockName} (${stockCode})`,
-        subtext: `${date} | ${currentPrice.toFixed(2)} 元 | ${changePercent > 0 ? '+' : ''}${changePercent}% (${changeAmount > 0 ? '+' : ''}${changeAmount})`,
+        subtext: `${date} | ${currentPrice.toFixed(2)} 元 | ${changePercent > 0 ? '+' : ''}${changePercent}%`,
         left: 'center',
-        textStyle: {
-          fontSize: 16,
-          fontWeight: 'bold'
-        },
-        subtextStyle: {
-          fontSize: 14,
-          color: changePercent >= 0 ? '#ef5350' : '#26a69a'
-        }
+        top: 5,
+        textStyle: { fontSize: 16, fontWeight: 'bold' },
+        subtextStyle: { fontSize: 13, color: changePercent >= 0 ? '#ef5350' : '#26a69a' }
       },
       tooltip: {
         trigger: 'axis',
-        axisPointer: {
-          type: 'cross'
-        },
+        axisPointer: { type: 'cross' },
         formatter: function(params) {
           let result = `时间: ${params[0].axisValue}<br/>`;
           params.forEach(item => {
             if (item.seriesName === '分时线') {
-              const price = item.value;
-              // 使用分时数据中自带的 change_percent（基于昨日收盘价）
               const dataIndex = item.dataIndex;
               const dataItem = data[dataIndex];
               const percent = dataItem ? (dataItem.change_percent * 100).toFixed(2) : '0.00';
-              result += `${item.marker}${item.seriesName}: ${price.toFixed(2)} 元 (${percent > 0 ? '+' : ''}${percent}%)<br/>`;
-            } else if (item.seriesName === '均价线') {
-              result += `${item.marker}${item.seriesName}: ${item.value.toFixed(2)} 元<br/>`;
+              result += `${item.marker}${item.seriesName}: ${item.value.toFixed(2)} 元 (${percent > 0 ? '+' : ''}${percent}%)<br/>`;
+            } else if (item.seriesName === '成交额') {
+              // turnover单位：元
+              result += `${item.marker}成交额: ${(item.value / 10000).toFixed(2)} 万元<br/>`;
             } else if (item.seriesName === '成交量') {
-              result += `${item.marker}${item.seriesName}: ${(item.value / 10000).toFixed(2)} 万手<br/>`;
+              // volume单位：股
+              result += `${item.marker}成交量: ${(item.value / 100).toFixed(0)} 手<br/>`;
             }
           });
           return result;
         }
       },
+      legend: {
+        data: ['成交额', '成交量'],
+        top: 5,
+        right: 10,
+        selected: { '成交额': true, '成交量': false }
+      },
       grid: [
-        {
-          left: '5%',
-          right: '5%',
-          top: '15%',
-          height: '50%'
-        },
-        {
-          left: '5%',
-          right: '5%',
-          top: '70%',
-          height: '18%'
-        }
+        { left: '8%', right: '3%', top: '15%', height: '50%' },
+        { left: '8%', right: '3%', top: '70%', height: '18%' }
       ],
       xAxis: [
-        {
-          type: 'category',
-          data: times,
-          gridIndex: 0,
-          axisLabel: {
-            interval: Math.floor(times.length / 6),
-            formatter: function(value) {
-              return value;
-            }
-          },
-          splitLine: {
-            show: true,
-            lineStyle: {
-              color: '#f0f0f0'
-            }
-          }
-        },
-        {
-          type: 'category',
-          data: times,
-          gridIndex: 1,
-          axisLabel: {
-            show: false
-          }
-        }
+        { type: 'category', data: times, gridIndex: 0, axisLabel: { interval: Math.floor(times.length / 6) }, splitLine: { show: true, lineStyle: { color: '#f0f0f0' } } },
+        { type: 'category', data: times, gridIndex: 1, axisLabel: { show: false } }
       ],
       yAxis: [
-        {
-          type: 'value',
-          gridIndex: 0,
-          scale: true,
-          splitLine: {
-            lineStyle: {
-              color: '#f0f0f0'
+        { type: 'value', gridIndex: 0, scale: true, splitLine: { lineStyle: { color: '#f0f0f0' } }, axisLabel: { formatter: '{value}' } },
+        { 
+          type: 'value', 
+          gridIndex: 1, 
+          splitLine: { show: false }, 
+          axisLabel: { 
+            formatter: v => {
+              // 成交额单位元，成交量单位股
+              if (v >= 100000000) return (v/100000000).toFixed(1) + '亿';
+              if (v >= 10000) return (v/10000).toFixed(0) + '万';
+              return v;
             }
-          },
-          axisLabel: {
-            formatter: '{value}'
-          }
-        },
-        {
-          type: 'value',
-          gridIndex: 1,
-          splitLine: {
-            show: false
-          },
-          axisLabel: {
-            formatter: function(value) {
-              return (value / 10000).toFixed(0) + '万';
-            }
-          }
+          } 
         }
       ],
       series: [
@@ -162,75 +128,39 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
           yAxisIndex: 0,
           smooth: false,
           symbol: 'none',
-          lineStyle: {
-            color: '#2196f3',
-            width: 1
-          },
-          itemStyle: {
-            color: '#2196f3'
-          },
-          areaStyle: {
-            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-              {
-                offset: 0,
-                color: 'rgba(33, 150, 243, 0.3)'
-              },
-              {
-                offset: 1,
-                color: 'rgba(33, 150, 243, 0.05)'
-              }
-            ])
-          }
+          lineStyle: { color: '#2196f3', width: 1 },
+          itemStyle: { color: '#2196f3' },
+          areaStyle: { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+            { offset: 0, color: 'rgba(33, 150, 243, 0.3)' },
+            { offset: 1, color: 'rgba(33, 150, 243, 0.05)' }
+          ])}
         },
-        // 暂时注释均价线，因为数据问题导致Y轴范围异常
-        // {
-        //   name: '均价线',
-        //   type: 'line',
-        //   data: avgPrices,
-        //   xAxisIndex: 0,
-        //   yAxisIndex: 0,
-        //   smooth: false,
-        //   symbol: 'none',
-        //   lineStyle: {
-        //     color: '#ff9800',
-        //     width: 1
-        //   },
-        //   itemStyle: {
-        //     color: '#ff9800'
-        //   }
-        // },
+        {
+          name: '成交额',
+          type: 'bar',
+          data: minuteTurnovers,
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          itemStyle: { color: params => params.dataIndex === 0 ? '#ef5350' : (prices[params.dataIndex] >= prices[params.dataIndex - 1] ? '#ef5350' : '#26a69a') }
+        },
         {
           name: '成交量',
           type: 'bar',
-          data: volumes,
+          data: minuteVolumes,
           xAxisIndex: 1,
           yAxisIndex: 1,
-          itemStyle: {
-            color: function(params) {
-              const idx = params.dataIndex;
-              if (idx === 0) return '#ef5350';
-              return prices[idx] >= prices[idx + 1] ? '#ef5350' : '#26a69a';
-            }
-          }
+          itemStyle: { color: params => params.dataIndex === 0 ? '#ff9800' : (prices[params.dataIndex] >= prices[params.dataIndex - 1] ? '#ff9800' : '#9c27b0') }
         }
       ]
     };
 
     chartInstance.current.setOption(option);
 
-    // 响应式调整
-    const handleResize = () => {
-      chartInstance.current?.resize();
-    };
+    const handleResize = () => chartInstance.current?.resize();
     window.addEventListener('resize', handleResize);
-
-    // 清理函数：只移除事件监听，不销毁图表
-    return () => {
-      window.removeEventListener('resize', handleResize);
-    };
+    return () => window.removeEventListener('resize', handleResize);
   }, [data, stockCode, stockName, date]);
 
-  // 组件卸载时销毁图表
   useEffect(() => {
     return () => {
       if (chartInstance.current) {
@@ -241,20 +171,22 @@ const IntradayChart = ({ data, stockCode, stockName, date }) => {
   }, []);
 
   if (!data || data.length === 0) {
-    return (
-      <div style={{ 
-        height: '500px', 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'center',
-        color: '#999'
-      }}>
-        暂无分时数据
-      </div>
-    );
+    return <div style={{ height: '500px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>暂无分时数据</div>;
   }
 
-  return <div ref={chartRef} style={{ width: '100%', height: '500px' }} />;
+  // 计算累计值（volume单位：股，turnover单位：元）
+  const totalVolume = data[data.length - 1].volume || 0;
+  const totalTurnover = data[data.length - 1].turnover || 0;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, color: '#666' }}>
+        <span>累计成交额: <b style={{ color: '#1890ff' }}>{(totalTurnover / 100000000).toFixed(2)} 亿</b></span>
+        <span>累计成交量: <b style={{ color: '#ff9800' }}>{(totalVolume / 100 / 10000).toFixed(2)} 万手</b></span>
+      </div>
+      <div ref={chartRef} style={{ width: '100%', height: '480px' }} />
+    </div>
+  );
 };
 
 export default IntradayChart;

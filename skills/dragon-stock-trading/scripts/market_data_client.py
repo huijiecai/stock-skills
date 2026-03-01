@@ -396,12 +396,13 @@ class MarketDataClient:
         result = []
         for item in data['items']:
             # item结构: [ts_code, trade_time, open, high, low, close, vol, amount]
-            vol = float(item[6])  # 累计成交量（手）
-            amt = float(item[7]) * 1000  # 累计成交额（千元转元）
+            # Tushare stk_mins接口：vol单位是股，amount单位是元
+            vol = float(item[6])  # 成交量，单位：股
+            amt = float(item[7])  # 成交额，单位：元
             price = float(item[5])  # 当前价（close）
             
             # 计算均价：成交额(元) / 成交量(股)
-            avg_price = amt / (vol * 100) if vol > 0 else price
+            avg_price = amt / vol if vol > 0 else price
             
             # 计算涨跌幅
             change_pct = (price - prev_close) / prev_close if prev_close > 0 else 0
@@ -479,12 +480,13 @@ class MarketDataClient:
                     raise RuntimeError(f"缺少 {date} 的昨收价数据: {stock_code}")
                 prev_close = prev_closes[date]
             
-            vol = float(item[6])  # 累计成交量（手）
-            amt = float(item[7]) * 1000  # 累计成交额（千元转元）
+            # Tushare stk_mins接口：vol单位是股，amount单位是元
+            vol = float(item[6])  # 成交量，单位：股
+            amt = float(item[7])  # 成交额，单位：元
             price = float(item[5])  # 当前价（close）
             
             # 计算均价：成交额(元) / 成交量(股)
-            avg_price = amt / (vol * 100) if vol > 0 else price
+            avg_price = amt / vol if vol > 0 else price
             
             # 计算涨跌幅
             change_pct = (price - prev_close) / prev_close if prev_close > 0 else 0
