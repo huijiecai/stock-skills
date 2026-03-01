@@ -8,9 +8,10 @@ import * as echarts from 'echarts';
  * @param {String} props.stockCode - 股票代码
  * @param {String} props.stockName - 股票名称
  * @param {String} props.date - 日期
- * @param {Object} props.auctionData - 竞价数据 {open_vol, open_amount, close_vol, close_amount}
+ * 
+ * 数据说明：volume/turnover 是每分钟的增量（股/元），不是累计值
  */
-const IntradayChart = ({ data, stockCode, stockName, date, auctionData }) => {
+const IntradayChart = ({ data, stockCode, stockName, date }) => {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
 
@@ -33,30 +34,14 @@ const IntradayChart = ({ data, stockCode, stockName, date, auctionData }) => {
     const times = data.map(item => item.trade_time.substring(11, 16));
     const prices = data.map(item => item.price);
     
-    // 计算每分钟的增量（Tushare返回的是累计值）
-    const minuteVolumes = [];
-    const minuteTurnovers = [];
-    for (let i = 0; i < data.length; i++) {
-      if (i === 0) {
-        minuteVolumes.push(Math.max(0, data[i].volume || 0));
-        minuteTurnovers.push(Math.max(0, data[i].turnover || 0));
-      } else {
-        const volDiff = (data[i].volume || 0) - (data[i - 1].volume || 0);
-        const amtDiff = (data[i].turnover || 0) - (data[i - 1].turnover || 0);
-        minuteVolumes.push(Math.max(0, volDiff < 0 ? data[i].volume : volDiff));
-        minuteTurnovers.push(Math.max(0, amtDiff < 0 ? data[i].turnover : amtDiff));
-      }
-    }
+    // 每分钟的成交量/额（数据本身就是增量，直接使用）
+    const minuteVolumes = data.map(item => Math.max(0, item.volume || 0));
+    const minuteTurnovers = data.map(item => Math.max(0, item.turnover || 0));
 
     // 获取最新价格和涨跌幅
     const currentPrice = prices[prices.length - 1];
     const lastItem = data[data.length - 1];
     const changePercent = (lastItem.change_percent * 100).toFixed(2);
-
-    // 计算累计值
-    // volume单位：股，turnover单位：元
-    const totalVolume = data[data.length - 1].volume || 0;
-    const totalTurnover = data[data.length - 1].turnover || 0;
 
     // 配置图表
     const option = {
@@ -72,21 +57,32 @@ const IntradayChart = ({ data, stockCode, stockName, date, auctionData }) => {
         trigger: 'axis',
         axisPointer: { type: 'cross' },
         formatter: function(params) {
+          const dataIndex = params[0].dataIndex;
+          const dataItem = data[dataIndex];
+          
+          // 计算累计值（累加到当前分钟）
+          let cumVolume = 0, cumTurnover = 0;
+          for (let i = 0; i <= dataIndex; i++) {
+            cumVolume += data[i].volume || 0;
+            cumTurnover += data[i].turnover || 0;
+          }
+          
           let result = `时间: ${params[0].axisValue}<br/>`;
           params.forEach(item => {
             if (item.seriesName === '分时线') {
-              const dataIndex = item.dataIndex;
-              const dataItem = data[dataIndex];
               const percent = dataItem ? (dataItem.change_percent * 100).toFixed(2) : '0.00';
               result += `${item.marker}${item.seriesName}: ${item.value.toFixed(2)} 元 (${percent > 0 ? '+' : ''}${percent}%)<br/>`;
             } else if (item.seriesName === '成交额') {
-              // turnover单位：元
-              result += `${item.marker}成交额: ${(item.value / 10000).toFixed(2)} 万元<br/>`;
+              const minAmt = item.value;
+              result += `${item.marker}分钟成交额: ${(minAmt / 10000).toFixed(2)} 万元<br/>`;
             } else if (item.seriesName === '成交量') {
-              // volume单位：股
-              result += `${item.marker}成交量: ${(item.value / 100).toFixed(0)} 手<br/>`;
+              const minVol = item.value;
+              result += `${item.marker}分钟成交量: ${(minVol / 100).toFixed(0)} 手<br/>`;
             }
           });
+          result += `───────────<br/>`;
+          result += `累计成交额: ${(cumTurnover / 100000000).toFixed(2)} 亿元<br/>`;
+          result += `累计成交量: ${(cumVolume / 100 / 10000).toFixed(2)} 万手`;
           return result;
         }
       },
@@ -175,34 +171,8 @@ const IntradayChart = ({ data, stockCode, stockName, date, auctionData }) => {
     return <div style={{ height: '500px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>暂无分时数据</div>;
   }
 
-  // 计算累计值（volume单位：股，turnover单位：元）
-  const totalVolume = data[data.length - 1].volume || 0;
-  const totalTurnover = data[data.length - 1].turnover || 0;
-
-  // 格式化竞价数据
-  const formatAuction = () => {
-    if (!auctionData) return null;
-    const openInfo = auctionData.open_vol ? `开盘竞价: ${(auctionData.open_vol / 10000).toFixed(0)}万手 / ${(auctionData.open_amount / 100000000).toFixed(2)}亿` : '';
-    const closeInfo = auctionData.close_vol ? `收盘竞价: ${(auctionData.close_vol / 10000).toFixed(0)}万手 / ${(auctionData.close_amount / 100000000).toFixed(2)}亿` : '';
-    if (openInfo || closeInfo) {
-      return <span style={{ color: '#722ed1' }}>{openInfo} {closeInfo}</span>;
-    }
-    return null;
-  };
-
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', fontSize: 13, color: '#666' }}>
-        <span>累计成交额: <b style={{ color: '#1890ff' }}>{(totalTurnover / 100000000).toFixed(2)} 亿</b></span>
-        <span>累计成交量: <b style={{ color: '#ff9800' }}>{(totalVolume / 100 / 10000).toFixed(2)} 万手</b></span>
-      </div>
-      {formatAuction() && (
-        <div style={{ padding: '4px 0', fontSize: 12, color: '#666' }}>
-          {formatAuction()}
-        </div>
-      )}
-      <div ref={chartRef} style={{ width: '100%', height: '480px' }} />
-    </div>
+    <div ref={chartRef} style={{ width: '100%', height: '500px' }} />
   );
 };
 
