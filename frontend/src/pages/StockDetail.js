@@ -227,11 +227,11 @@ export default function StockDetail() {
                 </Col>
                 <Col span={4}>
                   <div style={labelStyle}>总市值</div>
-                  <div style={valueStyle}>{quote.total_mv ? (quote.total_mv / 100000000).toFixed(2) : '-'}<span style={unitStyle}>亿</span></div>
+                  <div style={valueStyle}>{quote.total_mv ? (quote.total_mv / 10000).toFixed(2) : '-'}<span style={unitStyle}>亿</span></div>
                 </Col>
                 <Col span={4}>
                   <div style={labelStyle}>流通市值</div>
-                  <div style={valueStyle}>{quote.circ_mv ? (quote.circ_mv / 100000000).toFixed(2) : '-'}<span style={unitStyle}>亿</span></div>
+                  <div style={valueStyle}>{quote.circ_mv ? (quote.circ_mv / 10000).toFixed(2) : '-'}<span style={unitStyle}>亿</span></div>
                 </Col>
                 <Col span={4}>
                   <div style={labelStyle}>PE(TTM)</div>
