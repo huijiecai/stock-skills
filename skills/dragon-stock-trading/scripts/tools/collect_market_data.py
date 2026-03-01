@@ -147,16 +147,22 @@ class MarketDataCollectorOptimized:
             self.logger.warning(f"检查日期 {date} 是否存在失败：{e}")
             return False
     
-    def _get_limit_threshold(self, code: str, name: str) -> float:
-        """根据股票代码和名称判断涨停阈值"""
-        if 'ST' in name.upper():
-            return 4.9  # ST 股票 5%
-        elif code.startswith('688') or code.startswith('300'):
-            return 19.5  # 科创板/创业板 20%
+    def _get_limit_rate(self, code: str) -> float:
+        """
+        根据股票代码获取涨跌停幅度
+        
+        Args:
+            code: 股票代码
+            
+        Returns:
+            涨跌停幅度（0.10 = 10%, 0.20 = 20%, 0.30 = 30%）
+        """
+        if code.startswith('688') or code.startswith('300'):
+            return 0.20  # 科创板/创业板 20%
         elif code.startswith('8') or code.startswith('4'):
-            return 29.5  # 北交所 30%
+            return 0.30  # 北交所 30%
         else:
-            return 9.5  # 主板/中小板 10%
+            return 0.10  # 主板/中小板 10%
     
     def _process_single_stock(self, stock: Dict, date: str) -> Optional[Dict]:
         """
@@ -201,11 +207,19 @@ class MarketDataCollectorOptimized:
             
             # 提取涨跌幅
             change_percent = quote.get('chp', 0.0)
+            close_price = quote.get('ld', 0.0)
+            pre_close = quote.get('p', 0.0)
             
-            # 判断涨停/跌停
-            limit_threshold = self._get_limit_threshold(code, name)
-            is_limit_up = 1 if change_percent >= limit_threshold else 0
-            is_limit_down = 1 if change_percent <= -limit_threshold else 0
+            # 精确判断涨停/跌停（比较收盘价与涨停价/跌停价）
+            limit_rate = self._get_limit_rate(code)
+            if pre_close > 0:
+                limit_up_price = round(pre_close * (1 + limit_rate), 2)
+                limit_down_price = round(pre_close * (1 - limit_rate), 2)
+                is_limit_up = 1 if close_price >= limit_up_price - 0.01 else 0
+                is_limit_down = 1 if close_price <= limit_down_price + 0.01 else 0
+            else:
+                is_limit_up = 0
+                is_limit_down = 0
             
             # 构建股票数据
             stock_data = {
@@ -215,8 +229,8 @@ class MarketDataCollectorOptimized:
                 "open": quote.get('o', 0.0),
                 "high": quote.get('h', 0.0),
                 "low": quote.get('l', 0.0),
-                "close": quote.get('ld', 0.0),
-                "pre_close": quote.get('p', 0.0),
+                "close": close_price,
+                "pre_close": pre_close,
                 "change_percent": change_percent,
                 "volume": quote.get('vol', 0),
                 "turnover": quote.get('amt', 0.0),
