@@ -54,16 +54,20 @@ class StockDataCollector:
         )
         self.logger = logging.getLogger(__name__)
     
-    def _get_trading_dates(self, start_date: str, end_date: str) -> List[str]:
-        """获取交易日期列表"""
-        trading_dates = tushare_client.get_trade_calendar(start_date, end_date)
+    def get_trading_dates(self, start_date: str, end_date: str) -> List[str]:
+        """获取交易日期列表（带重试，公开方法）"""
+        trading_dates = None
+        for attempt in range(5):
+            trading_dates = tushare_client.get_trade_calendar(start_date, end_date)
+            if trading_dates:
+                self.logger.info(f"获取到 {len(trading_dates)} 个交易日")
+                return trading_dates
+            if attempt < 4:
+                self.logger.warning(f"交易日历 API 调用失败，重试 {attempt + 2}/5...")
+                time.sleep(2)
         
-        if trading_dates:
-            self.logger.info(f"获取到 {len(trading_dates)} 个交易日")
-            return trading_dates
-        
-        # API 调用失败，抛出异常（不允许回退）
-        raise RuntimeError(f"交易日历 API 调用失败，无法获取 {start_date} ~ {end_date} 的交易日数据")
+        # 重试5次后仍失败，抛出异常
+        raise RuntimeError(f"交易日历 API 调用失败（已重试5次），无法获取 {start_date} ~ {end_date} 的交易日数据")
     
     def _ensure_stock_in_pool(self, code: str) -> Dict:
         """
@@ -282,43 +286,56 @@ class StockDataCollector:
             self.logger.error(f"❌ 采集失败: {e}")
             return 0
     
-    def collect_intraday(self, code: str, start_date: str, end_date: str, force: bool = False) -> int:
+    def collect_intraday(self, code: str, start_date: str = None, end_date: str = None, 
+                         force: bool = False, trading_dates: List[str] = None,
+                         verbose: bool = True) -> int:
         """
         收集单只股票的分时数据（批量查询优化版）
         
         Args:
             code: 股票代码
-            start_date: 开始日期
-            end_date: 结束日期
+            start_date: 开始日期（trading_dates 为 None 时必填）
+            end_date: 结束日期（trading_dates 为 None 时必填）
             force: 是否强制重新采集
+            trading_dates: 交易日列表（批量采集时传入，避免重复调用 API）
+            verbose: 是否打印详细信息（批量采集时设为 False）
             
         Returns:
             成功采集的天数
         """
-        print("=" * 60)
-        print(f"单股票分时数据采集器（批量查询）")
-        print("=" * 60)
-        print(f"\n📊 股票代码：{code}")
-        print(f"📅 采集范围：{start_date} ~ {end_date}")
-        print(f"🔄 强制模式：{'是' if force else '否'}")
-        print("=" * 60 + "\n")
+        # 获取交易日列表
+        if trading_dates is None:
+            if not start_date or not end_date:
+                raise ValueError("trading_dates 为 None 时，必须提供 start_date 和 end_date")
+            trading_dates = self.get_trading_dates(start_date, end_date)
         
-        trading_dates = self._get_trading_dates(start_date, end_date)
         market = get_market(code)
+        
+        # 打印标题（批量模式时跳过）
+        if verbose:
+            print("=" * 60)
+            print(f"单股票分时数据采集器（批量查询）")
+            print("=" * 60)
+            print(f"\n📊 股票代码：{code}")
+            print(f"📅 交易日数：{len(trading_dates)} 天")
+            print(f"🔄 强制模式：{'是' if force else '否'}")
+            print("=" * 60 + "\n")
         
         # 获取需要采集的日期（排除已存在的）
         dates_to_collect = []
         for date in trading_dates:
             if force or not backend_client.get_stock_intraday_existence(code, date):
                 dates_to_collect.append(date)
-            else:
+            elif verbose:
                 print(f"  {date}: ⏭️ 已存在")
         
         if not dates_to_collect:
-            self.logger.info("✅ 所有日期已存在，无需采集")
+            if verbose:
+                self.logger.info("✅ 所有日期已存在，无需采集")
             return 0
         
-        print(f"\n📋 需要采集 {len(dates_to_collect)} 个交易日")
+        if verbose:
+            print(f"\n📋 需要采集 {len(dates_to_collect)} 个交易日")
         
         success_count = 0
         total_dates = len(dates_to_collect)
@@ -332,7 +349,8 @@ class StockDataCollector:
             batch_start_date = min(batch_dates[0], batch_dates[-1])
             batch_end_date = max(batch_dates[0], batch_dates[-1])
             
-            print(f"\n[批次 {batch_start//batch_size + 1}] 采集 {batch_start_date} ~ {batch_end_date}...")
+            if verbose:
+                print(f"\n[批次 {batch_start//batch_size + 1}] 采集 {batch_start_date} ~ {batch_end_date}...")
             
             try:
                 # 批量获取分时数据（一次 API 调用获取多天）
@@ -359,28 +377,31 @@ class StockDataCollector:
                     day_data = intraday_data.get(date, [])
                     
                     if not day_data:
-                        print(f"  {date}: ⏭️ 无数据")
+                        if verbose:
+                            print(f"  {date}: ⏭️ 无数据")
                         continue
                     
                     # 保存到后端
                     result = backend_client.save_intraday_data(date, code, day_data)
                     
                     if result.get('success'):
-                        print(f"  {date}: ✅ {len(day_data)} 条")
+                        if verbose:
+                            print(f"  {date}: ✅ {len(day_data)} 条")
                         success_count += 1
-                    else:
+                    elif verbose:
                         print(f"  {date}: ❌ 保存失败")
                 
                 # 批次间休息（避免 API 疲劳）
                 if batch_start + batch_size < total_dates:
-                    time.sleep(1)
+                    time.sleep(0.5)
                     
             except Exception as e:
                 self.logger.error(f"  ❌ 批次失败: {e}")
         
-        print(f"\n{'=' * 60}")
-        self.logger.info(f"✅ 采集完成！成功：{success_count}/{total_dates} 天")
-        print("=" * 60 + "\n")
+        if verbose:
+            print(f"\n{'=' * 60}")
+            self.logger.info(f"✅ 采集完成！成功：{success_count}/{total_dates} 天")
+            print("=" * 60 + "\n")
         
         return success_count
 

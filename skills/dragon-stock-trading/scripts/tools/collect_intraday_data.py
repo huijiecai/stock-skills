@@ -72,8 +72,21 @@ class IntradayDataCollectorOptimized:
         print(f"📅 采集顺序：{'从新到旧' if reverse else '从旧到新'}")
         print("=" * 60 + "\n")
         
+        # 获取交易日列表（只调用一次，复用 stock_data_collector 的重试逻辑）
+        trading_dates = stock_data_collector.get_trading_dates(start_date, end_date)
+        
+        if not trading_dates:
+            self.logger.error("❌ 获取交易日列表失败")
+            return
+        
+        # 从新到旧采集（默认）
+        if reverse:
+            trading_dates = list(reversed(trading_dates))
+        
+        self.logger.info(f"✅ 交易日数：{len(trading_dates)} 天")
+        
         # 获取股票池
-        self.logger.info("📋 获取股票池...")
+        self.logger.info("\n📋 获取股票池...")
         all_stocks = backend_client.get_all_stocks()
         
         if not all_stocks:
@@ -87,7 +100,7 @@ class IntradayDataCollectorOptimized:
         total_success = 0
         total_failed = 0
         
-        # 遍历所有股票，调用 collect_stock_data.collect_intraday
+        # 遍历所有股票，传入已获取的交易日列表
         for i, stock in enumerate(all_stocks, 1):
             code = stock['code']
             name = stock.get('name', '')
@@ -95,9 +108,12 @@ class IntradayDataCollectorOptimized:
             print(f"\n[{i}/{total_stocks}] {code} {name}")
             
             try:
-                # 复用 collect_stock_data 的批量查询方法
+                # 复用 collect_stock_data 的批量查询方法，传入交易日列表
                 success_count = stock_data_collector.collect_intraday(
-                    code, start_date, end_date, force
+                    code, 
+                    trading_dates=trading_dates,
+                    force=force,
+                    verbose=False  # 批量模式不打印详细信息
                 )
                 
                 if success_count > 0:
