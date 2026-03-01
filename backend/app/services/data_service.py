@@ -529,10 +529,16 @@ class DataService:
                 sd.volume,
                 sd.turnover,
                 sd.turnover_rate,
+                sd.turnover_rate_f,
                 sd.high_price as high,
                 sd.low_price as low,
                 sd.open_price as open,
-                sd.pre_close
+                sd.pre_close,
+                sd.total_mv,
+                sd.circ_mv,
+                sd.pe,
+                sd.pe_ttm,
+                sd.pb
             FROM stock_daily sd
             LEFT JOIN stock_info si ON sd.stock_code = si.stock_code
             WHERE sd.stock_code = ?
@@ -555,10 +561,16 @@ class DataService:
             'volume': row[5],
             'turnover': row[6],
             'turnover_rate': row[7],
-            'high': row[8],
-            'low': row[9],
-            'open': row[10],
-            'prev_close': row[11]
+            'turnover_rate_f': row[8],
+            'high': row[9],
+            'low': row[10],
+            'open': row[11],
+            'prev_close': row[12],
+            'total_mv': row[13],
+            'circ_mv': row[14],
+            'pe': row[15],
+            'pe_ttm': row[16],
+            'pb': row[17]
         }
     
     def get_stock_daily(self, stock_code: str, start_date: str, end_date: str) -> List[Dict]:

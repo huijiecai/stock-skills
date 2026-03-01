@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Tabs, DatePicker, Card, Statistic, Row, Col, Spin, message } from 'antd';
-import { ArrowLeftOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons';
+import { Button, Tabs, DatePicker, Card, Row, Col, Spin, message } from 'antd';
+import { ArrowLeftOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { stocksAPI, marketAPI } from '../services/api';
 import IntradayChart from '../components/IntradayChart';
@@ -161,75 +161,85 @@ export default function StockDetail() {
 
   return (
     <div>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 12 }}>
         <Button 
           icon={<ArrowLeftOutlined />} 
           onClick={handleBack}
+          size="small"
         >
           返回列表
         </Button>
       </div>
 
-      {/* 顶部行情信息栏 */}
+      {/* 顶部行情信息栏 - 紧凑布局 */}
       {quote && (
-        <Card style={{ marginBottom: 16 }}>
-          <Row gutter={16}>
-            <Col span={6}>
-              <div>
-                <div style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8 }}>
-                  {quote.name}
-                  <span style={{ fontSize: 14, color: '#999', marginLeft: 8 }}>
-                    ({quote.code})
-                  </span>
-                </div>
-                <div style={{ fontSize: 32, fontWeight: 'bold', color: getPriceColor(quote.change) }}>
-                  {quote.price?.toFixed(2)}
-                </div>
-                <div style={{ fontSize: 16, color: getPriceColor(quote.change) }}>
-                  {quote.change >= 0 ? <ArrowUpOutlined /> : <ArrowDownOutlined />}
-                  {' '}
-                  {quote.change >= 0 ? '+' : ''}{quote.change?.toFixed(2)}
-                  {' '}
-                  ({quote.change_percent >= 0 ? '+' : ''}{(quote.change_percent * 100)?.toFixed(2)}%)
-                </div>
+        <Card size="small" style={{ marginBottom: 12 }}>
+          <Row gutter={[16, 8]} align="middle">
+            {/* 左侧：股票名称和价格 */}
+            <Col span={4}>
+              <div style={{ fontWeight: 'bold', fontSize: 18 }}>
+                {quote.name}
+                <span style={{ fontSize: 12, color: '#999', marginLeft: 4 }}>({quote.code})</span>
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 'bold', color: getPriceColor(quote.change), lineHeight: 1.2 }}>
+                {quote.price?.toFixed(2)}
+              </div>
+              <div style={{ fontSize: 13, color: getPriceColor(quote.change) }}>
+                {quote.change >= 0 ? '+' : ''}{quote.change?.toFixed(2)} 
+                ({quote.change_percent >= 0 ? '+' : ''}{(quote.change_percent * 100)?.toFixed(2)}%)
               </div>
             </Col>
-            <Col span={18}>
-              <Row gutter={16}>
-                <Col span={6}>
-                  <Statistic title="开盘" value={quote.open?.toFixed(2)} />
+            
+            {/* 右侧：关键指标 */}
+            <Col span={20}>
+              <Row gutter={[16, 4]}>
+                <Col span={4}>
+                  <div style={labelStyle}>开盘</div>
+                  <div style={valueStyle}>{quote.open?.toFixed(2)}</div>
                 </Col>
-                <Col span={6}>
-                  <Statistic title="最高" value={quote.high?.toFixed(2)} valueStyle={{ color: '#f5222d' }} />
+                <Col span={4}>
+                  <div style={labelStyle}>最高</div>
+                  <div style={{...valueStyle, color: '#f5222d'}}>{quote.high?.toFixed(2)}</div>
                 </Col>
-                <Col span={6}>
-                  <Statistic title="最低" value={quote.low?.toFixed(2)} valueStyle={{ color: '#52c41a' }} />
+                <Col span={4}>
+                  <div style={labelStyle}>最低</div>
+                  <div style={{...valueStyle, color: '#52c41a'}}>{quote.low?.toFixed(2)}</div>
                 </Col>
-                <Col span={6}>
-                  <Statistic title="昨收" value={quote.prev_close?.toFixed(2)} />
+                <Col span={4}>
+                  <div style={labelStyle}>昨收</div>
+                  <div style={valueStyle}>{quote.prev_close?.toFixed(2)}</div>
                 </Col>
-              </Row>
-              <Row gutter={16} style={{ marginTop: 16 }}>
-                <Col span={6}>
-                  <Statistic 
-                    title="成交量" 
-                    value={quote.volume ? (quote.volume / 10000).toFixed(2) : '-'} 
-                    suffix="万手"
-                  />
+                <Col span={4}>
+                  <div style={labelStyle}>成交量</div>
+                  <div style={valueStyle}>{quote.volume ? (quote.volume / 10000).toFixed(2) : '-'}<span style={unitStyle}>万手</span></div>
                 </Col>
-                <Col span={6}>
-                  <Statistic 
-                    title="成交额" 
-                    value={quote.turnover ? (quote.turnover / 100000000).toFixed(2) : '-'} 
-                    suffix="亿"
-                  />
+                <Col span={4}>
+                  <div style={labelStyle}>成交额</div>
+                  <div style={valueStyle}>{quote.turnover ? (quote.turnover / 100000000).toFixed(2) : '-'}<span style={unitStyle}>亿</span></div>
                 </Col>
-                <Col span={6}>
-                  <Statistic 
-                    title="换手率" 
-                    value={quote.turnover_rate?.toFixed(2)} 
-                    suffix="%"
-                  />
+                <Col span={4}>
+                  <div style={labelStyle}>换手率</div>
+                  <div style={valueStyle}>{(quote.turnover_rate * 100)?.toFixed(2)}<span style={unitStyle}>%</span></div>
+                </Col>
+                <Col span={4}>
+                  <div style={labelStyle}>实换率</div>
+                  <div style={valueStyle}>{quote.turnover_rate_f ? (quote.turnover_rate_f * 100).toFixed(2) : '-'}<span style={unitStyle}>%</span></div>
+                </Col>
+                <Col span={4}>
+                  <div style={labelStyle}>总市值</div>
+                  <div style={valueStyle}>{quote.total_mv ? (quote.total_mv / 100000000).toFixed(2) : '-'}<span style={unitStyle}>亿</span></div>
+                </Col>
+                <Col span={4}>
+                  <div style={labelStyle}>流通市值</div>
+                  <div style={valueStyle}>{quote.circ_mv ? (quote.circ_mv / 100000000).toFixed(2) : '-'}<span style={unitStyle}>亿</span></div>
+                </Col>
+                <Col span={4}>
+                  <div style={labelStyle}>PE(TTM)</div>
+                  <div style={valueStyle}>{quote.pe_ttm?.toFixed(2) || '-'}</div>
+                </Col>
+                <Col span={4}>
+                  <div style={labelStyle}>PB</div>
+                  <div style={valueStyle}>{quote.pb?.toFixed(2) || '-'}</div>
                 </Col>
               </Row>
             </Col>
@@ -239,13 +249,14 @@ export default function StockDetail() {
 
       {/* 图表区域 */}
       <Card>
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 12 }}>
           {activeTab === 'intraday' && selectedDate && (
             <DatePicker 
               value={selectedDate}
               onChange={handleDateChange}
               format="YYYY-MM-DD"
               allowClear={false}
+              size="small"
             />
           )}
         </div>
@@ -253,8 +264,28 @@ export default function StockDetail() {
           activeKey={activeTab}
           items={tabItems}
           onChange={handleTabChange}
+          size="small"
         />
       </Card>
     </div>
   );
 }
+
+// 样式定义
+const labelStyle = { 
+  fontSize: 12, 
+  color: '#999', 
+  lineHeight: 1.2 
+};
+
+const valueStyle = { 
+  fontSize: 14, 
+  fontWeight: 500, 
+  lineHeight: 1.4 
+};
+
+const unitStyle = { 
+  fontSize: 11, 
+  color: '#999', 
+  marginLeft: 2 
+};
