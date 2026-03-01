@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from datetime import datetime
-from typing import List, Dict
+from typing import List, Dict, Optional
 from app.services.data_service import get_data_service
 from app.models.requests import StockAdd, StockPoolAdd
 from pydantic import BaseModel
@@ -37,21 +37,21 @@ class StockDailyData(BaseModel):
     change_percent: float = 0.0
     volume: float = 0
     turnover: float = 0.0
-    turnover_rate: float = None
-    turnover_rate_f: float = None
-    volume_ratio: float = None
-    pe: float = None
-    pe_ttm: float = None
-    pb: float = None
-    ps: float = None
-    ps_ttm: float = None
-    dv_ratio: float = None
-    dv_ttm: float = None
-    total_share: float = None
-    float_share: float = None
-    free_share: float = None
-    total_mv: float = None
-    circ_mv: float = None
+    turnover_rate: Optional[float] = None
+    turnover_rate_f: Optional[float] = None
+    volume_ratio: Optional[float] = None
+    pe: Optional[float] = None
+    pe_ttm: Optional[float] = None
+    pb: Optional[float] = None
+    ps: Optional[float] = None
+    ps_ttm: Optional[float] = None
+    dv_ratio: Optional[float] = None
+    dv_ttm: Optional[float] = None
+    total_share: Optional[float] = None
+    float_share: Optional[float] = None
+    free_share: Optional[float] = None
+    total_mv: Optional[float] = None
+    circ_mv: Optional[float] = None
     is_limit_up: int = 0
     is_limit_down: int = 0
     limit_up_time: str = ""

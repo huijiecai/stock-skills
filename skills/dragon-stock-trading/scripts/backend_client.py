@@ -10,6 +10,28 @@ import requests
 from typing import Dict, List, Optional
 from datetime import datetime
 from config_loader import ConfigLoader
+import math
+
+
+def _clean_nan_values(data: Dict) -> Dict:
+    """
+    清理数据中的 NaN 值，转换为 None
+    
+    Args:
+        data: 原始数据字典
+        
+    Returns:
+        清理后的数据字典
+    """
+    result = {}
+    for key, value in data.items():
+        if isinstance(value, float) and math.isnan(value):
+            result[key] = None
+        elif isinstance(value, dict):
+            result[key] = _clean_nan_values(value)
+        else:
+            result[key] = value
+    return result
 
 
 class BackendClient:
@@ -31,7 +53,9 @@ class BackendClient:
         """发送POST请求"""
         url = f"{self.api_base}{endpoint}"
         try:
-            response = requests.post(url, json=data, timeout=timeout)
+            # 清理 NaN 值（JSON 无法序列化）
+            clean_data = _clean_nan_values(data)
+            response = requests.post(url, json=clean_data, timeout=timeout)
             response.raise_for_status()
             return response.json()
         except requests.exceptions.RequestException as e:
