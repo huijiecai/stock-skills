@@ -36,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from market_data_client import MarketDataClient
 from backend_client import backend_client
+from tushare_client import tushare_client
 
 
 class RateLimiter:
@@ -100,7 +101,7 @@ class MarketDataCollectorOptimized:
     
     def _get_trading_dates(self, start_date: str, end_date: str) -> List[str]:
         """
-        获取交易日期列表（排除周末）
+        获取交易日期列表（使用 Tushare 交易日历）
         
         Args:
             start_date: 开始日期（YYYY-MM-DD）
@@ -109,17 +110,26 @@ class MarketDataCollectorOptimized:
         Returns:
             交易日期列表
         """
-        trading_dates = []
+        # 使用 Tushare 交易日历接口获取真实的交易日
+        trading_dates = tushare_client.get_trade_calendar(start_date, end_date)
+        
+        if trading_dates:
+            self.logger.info(f"获取到 {len(trading_dates)} 个交易日（{start_date} ~ {end_date}）")
+            return trading_dates
+        
+        # 如果 API 调用失败，回退到简单逻辑（排除周末）
+        self.logger.warning("交易日历 API 调用失败，使用简单周末排除逻辑")
+        dates = []
         current = datetime.strptime(start_date, '%Y-%m-%d')
         end = datetime.strptime(end_date, '%Y-%m-%d')
         
         while current <= end:
             # 排除周末（简单处理，未考虑节假日）
             if current.weekday() < 5:  # 0-4 为周一到周五
-                trading_dates.append(current.strftime('%Y-%m-%d'))
+                dates.append(current.strftime('%Y-%m-%d'))
             current += timedelta(days=1)
         
-        return trading_dates
+        return dates
     
     def _check_date_exists(self, date: str) -> bool:
         """

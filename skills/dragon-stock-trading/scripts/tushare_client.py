@@ -9,7 +9,7 @@ Tushare Client - Tushare API客户端封装
 
 import tushare as ts
 import tushare.pro.client as client
-from typing import Dict, Optional
+from typing import Dict, Optional, List
 
 # 【重要】全局设置自定义API域名（高积分用户专用，速度更快）
 # 必须在创建任何 ts.pro_api() 实例之前设置
@@ -194,6 +194,42 @@ class TushareClient:
             else:
                 print(f"Tushare API错误: {e}")
             return None
+
+
+    def get_trade_calendar(self, start_date: str, end_date: str, exchange: str = 'SSE') -> List[str]:
+        """
+        获取交易日历
+        
+        Args:
+            start_date: 开始日期（格式：20260101 或 2026-01-01）
+            end_date: 结束日期（格式：20260131 或 2026-01-31）
+            exchange: 交易所代码（SSE=上交所, SZSE=深交所）
+            
+        Returns:
+            交易日列表（格式：YYYY-MM-DD）
+        """
+        try:
+            # 统一日期格式为 YYYYMMDD
+            start = start_date.replace('-', '')
+            end = end_date.replace('-', '')
+            
+            df = self.pro.trade_cal(
+                exchange=exchange,
+                start_date=start,
+                end_date=end,
+                is_open='1'  # 只返回开市日期
+            )
+            
+            if df is None or df.empty:
+                return []
+            
+            # 转换为 YYYY-MM-DD 格式
+            dates = df['cal_date'].tolist()
+            return [f"{d[:4]}-{d[4:6]}-{d[6:8]}" for d in dates]
+            
+        except Exception as e:
+            print(f"Tushare API错误 (交易日历): {e}")
+            return []
 
 
     def get_limit_list(self, trade_date: str, limit_type: str = None) -> Optional[Dict]:
