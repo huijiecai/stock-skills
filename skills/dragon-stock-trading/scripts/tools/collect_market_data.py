@@ -335,8 +335,6 @@ def main():
                        help='结束日期（YYYY-MM-DD），默认为今天')
     parser.add_argument('--force', action='store_true',
                        help='强制重新采集（即使数据已存在）')
-    parser.add_argument('--no-skip-weekend', action='store_true',
-                       help='不跳过周末（采集所有日期）')
     
     args = parser.parse_args()
     

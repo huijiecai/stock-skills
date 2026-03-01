@@ -56,9 +56,9 @@ def step_import_stock_pool():
     print("\n✅ Step 1 完成：股票池导入成功\n")
 
 
-def step_collect_market_data(days: int = 60):
+def step_collect_market_data(days: int = 60, force: bool = False):
     """Step 2: 采集市场数据"""
-    print_header(f"Step 2: 采集最近 {days} 天的市场数据")
+    print_header(f"Step 2: 采集最近 {days} 天的市场数据{'（强制模式）' if force else ''}")
     
     from collect_market_data import MarketDataCollectorOptimized
     
@@ -67,14 +67,14 @@ def step_collect_market_data(days: int = 60):
     start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
     
     collector = MarketDataCollectorOptimized()
-    collector.collect_range(start_date=start_date, end_date=end_date, force=False)
+    collector.collect_range(start_date=start_date, end_date=end_date, force=force)
     
     print(f"\n✅ Step 2 完成：已采集 {days} 天的市场数据\n")
 
 
-def step_collect_intraday_data(days: int = 60):
+def step_collect_intraday_data(days: int = 60, force: bool = False):
     """Step 3: 采集分时数据"""
-    print_header(f"Step 3: 采集最近 {days} 天的分时数据")
+    print_header(f"Step 3: 采集最近 {days} 天的分时数据{'（强制模式）' if force else ''}")
     
     from collect_intraday_data import IntradayDataCollectorOptimized
     
@@ -83,7 +83,7 @@ def step_collect_intraday_data(days: int = 60):
     start_date = (datetime.now() - timedelta(days=days)).strftime('%Y-%m-%d')
     
     collector = IntradayDataCollectorOptimized()
-    collector.collect_range(start_date=start_date, end_date=end_date, force=False)
+    collector.collect_range(start_date=start_date, end_date=end_date, force=force)
     
     print(f"\n✅ Step 3 完成：已采集 {days} 天的分时数据\n")
 
@@ -100,6 +100,8 @@ def main():
                        help='开始日期（YYYY-MM-DD），覆盖--days 参数')
     parser.add_argument('--end-date', type=str, default=None,
                        help='结束日期（YYYY-MM-DD），默认为今天')
+    parser.add_argument('--force', action='store_true',
+                       help='强制重新采集（即使数据已存在）')
     
     args = parser.parse_args()
     
@@ -109,6 +111,8 @@ def main():
     print(f"\n📅 执行时间：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"🔧 执行模式：{args.step}")
     print(f"📊 采集天数：{args.days} 天")
+    if args.force:
+        print(f"🔄 强制模式：是（重新采集已存在的数据）")
     
     if args.start_date:
         print(f"📅 开始日期：{args.start_date}")
@@ -121,8 +125,8 @@ def main():
         if args.step == 'all':
             # 全部执行
             step_import_stock_pool()
-            step_collect_market_data(days=args.days)
-            step_collect_intraday_data(days=args.days)
+            step_collect_market_data(days=args.days, force=args.force)
+            step_collect_intraday_data(days=args.days, force=args.force)
             
         elif args.step == 'import':
             # 只导入股票池
@@ -137,10 +141,10 @@ def main():
                 collector.collect_range(
                     start_date=args.start_date,
                     end_date=args.end_date,
-                    force=False
+                    force=args.force
                 )
             else:
-                step_collect_market_data(days=days)
+                step_collect_market_data(days=days, force=args.force)
             
         elif args.step == 'intraday':
             # 只采集分时数据
@@ -151,10 +155,10 @@ def main():
                 collector.collect_range(
                     start_date=args.start_date,
                     end_date=args.end_date,
-                    force=False
+                    force=args.force
                 )
             else:
-                step_collect_intraday_data(days=days)
+                step_collect_intraday_data(days=days, force=args.force)
         
         print("\n" + "=" * 70)
         print("  🎉 全部任务完成！")
