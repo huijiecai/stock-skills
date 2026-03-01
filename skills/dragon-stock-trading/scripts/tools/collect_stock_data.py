@@ -327,9 +327,12 @@ class StockDataCollector:
         batch_size = 30
         for batch_start in range(0, total_dates, batch_size):
             batch_dates = dates_to_collect[batch_start:batch_start + batch_size]
-            batch_end_idx = min(batch_start + batch_size, total_dates)
             
-            print(f"\n[批次 {batch_start//batch_size + 1}] 采集 {batch_dates[0]} ~ {batch_dates[-1]}...")
+            # 确保 start_date <= end_date（batch_dates 可能是倒序的）
+            batch_start_date = min(batch_dates[0], batch_dates[-1])
+            batch_end_date = max(batch_dates[0], batch_dates[-1])
+            
+            print(f"\n[批次 {batch_start//batch_size + 1}] 采集 {batch_start_date} ~ {batch_end_date}...")
             
             try:
                 # 批量获取分时数据（一次 API 调用获取多天）
@@ -338,8 +341,8 @@ class StockDataCollector:
                     intraday_data = market_data_client.get_stock_intraday_range(
                         code, 
                         market, 
-                        batch_dates[0], 
-                        batch_dates[-1]
+                        batch_start_date, 
+                        batch_end_date
                     )
                     if intraday_data:
                         break
