@@ -9,6 +9,7 @@
 | `collect_intraday_data.py` | 采集分时数据（支持日期范围、增量采集） | 批量采集历史分时数据 |
 | `collect_stock_data.py` | 采集单只股票数据（日线+分时） | 增量采集新加入的股票 |
 | `run_full_collection.py` | 一键执行所有任务 | 完整数据初始化 |
+| `collect_ths_data.py` | 采集同花顺概念数据（概念列表、成分股、热榜、连板天梯） | 概念板块分析 |
 
 ## 🚀 快速开始
 

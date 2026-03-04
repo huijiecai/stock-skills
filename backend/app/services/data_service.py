@@ -1271,6 +1271,122 @@ class DataService:
             'ladder': ladder,
             'stats': stats
         }
+    
+    # ==================== 同花顺数据写入 ====================
+    
+    def save_ths_concepts(self, concepts: List[Dict]) -> int:
+        """保存概念列表"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        count = 0
+        for c in concepts:
+            try:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO ths_concept
+                    (ts_code, name, concept_type, component_count, list_date, updated_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (c.get('ts_code'), c.get('name'), c.get('concept_type'),
+                      c.get('component_count'), c.get('list_date')))
+                count += 1
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+        return count
+    
+    def save_ths_members(self, members: List[Dict]) -> int:
+        """保存概念成分股"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        count = 0
+        for m in members:
+            try:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO ths_concept_member
+                    (concept_code, concept_name, stock_code, stock_name, updated_at)
+                    VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (m.get('concept_code'), m.get('concept_name'),
+                      m.get('stock_code'), m.get('stock_name')))
+                count += 1
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+        return count
+    
+    def save_ths_concept_daily(self, daily_list: List[Dict]) -> int:
+        """保存概念日行情"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        count = 0
+        for d in daily_list:
+            try:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO ths_concept_daily
+                    (trade_date, concept_code, concept_name, pre_close, open, close, high, low,
+                     pct_change, vol, turnover_rate, total_mv, float_mv)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (d.get('trade_date'), d.get('concept_code'), d.get('concept_name'),
+                      d.get('pre_close'), d.get('open'), d.get('close'), d.get('high'), d.get('low'),
+                      d.get('pct_change'), d.get('vol'), d.get('turnover_rate'),
+                      d.get('total_mv'), d.get('float_mv')))
+                count += 1
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+        return count
+    
+    def save_ths_hot_rank(self, hot_list: List[Dict]) -> int:
+        """保存个股热榜"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        count = 0
+        for h in hot_list:
+            try:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO ths_hot_rank
+                    (trade_date, rank_time, ts_code, ts_name, rank, hot,
+                     pct_change, current_price, concept, rank_reason)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (h.get('trade_date'), h.get('rank_time'), h.get('ts_code'),
+                      h.get('ts_name'), h.get('rank'), h.get('hot'),
+                      h.get('pct_change'), h.get('current_price'),
+                      h.get('concept'), h.get('rank_reason')))
+                count += 1
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+        return count
+    
+    def save_ths_limit_list(self, limit_list: List[Dict]) -> int:
+        """保存涨跌停榜单"""
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        count = 0
+        for item in limit_list:
+            try:
+                cursor.execute('''
+                    INSERT OR REPLACE INTO ths_limit_list
+                    (trade_date, ts_code, ts_name, price, pct_chg, limit_type,
+                     tag, status, lu_desc, open_num, first_lu_time, last_lu_time,
+                     limit_order, limit_amount, lu_limit_order, turnover_rate,
+                     turnover, free_float, sum_float, limit_up_suc_rate, market_type)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (item.get('trade_date'), item.get('ts_code'), item.get('ts_name'),
+                      item.get('price'), item.get('pct_chg'), item.get('limit_type'),
+                      item.get('tag'), item.get('status'), item.get('lu_desc'),
+                      item.get('open_num'), item.get('first_lu_time'), item.get('last_lu_time'),
+                      item.get('limit_order'), item.get('limit_amount'), item.get('lu_limit_order'),
+                      item.get('turnover_rate'), item.get('turnover'), item.get('free_float'),
+                      item.get('sum_float'), item.get('limit_up_suc_rate'), item.get('market_type')))
+                count += 1
+            except Exception:
+                pass
+        conn.commit()
+        conn.close()
+        return count
 
 
 # 单例

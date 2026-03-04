@@ -1,12 +1,88 @@
 """
 同花顺概念数据 API
 """
-from fastapi import APIRouter, Query
-from typing import Optional
+from fastapi import APIRouter, Query, HTTPException
+from typing import Optional, List
+from pydantic import BaseModel
 from app.services.data_service import get_data_service
 
 router = APIRouter(tags=["同花顺数据"])
 
+
+# ==================== 数据模型 ====================
+
+class ThsConceptItem(BaseModel):
+    ts_code: str
+    name: str
+    concept_type: Optional[str] = None
+    component_count: Optional[int] = None
+    list_date: Optional[str] = None
+
+class ThsMemberItem(BaseModel):
+    concept_code: str
+    concept_name: str
+    stock_code: str
+    stock_name: Optional[str] = None
+
+class ThsConceptDailyItem(BaseModel):
+    trade_date: str
+    concept_code: str
+    concept_name: Optional[str] = None
+    pre_close: Optional[float] = None
+    open: Optional[float] = None
+    close: Optional[float] = None
+    high: Optional[float] = None
+    low: Optional[float] = None
+    pct_change: Optional[float] = None
+    vol: Optional[float] = None
+    turnover_rate: Optional[float] = None
+    total_mv: Optional[float] = None
+    float_mv: Optional[float] = None
+
+class ThsHotRankItem(BaseModel):
+    trade_date: str
+    rank_time: str
+    ts_code: str
+    ts_name: Optional[str] = None
+    rank: Optional[int] = None
+    hot: Optional[float] = None
+    pct_change: Optional[float] = None
+    current_price: Optional[float] = None
+    concept: Optional[str] = None
+    rank_reason: Optional[str] = None
+
+class ThsLimitListItem(BaseModel):
+    trade_date: str
+    ts_code: str
+    ts_name: Optional[str] = None
+    price: Optional[float] = None
+    pct_chg: Optional[float] = None
+    limit_type: str
+    tag: Optional[str] = None
+    status: Optional[str] = None
+    lu_desc: Optional[str] = None
+    open_num: Optional[int] = None
+    first_lu_time: Optional[str] = None
+    last_lu_time: Optional[str] = None
+    limit_order: Optional[float] = None
+    limit_amount: Optional[float] = None
+    lu_limit_order: Optional[float] = None
+    turnover_rate: Optional[float] = None
+    turnover: Optional[float] = None
+    free_float: Optional[float] = None
+    sum_float: Optional[float] = None
+    limit_up_suc_rate: Optional[float] = None
+    market_type: Optional[str] = None
+
+class ThsDataBatch(BaseModel):
+    concepts: Optional[List[ThsConceptItem]] = None
+    members: Optional[List[ThsMemberItem]] = None
+    concept_daily: Optional[List[ThsConceptDailyItem]] = None
+    hot_rank: Optional[List[ThsHotRankItem]] = None
+    limit_list: Optional[List[ThsLimitListItem]] = None
+
+
+# ==================== 读取 API ====================
 
 @router.get("/concepts")
 async def get_concepts(
@@ -90,3 +166,29 @@ async def get_limit_ladder(trade_date: str):
     """获取连板天梯"""
     service = get_data_service()
     return service.get_limit_ladder(trade_date)
+
+
+# ==================== 写入 API ====================
+
+@router.post("/collect")
+async def collect_ths_data(data: ThsDataBatch):
+    """采集同花顺数据（供数据采集脚本调用）"""
+    service = get_data_service()
+    result = {}
+    
+    if data.concepts:
+        result['concepts'] = service.save_ths_concepts([c.dict() for c in data.concepts])
+    
+    if data.members:
+        result['members'] = service.save_ths_members([m.dict() for m in data.members])
+    
+    if data.concept_daily:
+        result['concept_daily'] = service.save_ths_concept_daily([d.dict() for d in data.concept_daily])
+    
+    if data.hot_rank:
+        result['hot_rank'] = service.save_ths_hot_rank([h.dict() for h in data.hot_rank])
+    
+    if data.limit_list:
+        result['limit_list'] = service.save_ths_limit_list([l.dict() for l in data.limit_list])
+    
+    return {"status": "ok", "saved": result}
