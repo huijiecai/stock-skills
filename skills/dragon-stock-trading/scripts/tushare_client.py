@@ -359,6 +359,182 @@ class TushareClient:
             print(f"Tushare API错误: {e}")
             return None
 
+    # ==================== 同花顺数据接口 ====================
+
+    def get_ths_concept_list(self) -> Optional[Dict]:
+        """
+        获取同花顺概念列表
+        
+        Returns:
+            概念列表字典 {'items': [[...], ...], 'fields': [...]}
+        """
+        try:
+            df = self.pro.ths_index(
+                exchange='A',
+                type='N',  # N=概念
+                fields='ts_code,name,type,component_count,list_date'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
+
+    def get_ths_concept_member(self, concept_code: str) -> Optional[Dict]:
+        """
+        获取概念成分股
+        
+        Args:
+            concept_code: 概念代码（如 885835.TI）
+            
+        Returns:
+            成分股列表字典 {'items': [[...], ...], 'fields': [...]}
+        """
+        try:
+            df = self.pro.ths_member(
+                ts_code=concept_code,
+                fields='ts_code,code,name'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
+
+    def get_ths_concept_daily(self, trade_date: str = None, concept_code: str = None,
+                               start_date: str = None, end_date: str = None) -> Optional[Dict]:
+        """
+        获取概念日行情
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            concept_code: 概念代码
+            start_date: 开始日期（格式：20260101）
+            end_date: 结束日期（格式：20260228）
+            
+        Returns:
+            概念日行情字典 {'items': [[...], ...], 'fields': [...]}
+        """
+        try:
+            params = {}
+            if trade_date:
+                params['trade_date'] = trade_date
+            if concept_code:
+                params['ts_code'] = concept_code
+            if start_date:
+                params['start_date'] = start_date
+            if end_date:
+                params['end_date'] = end_date
+            
+            df = self.pro.ths_daily(
+                **params,
+                fields='ts_code,trade_date,pre_close,open,close,high,low,pct_change,vol,turnover_rate,total_mv,float_mv'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
+
+    def get_ths_hot_rank(self, trade_date: str = None, is_new: str = 'Y') -> Optional[Dict]:
+        """
+        获取个股热榜
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            is_new: 是否最新（Y=最新数据，N=盘中数据）
+            
+        Returns:
+            热榜数据字典 {'items': [[...], ...], 'fields': [...]}
+        """
+        try:
+            params = {'market': '热股', 'is_new': is_new}
+            if trade_date:
+                params['trade_date'] = trade_date
+            
+            df = self.pro.ths_hot(
+                **params,
+                fields='trade_date,ts_code,ts_name,rank,hot,pct_change,current_price,concept,rank_reason'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
+
+    def get_ths_limit_list(self, trade_date: str = None, limit_type: str = '涨停池',
+                           start_date: str = None, end_date: str = None) -> Optional[Dict]:
+        """
+        获取涨跌停榜单（连板天梯）
+        
+        Args:
+            trade_date: 交易日期（格式：20260226）
+            limit_type: 板单类别（涨停池/连扳池/炸板池/跌停池）
+            start_date: 开始日期（格式：20260101）
+            end_date: 结束日期（格式：20260228）
+            
+        Returns:
+            涨跌停榜单字典 {'items': [[...], ...], 'fields': [...]}
+        """
+        try:
+            params = {'limit_type': limit_type}
+            if trade_date:
+                params['trade_date'] = trade_date
+            if start_date:
+                params['start_date'] = start_date
+            if end_date:
+                params['end_date'] = end_date
+            
+            df = self.pro.limit_list_ths(
+                **params,
+                fields='trade_date,ts_code,ts_name,price,pct_chg,limit_type,tag,status,lu_desc,open_num,first_lu_time,last_lu_time,limit_order,limit_amount,lu_limit_order,turnover_rate,turnover,free_float,sum_float,limit_up_suc_rate,market_type'
+            )
+            
+            if df is None or df.empty:
+                return None
+            
+            self._request_count += 1
+            
+            return {
+                'items': df.values.tolist(),
+                'fields': df.columns.tolist()
+            }
+        except Exception as e:
+            print(f"Tushare API错误: {e}")
+            return None
+
 
     def get_daily_basic(self, trade_date: str = None, ts_code: str = None,
                         start_date: str = None, end_date: str = None) -> Optional[Dict]:

@@ -1,13 +1,16 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Layout, Menu } from 'antd';
-import { DashboardOutlined, StockOutlined, AppstoreOutlined, BarChartOutlined, RobotOutlined } from '@ant-design/icons';
+import { DashboardOutlined, StockOutlined, AppstoreOutlined, BarChartOutlined, RobotOutlined, FireOutlined, TrophyOutlined, FundOutlined } from '@ant-design/icons';
 import Dashboard from './pages/Dashboard';
 import StockPool from './pages/StockPool';
 import StockDetail from './pages/StockDetail';
 import ConceptManage from './pages/ConceptManage';
 import Analysis from './pages/Analysis';
 import ChatAnalysis from './pages/ChatAnalysis';
+import HotRank from './pages/HotRank';
+import LimitLadder from './pages/LimitLadder';
+import ConceptBoard from './pages/ConceptBoard';
 import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
 
@@ -24,6 +27,21 @@ function App() {
       key: '/chat',
       icon: <RobotOutlined />,
       label: <Link to="/chat">AI智能分析</Link>,
+    },
+    {
+      key: '/hot-rank',
+      icon: <FireOutlined />,
+      label: <Link to="/hot-rank">个股热榜</Link>,
+    },
+    {
+      key: '/limit-ladder',
+      icon: <TrophyOutlined />,
+      label: <Link to="/limit-ladder">连板天梯</Link>,
+    },
+    {
+      key: '/concept-board',
+      icon: <FundOutlined />,
+      label: <Link to="/concept-board">概念板块</Link>,
     },
     {
       key: '/stocks',
@@ -72,6 +90,9 @@ function App() {
                 <Routes>
                   <Route path="/" element={<Dashboard />} />
                   <Route path="/chat" element={<ChatAnalysis />} />
+                  <Route path="/hot-rank" element={<HotRank />} />
+                  <Route path="/limit-ladder" element={<LimitLadder />} />
+                  <Route path="/concept-board" element={<ConceptBoard />} />
                   <Route path="/stocks" element={<StockPool />} />
                   <Route path="/stocks/:code" element={<StockDetail />} />
                   <Route path="/concepts" element={<ConceptManage />} />

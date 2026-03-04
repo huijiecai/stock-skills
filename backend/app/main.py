@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import market, stocks, concepts, analysis, chat
+from app.api import market, stocks, concepts, analysis, chat, ths
 from dotenv import load_dotenv
 
 # 加载环境变量
@@ -27,6 +27,7 @@ app.include_router(stocks.router, prefix="/api/stocks", tags=["stocks"])
 app.include_router(concepts.router, prefix="/api/concepts", tags=["concepts"])
 app.include_router(analysis.router, prefix="/api/analysis", tags=["analysis"])
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
+app.include_router(ths.router, prefix="/api/ths", tags=["ths"])
 
 @app.get("/")
 async def root():

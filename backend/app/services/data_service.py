@@ -894,6 +894,384 @@ class DataService:
         
         return count > 0
 
+    # ==================== 同花顺数据查询 ====================
+    
+    def get_ths_concepts(self, search: str = None, limit: int = 100) -> List[Dict]:
+        """
+        获取同花顺概念列表
+        
+        Args:
+            search: 搜索关键词
+            limit: 返回数量限制
+        
+        Returns:
+            概念列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        if search:
+            cursor.execute('''
+                SELECT ts_code, name, concept_type, component_count, list_date
+                FROM ths_concept
+                WHERE name LIKE ?
+                ORDER BY component_count DESC
+                LIMIT ?
+            ''', (f'%{search}%', limit))
+        else:
+            cursor.execute('''
+                SELECT ts_code, name, concept_type, component_count, list_date
+                FROM ths_concept
+                ORDER BY component_count DESC
+                LIMIT ?
+            ''', (limit,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            'ts_code': row[0],
+            'name': row[1],
+            'concept_type': row[2],
+            'component_count': row[3],
+            'list_date': row[4]
+        } for row in rows]
+    
+    def get_ths_concept_members(self, concept_code: str) -> List[Dict]:
+        """
+        获取概念成分股
+        
+        Args:
+            concept_code: 概念代码
+        
+        Returns:
+            成分股列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT concept_code, concept_name, stock_code, stock_name
+            FROM ths_concept_member
+            WHERE concept_code = ?
+            ORDER BY stock_code
+        ''', (concept_code,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            'concept_code': row[0],
+            'concept_name': row[1],
+            'stock_code': row[2],
+            'stock_name': row[3]
+        } for row in rows]
+    
+    def get_stock_concepts(self, stock_code: str) -> List[Dict]:
+        """
+        获取股票所属概念
+        
+        Args:
+            stock_code: 股票代码
+        
+        Returns:
+            概念列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute('''
+            SELECT m.concept_code, m.concept_name, c.component_count
+            FROM ths_concept_member m
+            LEFT JOIN ths_concept c ON m.concept_code = c.ts_code
+            WHERE m.stock_code = ?
+            ORDER BY c.component_count DESC
+        ''', (stock_code,))
+        
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            'concept_code': row[0],
+            'concept_name': row[1],
+            'component_count': row[2]
+        } for row in rows]
+    
+    def get_ths_concept_daily(self, concept_code: str = None, trade_date: str = None,
+                               start_date: str = None, end_date: str = None,
+                               limit: int = 100) -> List[Dict]:
+        """
+        获取概念日行情
+        
+        Args:
+            concept_code: 概念代码
+            trade_date: 交易日期
+            start_date: 开始日期
+            end_date: 结束日期
+            limit: 返回数量限制
+        
+        Returns:
+            概念日行情列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        params = []
+        sql = '''
+            SELECT d.trade_date, d.concept_code, c.name as concept_name, 
+                   d.pre_close, d.open, d.close, d.high, d.low, 
+                   d.pct_change, d.vol, d.turnover_rate, d.total_mv, d.float_mv
+            FROM ths_concept_daily d
+            LEFT JOIN ths_concept c ON d.concept_code = c.ts_code
+            WHERE 1=1
+        '''
+        
+        if concept_code:
+            sql += ' AND d.concept_code = ?'
+            params.append(concept_code)
+        if trade_date:
+            sql += ' AND d.trade_date = ?'
+            params.append(trade_date)
+        if start_date:
+            sql += ' AND d.trade_date >= ?'
+            params.append(start_date)
+        if end_date:
+            sql += ' AND d.trade_date <= ?'
+            params.append(end_date)
+        
+        sql += ' ORDER BY d.trade_date DESC, d.pct_change DESC LIMIT ?'
+        params.append(limit)
+        
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            'trade_date': row[0],
+            'concept_code': row[1],
+            'concept_name': row[2],
+            'pre_close': row[3],
+            'open': row[4],
+            'close': row[5],
+            'high': row[6],
+            'low': row[7],
+            'pct_change': row[8],
+            'vol': row[9],
+            'turnover_rate': row[10],
+            'total_mv': row[11],
+            'float_mv': row[12]
+        } for row in rows]
+    
+    def get_ths_hot_rank(self, trade_date: str = None, rank_time: str = None,
+                          limit: int = 100) -> List[Dict]:
+        """
+        获取个股热榜
+        
+        Args:
+            trade_date: 交易日期
+            rank_time: 排行时间
+            limit: 返回数量限制
+        
+        Returns:
+            热榜列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        params = []
+        sql = '''
+            SELECT trade_date, rank_time, ts_code, ts_name, rank, hot, 
+                   pct_change, current_price, concept, rank_reason
+            FROM ths_hot_rank
+            WHERE 1=1
+        '''
+        
+        if trade_date:
+            sql += ' AND trade_date = ?'
+            params.append(trade_date)
+        if rank_time:
+            sql += ' AND rank_time = ?'
+            params.append(rank_time)
+        
+        sql += ' ORDER BY rank ASC LIMIT ?'
+        params.append(limit)
+        
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            'trade_date': row[0],
+            'rank_time': row[1],
+            'ts_code': row[2],
+            'ts_name': row[3],
+            'rank': row[4],
+            'hot': row[5],
+            'pct_change': row[6],
+            'current_price': row[7],
+            'concept': row[8],
+            'rank_reason': row[9]
+        } for row in rows]
+    
+    def get_ths_limit_list(self, trade_date: str = None, limit_type: str = None,
+                            start_date: str = None, end_date: str = None,
+                            limit: int = 100) -> List[Dict]:
+        """
+        获取涨跌停榜单（连板天梯）
+        
+        Args:
+            trade_date: 交易日期
+            limit_type: 板单类别（涨停池/连扳池/炸板池/跌停池）
+            start_date: 开始日期
+            end_date: 结束日期
+            limit: 返回数量限制
+        
+        Returns:
+            涨跌停榜单列表
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        params = []
+        sql = '''
+            SELECT trade_date, ts_code, ts_name, price, pct_chg, limit_type, 
+                   tag, status, lu_desc, open_num, first_lu_time, last_lu_time,
+                   limit_order, limit_amount, lu_limit_order, turnover_rate,
+                   turnover, free_float, sum_float, limit_up_suc_rate, market_type
+            FROM ths_limit_list
+            WHERE 1=1
+        '''
+        
+        if trade_date:
+            sql += ' AND trade_date = ?'
+            params.append(trade_date)
+        if limit_type:
+            sql += ' AND limit_type = ?'
+            params.append(limit_type)
+        if start_date:
+            sql += ' AND trade_date >= ?'
+            params.append(start_date)
+        if end_date:
+            sql += ' AND trade_date <= ?'
+            params.append(end_date)
+        
+        sql += ' ORDER BY trade_date DESC, pct_chg DESC LIMIT ?'
+        params.append(limit)
+        
+        cursor.execute(sql, params)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        return [{
+            'trade_date': row[0],
+            'ts_code': row[1],
+            'ts_name': row[2],
+            'price': row[3],
+            'pct_chg': row[4],
+            'limit_type': row[5],
+            'tag': row[6],
+            'status': row[7],
+            'lu_desc': row[8],
+            'open_num': row[9],
+            'first_lu_time': row[10],
+            'last_lu_time': row[11],
+            'limit_order': row[12],
+            'limit_amount': row[13],
+            'lu_limit_order': row[14],
+            'turnover_rate': row[15],
+            'turnover': row[16],
+            'free_float': row[17],
+            'sum_float': row[18],
+            'limit_up_suc_rate': row[19],
+            'market_type': row[20]
+        } for row in rows]
+    
+    def get_limit_ladder(self, trade_date: str) -> Dict:
+        """
+        获取连板天梯（聚合统计）
+        
+        Args:
+            trade_date: 交易日期
+        
+        Returns:
+            连板天梯数据
+        """
+        conn = sqlite3.connect(self.db_path)
+        cursor = conn.cursor()
+        
+        # 获取连扳池数据
+        cursor.execute('''
+            SELECT ts_code, ts_name, tag, status, price, pct_chg, 
+                   first_lu_time, open_num, limit_order, lu_desc
+            FROM ths_limit_list
+            WHERE trade_date = ? AND limit_type = '连扳池'
+            ORDER BY 
+                CASE 
+                    WHEN tag LIKE '%首板%' THEN 1
+                    WHEN tag LIKE '%2板%' THEN 2
+                    WHEN tag LIKE '%3板%' THEN 3
+                    WHEN tag LIKE '%4板%' THEN 4
+                    WHEN tag LIKE '%5板%' THEN 5
+                    WHEN tag LIKE '%6板%' THEN 6
+                    WHEN tag LIKE '%7板%' THEN 7
+                    ELSE 8
+                END DESC,
+                first_lu_time ASC
+        ''', (trade_date,))
+        
+        rows = cursor.fetchall()
+        
+        # 按连板数分组
+        ladder = {}
+        for row in rows:
+            ts_code = row[0]
+            ts_name = row[1]
+            tag = row[2]
+            
+            # 解析连板数
+            if '首板' in (tag or ''):
+                level = 1
+            elif tag:
+                import re
+                match = re.search(r'(\d+)板', tag)
+                level = int(match.group(1)) if match else 1
+            else:
+                level = 1
+            
+            if level not in ladder:
+                ladder[level] = []
+            
+            ladder[level].append({
+                'ts_code': ts_code,
+                'ts_name': ts_name,
+                'tag': tag,
+                'status': row[3],
+                'price': row[4],
+                'pct_chg': row[5],
+                'first_lu_time': row[6],
+                'open_num': row[7],
+                'limit_order': row[8],
+                'lu_desc': row[9]
+            })
+        
+        # 统计各类型数量
+        cursor.execute('''
+            SELECT limit_type, COUNT(*) 
+            FROM ths_limit_list 
+            WHERE trade_date = ?
+            GROUP BY limit_type
+        ''', (trade_date,))
+        
+        stats = {row[0]: row[1] for row in cursor.fetchall()}
+        
+        conn.close()
+        
+        return {
+            'trade_date': trade_date,
+            'ladder': ladder,
+            'stats': stats
+        }
+
 
 # 单例
 _data_service: Optional[DataService] = None

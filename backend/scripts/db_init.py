@@ -192,6 +192,110 @@ class DatabaseInitializer:
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_auction_date ON stock_auction(trade_date)')
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_auction_code ON stock_auction(stock_code)')
         
+        # 11. 同花顺概念列表
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ths_concept (
+            ts_code TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            concept_type TEXT,
+            component_count INTEGER,
+            list_date TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
+        
+        # 12. 同花顺概念成分股
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ths_concept_member (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            concept_code TEXT NOT NULL,
+            concept_name TEXT NOT NULL,
+            stock_code TEXT NOT NULL,
+            stock_name TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(concept_code, stock_code)
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_member_concept ON ths_concept_member(concept_code)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_member_stock ON ths_concept_member(stock_code)')
+        
+        # 13. 同花顺概念日行情
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ths_concept_daily (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trade_date TEXT NOT NULL,
+            concept_code TEXT NOT NULL,
+            concept_name TEXT,
+            pre_close REAL,
+            open REAL,
+            close REAL,
+            high REAL,
+            low REAL,
+            pct_change REAL,
+            vol REAL,
+            turnover_rate REAL,
+            total_mv REAL,
+            float_mv REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(trade_date, concept_code)
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_concept_daily_date ON ths_concept_daily(trade_date)')
+        
+        # 14. 同花顺个股热榜
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ths_hot_rank (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trade_date TEXT NOT NULL,
+            rank_time TEXT NOT NULL,
+            ts_code TEXT NOT NULL,
+            ts_name TEXT,
+            rank INTEGER,
+            hot REAL,
+            pct_change REAL,
+            current_price REAL,
+            concept TEXT,
+            rank_reason TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(trade_date, rank_time, ts_code)
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ths_hot_rank_date ON ths_hot_rank(trade_date)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ths_hot_rank_stock ON ths_hot_rank(ts_code)')
+        
+        # 15. 同花顺涨跌停榜单（连板天梯）
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS ths_limit_list (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            trade_date TEXT NOT NULL,
+            ts_code TEXT NOT NULL,
+            ts_name TEXT,
+            price REAL,
+            pct_chg REAL,
+            limit_type TEXT NOT NULL,
+            tag TEXT,
+            status TEXT,
+            lu_desc TEXT,
+            open_num INTEGER,
+            first_lu_time TEXT,
+            last_lu_time TEXT,
+            limit_order REAL,
+            limit_amount REAL,
+            lu_limit_order REAL,
+            turnover_rate REAL,
+            turnover REAL,
+            free_float REAL,
+            sum_float REAL,
+            limit_up_suc_rate REAL,
+            market_type TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(trade_date, ts_code, limit_type)
+        )
+        ''')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ths_limit_date ON ths_limit_list(trade_date)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ths_limit_stock ON ths_limit_list(ts_code)')
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_ths_limit_type ON ths_limit_list(limit_type)')
+        
         conn.commit()
         conn.close()
         

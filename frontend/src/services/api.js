@@ -52,4 +52,24 @@ export const analysisAPI = {
   getLeaders: (date) => api.get(`/analysis/leaders/${date}`),
 };
 
+// 同花顺数据API
+export const thsAPI = {
+  // 概念列表
+  getConcepts: (search, limit = 100) => api.get('/ths/concepts', { params: { search, limit } }),
+  // 概念成分股
+  getConceptMembers: (conceptCode) => api.get(`/ths/concepts/${conceptCode}/members`),
+  // 股票所属概念
+  getStockConcepts: (stockCode) => api.get(`/ths/stocks/${stockCode}/concepts`),
+  // 概念日行情
+  getConceptDaily: (params) => api.get('/ths/concepts/daily', { params }),
+  // 个股热榜
+  getHotRank: (tradeDate, rankTime, limit = 100) => api.get('/ths/hot-rank', { 
+    params: { trade_date: tradeDate, rank_time: rankTime, limit } 
+  }),
+  // 涨跌停榜单
+  getLimitList: (params) => api.get('/ths/limit-list', { params }),
+  // 连板天梯
+  getLimitLadder: (tradeDate) => api.get(`/ths/limit-ladder/${tradeDate}`),
+};
+
 export default api;
