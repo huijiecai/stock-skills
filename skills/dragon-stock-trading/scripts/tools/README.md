@@ -100,6 +100,45 @@ python collect_stock_data.py --method auction --start 2026-01-01 --end 2026-02-2
 python run_full_collection.py --step auction --days 60
 ```
 
+### 7. 采集同花顺概念数据
+
+> **注意**：同花顺接口需要 Tushare 6000+ 积分
+
+```bash
+# 采集概念列表
+python collect_ths_data.py --method concept_list
+
+# 采集概念成分股
+python collect_ths_data.py --method members
+
+# 采集概念日行情
+python collect_ths_data.py --method daily --start 2026-02-01 --end 2026-03-02
+
+# 采集个股热榜（最新数据，22:30后更新）
+python collect_ths_data.py --method hot_rank --is-new Y
+
+# 采集个股热榜（历史数据）
+python collect_ths_data.py --method hot_rank --start 2026-02-01 --end 2026-03-02
+
+# 采集连板天梯
+python collect_ths_data.py --method limit_list --start 2026-02-01 --end 2026-03-02 --limit-type 连扳池
+
+# 采集全部同花顺数据（最近60天）
+python collect_ths_data.py --method all --days 60
+```
+
+**`--method` 可选值**：
+| 值 | 说明 |
+|---|------|
+| `concept_list` | 概念列表 |
+| `members` | 概念成分股 |
+| `daily` | 概念日行情 |
+| `hot_rank` | 个股热榜 |
+| `limit_list` | 涨跌停榜单 |
+| `all` | 全部数据 |
+
+**`--limit-type` 可选值**：`涨停池`、`连扳池`、`炸板池`、`跌停池`
+
 ## ⚙️ 常用参数
 
 | 参数 | 说明 | 示例 |
