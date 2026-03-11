@@ -6,6 +6,29 @@
 
 ## 一、官方信息渠道（最高权重）
 
+### 0. 政府工作报告与政策文件 🆕
+
+**用途**：
+- 国家战略级政策动向
+- 新基建工程重点方向
+- 产业发展目标与时间表
+
+**访问方法**：
+```
+中国政府网：http://www.gov.cn
+搜索：政府工作报告 [年份]
+
+重要政策文件查询：
+- 国家发改委：https://www.ndrc.gov.cn
+- 工信部：https://www.miit.gov.cn
+- 国家能源局：http://www.nea.gov.cn
+```
+
+**2026年重点政策**：
+- "算电协同"首次写入《政府工作报告》（2026年3月）
+- 虚拟电厂发展目标：2027年2000万千瓦，2030年5000万千瓦
+- "东数西算"工程推进情况
+
 ### 1. 上市公司官网
 
 **用途**：
@@ -120,6 +143,12 @@ Google搜索：[公司名称] 官网
 
 ### 2. 行业协会/政府网站
 
+**电力电网行业** 🆕：
+- 国家电网：http://www.sgcc.com.cn
+- 南方电网：https://www.csg.cn
+- 中国电力企业联合会：http://www.cec.org.cn
+- 国家能源局：http://www.nea.gov.cn
+
 **半导体行业**：
 - 中国半导体行业协会：http://www.csia.net.cn
 - 工信部电子信息司
@@ -131,10 +160,15 @@ Google搜索：[公司名称] 官网
 **化工行业**：
 - 中国石油和化学工业联合会：http://www.cpcia.org.cn
 
+**数据中心行业** 🆕：
+- 中国信息通信研究院（CAICT）：http://www.caict.ac.cn
+- 中国数据中心工作组（CDCC）
+
 **用途**：
 - 行业统计数据
 - 产业政策解读
 - 行业发展报告
+- 电网投资计划与特高压项目进度
 
 ### 3. 专业媒体
 
@@ -142,16 +176,24 @@ Google搜索：[公司名称] 官网
 - 36氪：https://36kr.com
 - 钛媒体：https://www.tmtpost.com
 - 雷锋网：https://www.leiphone.com
+- 机器之心：https://www.jiqizhixin.com 🆕（AI行业）
 
 **财经类**：
 - 第一财经：https://www.yicai.com
 - 财新网：https://www.caixin.com
 - 21世纪经济报道：http://www.21jingji.com
+- 证券时报：http://www.stcn.com 🆕
+
+**能源电力类** 🆕：
+- 中国能源报：https://www.cnenergynews.cn
+- 北极星电力网：https://news.bjx.com.cn
+- 电缆网：https://www.cableabc.com
 
 **用途**：
 - 行业动态、新技术趋势
 - 重大事件报道
 - 深度分析文章
+- 政策解读与市场分析
 
 ---
 
