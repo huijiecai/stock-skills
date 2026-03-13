@@ -9,7 +9,7 @@ import pandas as pd
 from datetime import datetime
 import time
 
-# 20家核心公司列表
+# 23家核心公司列表（新增3家风电公司）
 STOCK_LIST = [
     {'name': '特变电工', 'code': '600089'},
     {'name': '明阳智能', 'code': '601615'},
@@ -31,6 +31,10 @@ STOCK_LIST = [
     {'name': '金开新能', 'code': '600821'},
     {'name': '伊戈尔', 'code': '002922'},
     {'name': '节能风电', 'code': '601016'},
+    # 新增风电公司
+    {'name': '三一重工', 'code': '600031'},
+    {'name': '海力风电', 'code': '301155'},
+    {'name': '东方电缆', 'code': '603606'},
 ]
 
 
