@@ -11,7 +11,7 @@
 trading-system/
 ├── README.md                        ← 本文件
 ├── system/
-│   └── trading-system.md            ← 交易系统规则（v2.1）
+│   └── trading-system.md            ← 交易系统规则（v2.2）
 ├── tools/
 │   └── fetch_data.py                ← 数据采集工具（Tushare）
 ├── data/                            ← 采集的数据（JSON，gitignore）
@@ -50,6 +50,13 @@ python tools/fetch_data.py --limit-up --date 2026-03-27
 python tools/fetch_data.py --code 000001 --days 60 --index
 ```
 
+### 环境变量
+
+| 变量 | 说明 | 示例 |
+|------|------|------|
+| TUSHARE_TOKEN | Tushare API token | export TUSHARE_TOKEN='xxx' |
+| TUSHARE_DOMAIN | 自定义API域名（可选） | export TUSHARE_DOMAIN='http://tushare.xyz' |
+
 ### Tushare 权限要求
 
 | 数据类型 | 需要积分 |
@@ -65,6 +72,7 @@ python tools/fetch_data.py --code 000001 --days 60 --index
 - **v1**：4阶段情绪周期（冰点→修复→高潮→退潮）
 - **v2**：7阶段主线生命周期（冰点→修复→分歧→再确认→主升→高潮→退潮），三维确认信号
 - **v2.1**：补入实战教训（多主线并行、板块内部结构、全市场催化扫描、周末风险预案）
+- **v2.2**：盘中感知框架（触发条件+快速评估+决策矩阵）、阶段判断确定性标注、虚拟交易账户
 
 ## 关键原则
 

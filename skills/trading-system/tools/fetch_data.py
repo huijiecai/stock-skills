@@ -7,6 +7,12 @@
 依赖：tushare（pip install tushare）
 
 使用方法：
+    # 设置 Tushare Token（一次性）
+    export TUSHARE_TOKEN='your_token'
+    
+    # 如果使用自定义域名（如 tushare.xyz）
+    export TUSHARE_DOMAIN='http://tushare.xyz'
+    
     # 采集融捷股份最近30天日线+分钟数据
     python fetch_data.py --code 002192 --days 30 --intraday
     
@@ -48,9 +54,18 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
 def get_pro():
     """获取 Tushare pro API 实例"""
+    import tushare.pro.client as _client
+    
+    # 自定义域名（如果使用 tushare.xyz）
+    custom_domain = os.environ.get("TUSHARE_DOMAIN", "")
+    if custom_domain:
+        _client.DataApi._DataApi__http_url = custom_domain
+    
     if not TUSHARE_TOKEN:
         print("❌ 请设置 TUSHARE_TOKEN 环境变量")
         print("   export TUSHARE_TOKEN='your_token'")
+        if custom_domain:
+            print(f"   export TUSHARE_DOMAIN='{custom_domain}'  (已设置)")
         sys.exit(1)
     return ts.pro_api(TUSHARE_TOKEN)
 
