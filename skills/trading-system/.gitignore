@@ -1,0 +1,11 @@
+# 数据文件
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# 系统文件
+.DS_Store
