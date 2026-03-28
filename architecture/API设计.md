@@ -31,57 +31,749 @@ backend/app/api/
 
 ---
 
+## API 响应格式统一
+
+### 成功响应
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": { ... }
+}
+```
+
+### 失败响应
+```json
+{
+    "code": 400,
+    "message": "错误描述",
+    "data": null
+}
+```
+
+### 分页响应
+```json
+{
+    "code": 200,
+    "message": "success",
+    "data": {
+        "items": [...],
+        "total": 100,
+        "page": 1,
+        "page_size": 20
+    }
+}
+```
+
+---
+
 ## 股票 API (`/api/stock`)
 
-| 方法 | 路径 | 功能 | 参数 |
+### 1. 获取股票基本信息
+
+**GET** `/api/stock/info/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| GET | `/api/stock/info/{code}` | 股票基本信息 | code: 股票代码 |
-| GET | `/api/stock/daily/{code}` | 股票日线行情 | code, start_date, end_date |
-| GET | `/api/stock/intraday/{code}` | 股票分时数据 | code, date |
-| GET | `/api/stock/realtime` | 实时行情（批量） | codes: 股票代码列表 |
-| GET | `/api/stock/capital-flow/{code}` | 资金流向 | code, date |
-| GET | `/api/stock/concepts/{code}` | 股票所属概念 | code |
-| GET | `/api/stock/search` | 股票搜索 | keyword: 关键词 |
+| code | string | 是 | 股票代码（如 002192） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "stock_code": "002192",
+    "stock_name": "融捷股份",
+    "industry": "有色金属",
+    "list_date": "2007-12-05",
+    "market": "SZ"
+  }
+}
+```
+
+---
+
+### 2. 获取股票日线行情
+
+**GET** `/api/stock/daily/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 股票代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| start_date | string | 否 | 开始日期（默认近30日） |
+| end_date | string | 否 | 结束日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "stock_code": "002192",
+    "stock_name": "融捷股份",
+    "items": [
+      {
+        "trade_date": "2026-03-27",
+        "open": 73.33,
+        "high": 78.00,
+        "low": 72.72,
+        "close": 78.00,
+        "pre_close": 70.91,
+        "change_pct": 9.99,
+        "volume": 421223,
+        "amount": 3145292965,
+        "turnover_rate": 5.23
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 3. 获取股票分时数据
+
+**GET** `/api/stock/intraday/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 股票代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "stock_code": "002192",
+    "stock_name": "融捷股份",
+    "date": "2026-03-27",
+    "items": [
+      {
+        "time": "09:30",
+        "price": 78.00,
+        "change": 7.09,
+        "change_pct": 10.00,
+        "volume": 10000,
+        "amount": 780000,
+        "avg_price": 78.50
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4. 批量获取实时行情
+
+**POST** `/api/stock/realtime`
+
+> 复杂查询使用 POST，避免 URL 过长
+
+**请求体**：
+```json
+{
+  "codes": ["002192", "000722", "600726"]
+}
+```
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {
+        "code": "002192",
+        "name": "融捷股份",
+        "price": 78.00,
+        "change_pct": 10.00,
+        "volume": 421223,
+        "amount": 3145292965,
+        "high": 78.00,
+        "low": 72.72,
+        "open": 73.33,
+        "pre_close": 70.91
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 5. 获取资金流向
+
+**GET** `/api/stock/capital-flow/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 股票代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "stock_code": "002192",
+    "stock_name": "融捷股份",
+    "date": "2026-03-27",
+    "main_net_inflow": 150000000,
+    "main_net_inflow_pct": 5.23,
+    "retail_net_inflow": -80000000,
+    "retail_net_inflow_pct": -2.78,
+    "super_net_inflow": 120000000,
+    "big_net_inflow": 30000000,
+    "mid_net_inflow": -20000000,
+    "small_net_inflow": -60000000
+  }
+}
+```
+
+---
+
+### 6. 获取股票所属概念
+
+**GET** `/api/stock/concepts/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 股票代码 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "stock_code": "002192",
+    "stock_name": "融捷股份",
+    "concepts": [
+      {
+        "concept_code": "BK0612",
+        "concept_name": "锂电池",
+        "is_core": true,
+        "reason": "公司主营业务为锂矿采选"
+      },
+      {
+        "concept_code": "BK0888",
+        "concept_name": "有色金属",
+        "is_core": false,
+        "reason": "公司所属行业"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 7. 搜索股票
+
+**GET** `/api/stock/search`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| keyword | string | 是 | 搜索关键词（股票名称或代码） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {
+        "stock_code": "002192",
+        "stock_name": "融捷股份",
+        "industry": "有色金属",
+        "market": "SZ"
+      }
+    ]
+  }
+}
+```
 
 ---
 
 ## 指数 API (`/api/index`)
 
-| 方法 | 路径 | 功能 | 参数 |
+### 1. 获取指数列表
+
+**GET** `/api/index/list`
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {"index_code": "000001", "index_name": "上证指数"},
+      {"index_code": "399001", "index_name": "深证成指"},
+      {"index_code": "399006", "index_name": "创业板指"},
+      {"index_code": "000688", "index_name": "科创50"}
+    ]
+  }
+}
+```
+
+---
+
+### 2. 获取指数日线
+
+**GET** `/api/index/daily/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| GET | `/api/index/list` | 指数列表 | - |
-| GET | `/api/index/daily/{code}` | 指数日线 | code, start_date, end_date |
-| GET | `/api/index/intraday/{code}` | 指数分时 | code, date |
+| code | string | 是 | 指数代码（如 000001） |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| start_date | string | 否 | 开始日期 |
+| end_date | string | 否 | 结束日期 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "index_code": "000001",
+    "index_name": "上证指数",
+    "items": [
+      {
+        "trade_date": "2026-03-27",
+        "open": 3850.00,
+        "high": 3892.00,
+        "low": 3840.00,
+        "close": 3892.00,
+        "change_pct": 0.73,
+        "volume": 450000000,
+        "amount": 52000000000
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 3. 获取指数分时
+
+**GET** `/api/index/intraday/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 指数代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "index_code": "000001",
+    "index_name": "上证指数",
+    "date": "2026-03-27",
+    "items": [
+      {
+        "time": "09:30",
+        "price": 3850.00,
+        "change_pct": 0.12,
+        "volume": 5000000,
+        "amount": 200000000
+      }
+    ]
+  }
+}
+```
 
 ---
 
 ## 概念板块 API (`/api/concept`)
 
-| 方法 | 路径 | 功能 | 参数 |
+### 1. 获取概念列表
+
+**GET** `/api/concept/list`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| GET | `/api/concept/list` | 概念列表 | source: east/ths |
-| GET | `/api/concept/info/{code}` | 概念详情 | code: 概念代码 |
-| GET | `/api/concept/daily/{code}` | 概念日线 | code, start_date, end_date |
-| GET | `/api/concept/intraday/{code}` | 概念分时 | code, date |
-| GET | `/api/concept/constituents/{code}` | 概念成分股 | code |
-| GET | `/api/concept/ranking` | 概念涨幅排行 | date, top_n |
+| source | string | 否 | 数据源：east（东方财富）/ ths（同花顺），默认 east |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "source": "east",
+    "items": [
+      {
+        "concept_code": "BK0612",
+        "concept_name": "锂电池",
+        "component_count": 85
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 2. 获取概念详情
+
+**GET** `/api/concept/info/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 概念代码（如 BK0612） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "concept_code": "BK0612",
+    "concept_name": "锂电池",
+    "component_count": 85,
+    "source": "east"
+  }
+}
+```
+
+---
+
+### 3. 获取概念日线
+
+**GET** `/api/concept/daily/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 概念代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| start_date | string | 否 | 开始日期 |
+| end_date | string | 否 | 结束日期 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "concept_code": "BK0612",
+    "concept_name": "锂电池",
+    "items": [
+      {
+        "trade_date": "2026-03-27",
+        "open": 1250.00,
+        "high": 1290.00,
+        "low": 1245.00,
+        "close": 1285.00,
+        "change_pct": 3.5,
+        "volume": 15000000,
+        "amount": 850000000
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4. 获取概念分时
+
+**GET** `/api/concept/intraday/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 概念代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "concept_code": "BK0612",
+    "concept_name": "锂电池",
+    "date": "2026-03-27",
+    "items": [
+      {
+        "time": "09:30",
+        "price": 1250.00,
+        "change_pct": 0.5,
+        "volume": 50000,
+        "amount": 2500000
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 5. 获取概念成分股
+
+**GET** `/api/concept/constituents/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 概念代码 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "concept_code": "BK0612",
+    "concept_name": "锂电池",
+    "items": [
+      {
+        "stock_code": "002192",
+        "stock_name": "融捷股份",
+        "is_core": true,
+        "reason": "公司主营业务为锂矿采选"
+      },
+      {
+        "stock_code": "002466",
+        "stock_name": "天齐锂业",
+        "is_core": true,
+        "reason": "锂矿资源龙头"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 6. 获取概念涨幅排行
+
+**GET** `/api/concept/ranking`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+| top_n | int | 否 | 返回数量（默认20） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "items": [
+      {
+        "concept_code": "BK0612",
+        "concept_name": "锂电池",
+        "change_pct": 3.5,
+        "limit_up_count": 3
+      },
+      {
+        "concept_code": "BK0888",
+        "concept_name": "商业航天",
+        "change_pct": 2.8,
+        "limit_up_count": 2
+      }
+    ]
+  }
+}
+```
 
 ---
 
 ## 市场数据 API (`/api/market`)
 
-| 方法 | 路径 | 功能 | 参数 |
+### 1. 获取涨停股列表
+
+**GET** `/api/market/limit-up`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| GET | `/api/market/limit-up` | 涨停股列表 | date |
-| GET | `/api/market/limit-down` | 跌停股列表 | date |
-| GET | `/api/market/limit-times/{times}` | 连板股查询 | times: 连板数, date |
-| GET | `/api/market/overview` | 市场概览 | date |
-| GET | `/api/market/limit-up-distribution` | 涨停方向分布 | date |
-| GET | `/api/market/statistics` | 市场统计（涨跌家数、封板率） | date |
+| date | string | 否 | 日期（默认今日） |
 
-### 市场统计接口详细说明
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "items": [
+      {
+        "stock_code": "002192",
+        "stock_name": "融捷股份",
+        "close_price": 78.00,
+        "change_pct": 10.00,
+        "first_time": "09:30:00",
+        "last_time": "14:50:00",
+        "open_times": 0,
+        "limit_times": 1,
+        "limit_amount": 120000000,
+        "industry": "有色金属"
+      }
+    ]
+  }
+}
+```
 
-**接口**：`GET /api/market/statistics`
+---
+
+### 2. 获取跌停股列表
+
+**GET** `/api/market/limit-down`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：同涨停股列表
+
+---
+
+### 3. 获取连板股查询
+
+**GET** `/api/market/limit-times/{times}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| times | int | 是 | 连板数（2=2板，3=3板...） |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "limit_times": 3,
+    "items": [
+      {
+        "stock_code": "002192",
+        "stock_name": "融捷股份",
+        "close_price": 78.00,
+        "change_pct": 10.00,
+        "industry": "有色金属"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4. 获取市场概览
+
+**GET** `/api/market/overview`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "index": {
+      "000001": {"name": "上证指数", "price": 3892, "change_pct": 0.73},
+      "399001": {"name": "深证成指", "price": 13610, "change_pct": 0.45},
+      "399006": {"name": "创业板指", "price": 2188, "change_pct": 0.32}
+    },
+    "limit_up_count": 78,
+    "limit_down_count": 2,
+    "total_amount": 210000000000
+  }
+}
+```
+
+---
+
+### 5. 获取涨停方向分布
+
+**GET** `/api/market/limit-up-distribution`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "items": [
+      {
+        "concept_code": "BK0612",
+        "concept_name": "锂电池",
+        "limit_up_count": 5,
+        "stocks": ["002192", "002466", "002460"]
+      },
+      {
+        "concept_code": "BK0888",
+        "concept_name": "商业航天",
+        "limit_up_count": 3,
+        "stocks": ["002361", "600118"]
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 6. 获取市场统计
+
+**GET** `/api/market/statistics`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
 
 **返回示例**：
 ```json
@@ -107,35 +799,128 @@ backend/app/api/
 
 ## 数据采集触发 API (`/api/collector`)
 
-| 方法 | 路径 | 功能 | 参数 |
+### 1. 触发股票日线采集
+
+**POST** `/api/collector/stock/daily`
+
+**请求体**：
+```json
+{
+  "code": "002192",
+  "start_date": "2026-01-01",
+  "end_date": "2026-03-27"
+}
+```
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "task_id": "task_20260327_001",
+    "status": "running"
+  }
+}
+```
+
+---
+
+### 2. 触发股票分时采集
+
+**POST** `/api/collector/stock/intraday`
+
+**请求体**：
+```json
+{
+  "code": "002192",
+  "date": "2026-03-27"
+}
+```
+
+---
+
+### 3. 触发指数日线采集
+
+**POST** `/api/collector/index/daily`
+
+**请求体**：
+```json
+{
+  "code": "000001",
+  "start_date": "2026-01-01",
+  "end_date": "2026-03-27"
+}
+```
+
+---
+
+### 4. 触发概念数据采集
+
+**POST** `/api/collector/concept/all`
+
+**请求体**：
+```json
+{
+  "date": "2026-03-27"
+}
+```
+
+---
+
+### 5. 触发涨跌停采集
+
+**POST** `/api/collector/market/limit`
+
+**请求体**：
+```json
+{
+  "date": "2026-03-27"
+}
+```
+
+---
+
+### 6. 查询采集任务状态
+
+**GET** `/api/collector/status`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| POST | `/api/collector/stock/daily` | 触发股票日线采集 | code, start_date, end_date |
-| POST | `/api/collector/stock/intraday` | 触发股票分时采集 | code, date |
-| POST | `/api/collector/index/daily` | 触发指数日线采集 | code, start_date, end_date |
-| POST | `/api/collector/concept/all` | 触发概念数据采集 | date |
-| POST | `/api/collector/market/limit` | 触发涨跌停采集 | date |
-| GET | `/api/collector/status` | 采集任务状态 | task_id |
+| task_id | string | 是 | 任务ID |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "task_id": "task_20260327_001",
+    "status": "completed",
+    "started_at": "2026-03-27T19:30:00",
+    "completed_at": "2026-03-27T19:30:15",
+    "records_processed": 100
+  }
+}
+```
 
 ---
 
 ## 模拟看盘专用 API (`/api/simulation`)
 
-| 方法 | 路径 | 功能 | 说明 |
-|------|------|------|------|
-| GET | `/api/simulation/market-snapshot` | **全市场时间点快照** | 板块排行+个股排行+市场情绪+涨停列表 |
-| GET | `/api/simulation/watchlist-snapshot` | **盯盘股时间点快照** | 指定时间点的盯盘股状态 |
-| GET | `/api/simulation/timeline` | **时间线快照序列** | 批量获取多个时间点的完整数据 |
-| GET | `/api/simulation/stock-detail/{code}` | 个股详情页 | 基本信息+分时+资金流向+所属概念 |
-| GET | `/api/simulation/concept-detail/{code}` | 概念详情页 | 基本信息+分时+成分股 |
+### 1. 全市场时间点快照
 
-### 全市场快照接口详细说明
+**POST** `/api/simulation/market-snapshot`
 
-**接口**：`GET /api/simulation/market-snapshot`
+> 复杂查询使用 POST，支持更多参数扩展
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| time | 时间点（HH:MM） | 10:17 |
-| date | 日期 | 2026-03-27 |
+**请求体**：
+```json
+{
+  "time": "10:17",
+  "date": "2026-03-27",
+  "top_n": 10
+}
+```
 
 **返回示例**：
 ```json
@@ -176,15 +961,22 @@ backend/app/api/
 }
 ```
 
-### 盯盘股快照接口详细说明
+---
 
-**接口**：`GET /api/simulation/watchlist-snapshot`
+### 2. 盯盘股时间点快照
 
-| 参数 | 说明 | 示例 |
-|------|------|------|
-| time | 时间点（HH:MM） | 10:17 |
-| date | 日期 | 2026-03-27 |
-| codes | 股票代码列表 | 002192,000722,600726 |
+**POST** `/api/simulation/watchlist-snapshot`
+
+> 批量查询使用 POST
+
+**请求体**：
+```json
+{
+  "time": "10:17",
+  "date": "2026-03-27",
+  "codes": ["002192", "000722", "600726"]
+}
+```
 
 **返回示例**：
 ```json
@@ -220,45 +1012,256 @@ backend/app/api/
 
 ---
 
-## 账户管理 API (`/api/account`)
+### 3. 时间线快照序列
 
-| 方法 | 路径 | 功能 | 参数 |
-|------|------|------|------|
-| GET | `/api/account/status` | 账户状态 | - |
-| GET | `/api/account/positions` | 当前持仓 | - |
-| GET | `/api/account/trades` | 交易记录 | start_date, end_date |
-| POST | `/api/account/trade` | 记录交易 | code, action, price, quantity, reason |
-| GET | `/api/account/snapshot` | 每日快照 | date |
+**POST** `/api/simulation/timeline`
+
+> 批量查询多个时间点
+
+**请求体**：
+```json
+{
+  "date": "2026-03-27",
+  "times": ["09:30", "09:35", "10:00", "10:30", "11:30", "14:00", "15:00"],
+  "codes": ["002192", "000722", "600726"]
+}
+```
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "snapshots": [
+      {
+        "time": "09:30",
+        "items": [...]
+      },
+      {
+        "time": "09:35",
+        "items": [...]
+      }
+    ]
+  }
+}
+```
 
 ---
 
-## API 响应格式统一
+### 4. 个股详情页
 
-```python
-# 成功响应
+**GET** `/api/simulation/stock-detail/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 股票代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
 {
-    "code": 200,
-    "message": "success",
-    "data": { ... }
+  "code": 200,
+  "data": {
+    "info": {
+      "stock_code": "002192",
+      "stock_name": "融捷股份",
+      "industry": "有色金属"
+    },
+    "daily": {
+      "open": 73.33,
+      "high": 78.00,
+      "low": 72.72,
+      "close": 78.00,
+      "change_pct": 9.99,
+      "volume": 421223,
+      "amount": 3145292965
+    },
+    "intraday": [...],
+    "capital_flow": {...},
+    "concepts": [...]
+  }
 }
+```
 
-# 失败响应
+---
+
+### 5. 概念详情页
+
+**GET** `/api/simulation/concept-detail/{code}`
+
+**路径参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| code | string | 是 | 概念代码 |
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
 {
-    "code": 400,
-    "message": "错误描述",
-    "data": null
+  "code": 200,
+  "data": {
+    "info": {
+      "concept_code": "BK0612",
+      "concept_name": "锂电池",
+      "component_count": 85
+    },
+    "daily": {
+      "change_pct": 3.5,
+      "volume": 15000000,
+      "amount": 850000000
+    },
+    "intraday": [...],
+    "constituents": [...]
+  }
 }
+```
 
-# 分页响应
+---
+
+## 账户管理 API (`/api/account`)
+
+### 1. 获取账户状态
+
+**GET** `/api/account/status`
+
+**返回示例**：
+```json
 {
-    "code": 200,
-    "message": "success",
-    "data": {
-        "items": [...],
-        "total": 100,
-        "page": 1,
-        "page_size": 20
-    }
+  "code": 200,
+  "data": {
+    "total_asset": 1000000.00,
+    "available_cash": 500000.00,
+    "market_value": 500000.00,
+    "total_profit": 50000.00,
+    "total_profit_pct": 5.26
+  }
+}
+```
+
+---
+
+### 2. 获取当前持仓
+
+**GET** `/api/account/positions`
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {
+        "stock_code": "002192",
+        "stock_name": "融捷股份",
+        "quantity": 1000,
+        "available": 1000,
+        "cost_price": 70.00,
+        "current_price": 78.00,
+        "market_value": 78000.00,
+        "profit": 8000.00,
+        "profit_pct": 11.43
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 3. 获取交易记录
+
+**GET** `/api/account/trades`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| start_date | string | 否 | 开始日期 |
+| end_date | string | 否 | 结束日期 |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {
+        "trade_id": "T20260327001",
+        "trade_time": "2026-03-27T10:30:00",
+        "stock_code": "002192",
+        "stock_name": "融捷股份",
+        "action": "buy",
+        "price": 75.00,
+        "quantity": 1000,
+        "amount": 75000.00,
+        "reason": "突破前高，放量确认"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 4. 记录交易
+
+**POST** `/api/account/trade`
+
+**请求体**：
+```json
+{
+  "code": "002192",
+  "action": "buy",
+  "price": 75.00,
+  "quantity": 1000,
+  "reason": "突破前高，放量确认"
+}
+```
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "trade_id": "T20260327001",
+    "status": "success"
+  }
+}
+```
+
+---
+
+### 5. 获取每日快照
+
+**GET** `/api/account/snapshot`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "total_asset": 1000000.00,
+    "available_cash": 500000.00,
+    "market_value": 500000.00,
+    "daily_profit": 5000.00,
+    "daily_profit_pct": 0.50,
+    "positions": [...]
+  }
 }
 ```
 
@@ -278,17 +1281,17 @@ backend/app/api/
 
 ```
 盘前：
-  1. GET /api/simulation/market-snapshot?time=15:00&date=昨日 → 获取昨日收盘全景
+  1. POST /api/simulation/market-snapshot {time: "15:00", date: "昨日"} → 获取昨日收盘全景
   2. GET /api/market/limit-up-distribution?date=昨日 → 涨停方向分布
 
 模拟盘中（逐分钟推进）：
-  3. GET /api/simulation/market-snapshot?time=09:35 → 全市场视角
-  4. GET /api/simulation/watchlist-snapshot?time=09:35&codes=... → 盯盘股视角
+  3. POST /api/simulation/market-snapshot {time: "09:35"} → 全市场视角
+  4. POST /api/simulation/watchlist-snapshot {time: "09:35", codes: [...]} → 盯盘股视角
   5. 分析：哪个方向在走强？盯盘股表现如何？
   6. 判断：是否触发交易信号？
   7. POST /api/account/trade → 记录决策（如有）
 
 模拟盘后：
-  8. GET /api/simulation/timeline → 获取完整时间线
+  8. POST /api/simulation/timeline → 获取完整时间线
   9. 复盘：对比预案 vs 实际
 ```
