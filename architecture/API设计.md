@@ -7,11 +7,11 @@
 | 股票 API | 7 | 个股信息、日线、分时、资金流向 |
 | 指数 API | 3 | 指数列表、日线、分时 |
 | 概念 API | 6 | 概念列表、详情、日线、分时、成分股、排行 |
-| 市场 API | 6 | 涨跌停、连板、概览、方向分布、统计 |
+| 市场 API | 7 | 个股排行、涨跌停、连板、概览、方向分布、统计 |
 | 采集 API | 6 | 手动触发采集、任务状态 |
 | 模拟看盘 API | 5 | 全市场快照、盯盘股快照、时间线、详情页 |
 | 账户 API | 5 | 状态、持仓、交易记录、快照 |
-| **总计** | **37** | |
+| **总计** | **38** | |
 
 ---
 
@@ -618,7 +618,56 @@ backend/app/api/
 
 ## 市场数据 API (`/api/market`)
 
-### 1. 获取涨停股列表
+### 1. 获取个股排行
+
+**GET** `/api/market/stock-ranking`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| sort | string | 否 | 排序字段：`change_pct`(涨跌幅), `amount`(成交额), `turnover_rate`(换手率), `main_inflow`(大单流入), 默认 `change_pct` |
+| order | string | 否 | 排序方向：`desc`(降序), `asc`(升序), 默认 `desc` |
+| top_n | int | 否 | 返回数量，默认 20 |
+| concept_code | string | 否 | 板块筛选，只返回该板块内个股 |
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "sort": "change_pct",
+    "order": "desc",
+    "items": [
+      {
+        "stock_code": "002192",
+        "stock_name": "融捷股份",
+        "price": 78.00,
+        "change_pct": 10.00,
+        "amount": 3150000000,
+        "turnover_rate": 5.23,
+        "main_inflow": 210000000,
+        "concept": "锂电池"
+      },
+      {
+        "stock_code": "002361",
+        "stock_name": "神剑股份",
+        "price": 25.50,
+        "change_pct": 10.00,
+        "amount": 2820000000,
+        "turnover_rate": 8.15,
+        "main_inflow": 180000000,
+        "concept": "商业航天"
+      }
+    ]
+  }
+}
+```
+
+---
+
+### 2. 获取涨停股列表
 
 **GET** `/api/market/limit-up`
 
