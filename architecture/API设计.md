@@ -7,7 +7,7 @@
 | 股票 API | 7 | 个股信息、日线、分时、资金流向 |
 | 指数 API | 3 | 指数列表、日线、分时 |
 | 概念 API | 6 | 概念列表、详情、日线、分时、成分股、排行 |
-| 市场 API | 9 | 个股排行、涨跌停、连板天梯、炸板、市场统计 |
+| 市场 API | 9 | 个股排行、涨跌停、连板天梯、炸板、市场概览、连板查询、涨停方向、市场统计 |
 | 采集 API | 6 | 手动触发采集、任务状态 |
 | 模拟看盘 API | 5 | 全市场快照、盯盘股快照、时间线、详情页 |
 | 账户 API | 5 | 状态、持仓、交易记录、快照 |
@@ -616,6 +616,10 @@ backend/app/api/
 }
 ```
 
+> **数据来源**：
+> - `concept_code/concept_name/change_pct`：`concept_daily_east` 表
+> - `limit_up_count`：聚合 `limit_list` + `stock_concept_mapping_east` 表，按概念分组统计涨停数
+
 ---
 
 ## 市场数据 API (`/api/market`)
@@ -774,7 +778,7 @@ backend/app/api/
 
 ---
 
-### 3. 获取连板天梯
+### 5. 获取连板天梯
 
 **GET** `/api/market/continuous-board`
 
@@ -829,7 +833,7 @@ backend/app/api/
 
 ---
 
-### 4. 获取连板股查询
+### 6. 获取连板股查询
 
 **GET** `/api/market/limit-times/{times}`
 
@@ -865,7 +869,7 @@ backend/app/api/
 
 ---
 
-### 4. 获取市场概览
+### 7. 获取市场概览
 
 **GET** `/api/market/overview`
 
@@ -894,7 +898,7 @@ backend/app/api/
 
 ---
 
-### 5. 获取涨停方向分布
+### 8. 获取涨停方向分布
 
 **GET** `/api/market/limit-up-distribution`
 
@@ -927,9 +931,13 @@ backend/app/api/
 }
 ```
 
+> **字段说明**：
+> - `stocks`：该概念下涨停股的股票代码数组
+> - 数据来源：`limit_list` + `stock_concept_mapping_east` 关联查询
+
 ---
 
-### 6. 获取市场统计
+### 9. 获取市场统计
 
 **GET** `/api/market/statistics`
 
@@ -1103,10 +1111,9 @@ backend/app/api/
     },
     
     "market_sentiment": {
-      "up_count": 2800,
-      "down_count": 2100,
       "limit_up_count": 45,
       "limit_down_count": 3,
+      "broken_board_count": 5,
       "seal_rate": 88.2
     },
     
@@ -1413,9 +1420,13 @@ backend/app/api/
 **查询参数**：
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| date | string | 否 | 日期（默认今日） |
+| date | string | 否 | 单日查询（默认今日） |
+| start_date | string | 否 | 开始日期（范围查询） |
+| end_date | string | 否 | 结束日期（范围查询） |
 
-**返回示例**：
+> **说明**：使用 `start_date` + `end_date` 可查询日期范围内的快照，用于绘制收益曲线。
+
+**返回示例（单日）**：
 ```json
 {
   "code": 200,
@@ -1427,6 +1438,20 @@ backend/app/api/
     "daily_profit": 5000.00,
     "daily_profit_pct": 0.50,
     "positions": [...]
+  }
+}
+```
+
+**返回示例（范围查询）**：
+```json
+{
+  "code": 200,
+  "data": {
+    "items": [
+      {"date": "2026-03-27", "total_asset": 1000000.00, "daily_profit_pct": 0.50},
+      {"date": "2026-03-26", "total_asset": 995000.00, "daily_profit_pct": 0.25},
+      {"date": "2026-03-25", "total_asset": 990000.00, "daily_profit_pct": -0.30}
+    ]
   }
 }
 ```
@@ -1495,7 +1520,7 @@ backend/app/api/
 | 概念日线 | `concept_daily_east` | `SELECT * FROM concept_daily_east WHERE concept_code = ? AND trade_date BETWEEN ? AND ?` |
 | 概念分时 | `concept_intraday_east` | `SELECT * FROM concept_intraday_east WHERE concept_code = ? AND trade_date = ?` |
 | 概念成分股 | `stock_concept_mapping_east` + `stock_info` | 关联查询，获取股票名称和核心标识 |
-| 概念涨幅排行 | `concept_daily_east` | 按日期筛选，按 change_pct 排序 |
+| 概念涨幅排行 | `concept_daily_east` + `limit_list` + `stock_concept_mapping_east` | 概念日线 + 聚合统计涨停数 |
 
 ### 市场 API 数据来源
 
@@ -1515,7 +1540,7 @@ backend/app/api/
 
 | API | 数据表 | 查询逻辑 |
 |-----|--------|---------|
-| 全市场快照 | `index_intraday` + `stock_intraday` + `concept_intraday_east` + `limit_list` | 多表联合查询，按时间点筛选 |
+| 全市场快照 | `index_intraday` + `limit_list` + `concept_intraday_east` | 指数分时 + 涨跌停统计 + 概念分时（无涨跌家数） |
 | 盯盘股快照 | `stock_intraday` | `SELECT * FROM stock_intraday WHERE stock_code IN (?) AND trade_date = ? AND trade_time = ?` |
 | 时间线快照 | `stock_intraday` | 批量查询多个时间点数据 |
 | 个股详情页 | `stock_info` + `stock_daily` + `stock_intraday` + `capital_flow` + `stock_concept_mapping_east` | 多表联合 |
