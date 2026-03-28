@@ -13,7 +13,8 @@ trading-system/
 ├── system/
 │   └── trading-system.md            ← 交易系统规则（v2.2）
 ├── tools/
-│   └── fetch_data.py                ← 数据采集工具（Tushare）
+│   ├── fetch_adata_data.py         ← 数据采集工具（adata，免费）
+│   └── fetch_tushare_data.py        ← 数据采集工具（Tushare，历史数据）
 ├── data/                            ← 采集的数据（JSON，gitignore）
 ├── daily/
 │   └── YYYY-MM-DD/
@@ -33,24 +34,58 @@ trading-system/
 
 ## 数据采集
 
+提供两个数据采集脚本：
+
+### 方案一：adata（推荐，免费无需注册）
+
+`fetch_adata_data.py` 基于 adata，**免费、无需 token、支持当日分时**，适合模拟看盘场景。
+
+```bash
+# 获取盯盘股今日全量数据（分时+日线+资金流向）
+python tools/fetch_adata_data.py --watch
+
+# 获取指定股票的分时数据
+python tools/fetch_adata_data.py --code 002192 --intraday
+
+# 获取指定股票的日线数据（最近30天）
+python tools/fetch_adata_data.py --code 002192 --daily
+
+# 获取指数分时/日线
+python tools/fetch_adata_data.py --index 000001 --intraday
+python tools/fetch_adata_data.py --index 000001 --daily --days 60
+
+# 获取实时行情
+python tools/fetch_adata_data.py --realtime 002192 600519 000001
+
+# 获取资金流向
+python tools/fetch_adata_data.py --capital 002192
+
+# 获取今日全量数据（盯盘股+指数）
+python tools/fetch_adata_data.py --all
+```
+
+### 方案二：Tushare（历史数据）
+
+`fetch_tushare_data.py` 基于 Tushare，支持**历史分钟线**和涨停数据，需要积分。
+
 ```bash
 # 设置 Tushare Token（一次性）
 export TUSHARE_TOKEN='your_token'
 
 # 采集融捷股份日线+分钟数据
-python tools/fetch_data.py --code 002192 --days 30 --intraday
+python tools/fetch_tushare_data.py --code 002192 --days 30 --intraday
 
 # 指定日期+5分钟频率
-python tools/fetch_data.py --code 002192 --start 2026-03-01 --end 2026-03-27 --intraday --freq 5min
+python tools/fetch_tushare_data.py --code 002192 --start 2026-03-01 --end 2026-03-27 --intraday --freq 5min
 
 # 采集涨停数据
-python tools/fetch_data.py --limit-up --date 2026-03-27
+python tools/fetch_tushare_data.py --limit-up --date 2026-03-27
 
 # 采集指数日线（上证/深成/创业板）
-python tools/fetch_data.py --code 000001 --days 60 --index
+python tools/fetch_tushare_data.py --code 000001 --days 60 --index
 ```
 
-### 环境变量
+### 环境变量（Tushare）
 
 | 变量 | 说明 | 示例 |
 |------|------|------|
@@ -66,6 +101,20 @@ python tools/fetch_data.py --code 000001 --days 60 --index
 | 分钟线（1min/5min等） | 5000 积分 |
 | 涨停数据 | 1200 积分 |
 | 指数日线 | 免费 |
+
+### 方案对比
+
+| 特性 | adata | Tushare |
+|------|-------|---------|
+| 费用 | **免费** | 需积分 |
+| 注册 | **无需** | 需要 |
+| 当日分时 | ✅ | ✅ |
+| 历史分时 | ❌ | ✅ |
+| 涨停数据 | ❌ | ✅ |
+| 实时行情 | ✅ | ❌ |
+| 资金流向 | ✅ | ✅ |
+
+**建议**：模拟看盘用 adata（每日盘后获取当天数据），历史回溯用 Tushare。
 
 ## 系统版本
 
