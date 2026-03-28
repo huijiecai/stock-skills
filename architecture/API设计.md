@@ -7,11 +7,11 @@
 | 股票 API | 7 | 个股信息、日线、分时、资金流向 |
 | 指数 API | 3 | 指数列表、日线、分时 |
 | 概念 API | 6 | 概念列表、详情、日线、分时、成分股、排行 |
-| 市场 API | 7 | 个股排行、涨跌停、连板、概览、方向分布、统计 |
+| 市场 API | 9 | 个股排行、涨跌停、连板天梯、炸板、市场统计 |
 | 采集 API | 6 | 手动触发采集、任务状态 |
 | 模拟看盘 API | 5 | 全市场快照、盯盘股快照、时间线、详情页 |
 | 账户 API | 5 | 状态、持仓、交易记录、快照 |
-| **总计** | **38** | |
+| **总计** | **41** | |
 
 ---
 
@@ -691,18 +691,75 @@ backend/app/api/
         "first_time": "09:30:00",
         "last_time": "14:50:00",
         "open_times": 0,
-        "limit_times": 1,
+        "limit_times": 4,
         "limit_amount": 120000000,
-        "industry": "有色金属"
+        "is_broken": false,
+        "concept": "锂电池"
+      },
+      {
+        "stock_code": "002466",
+        "stock_name": "xxx",
+        "close_price": 25.50,
+        "change_pct": 10.00,
+        "first_time": "09:35:00",
+        "last_time": "14:50:00",
+        "open_times": 2,
+        "limit_times": 1,
+        "limit_amount": 80000000,
+        "is_broken": true,
+        "broken_time": "10:30:00",
+        "reseal_time": "11:15:00",
+        "concept": "锂电池"
       }
     ]
   }
 }
 ```
 
+> **字段说明**：
+> - `is_broken`: 是否炸过板（涨停后打开过）
+> - `broken_time`: 首次炸板时间
+> - `reseal_time`: 回封时间
+
 ---
 
-### 2. 获取跌停股列表
+### 3. 获取炸板股列表
+
+**GET** `/api/market/broken-board`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "items": [
+      {
+        "stock_code": "002466",
+        "stock_name": "xxx",
+        "close_price": 25.50,
+        "change_pct": 8.50,
+        "first_time": "09:35:00",
+        "broken_time": "10:30:00",
+        "reseal_time": null,
+        "open_times": 3,
+        "concept": "锂电池"
+      }
+    ]
+  }
+}
+```
+
+> **炸板股**：指涨停后打开，且截至收盘未回封的股票。如果回封了则在涨停列表中标记 `is_broken: true`。
+
+---
+
+### 4. 获取跌停股列表
 
 **GET** `/api/market/limit-down`
 
@@ -715,7 +772,62 @@ backend/app/api/
 
 ---
 
-### 3. 获取连板股查询
+### 3. 获取连板天梯
+
+**GET** `/api/market/continuous-board`
+
+**查询参数**：
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| date | string | 否 | 日期（默认今日） |
+
+**返回示例**：
+```json
+{
+  "code": 200,
+  "data": {
+    "date": "2026-03-27",
+    "ladder": [
+      {
+        "level": 5,
+        "count": 1,
+        "stocks": [
+          {"code": "002192", "name": "融捷股份", "concept": "锂电池"}
+        ]
+      },
+      {
+        "level": 4,
+        "count": 2,
+        "stocks": [
+          {"code": "002361", "name": "神剑股份", "concept": "商业航天"},
+          {"code": "600118", "name": "xxx", "concept": "商业航天"}
+        ]
+      },
+      {
+        "level": 3,
+        "count": 5,
+        "stocks": [...] 
+      },
+      {
+        "level": 2,
+        "count": 12,
+        "stocks": [...]
+      },
+      {
+        "level": 1,
+        "count": 58,
+        "stocks": [...]
+      }
+    ],
+    "max_level": 5,
+    "total_count": 78
+  }
+}
+```
+
+---
+
+### 4. 获取连板股查询
 
 **GET** `/api/market/limit-times/{times}`
 
