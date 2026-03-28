@@ -92,6 +92,8 @@ backend/app/api/
 }
 ```
 
+> **数据来源**：`stock_info` 表，按 code 查询
+
 ---
 
 ### 2. 获取股票日线行情
@@ -942,19 +944,22 @@ backend/app/api/
   "code": 200,
   "data": {
     "date": "2026-03-27",
-    "up_count": 4300,
-    "down_count": 800,
-    "flat_count": 200,
     "limit_up_count": 78,
     "limit_down_count": 2,
     "broken_board_count": 5,
+    "max_streak": 5,
     "seal_rate": 93.9,
     "total_amount": 210000000000
   }
 }
 ```
 
-> **封板率计算**：`seal_rate = limit_up_count / (limit_up_count + broken_board_count) * 100`
+> **数据来源**：
+> - `limit_up_count/limit_down_count`：`SELECT COUNT(*) FROM limit_list WHERE trade_date = ? AND limit_type = 'U'/'D'`
+> - `broken_board_count`：`SELECT COUNT(*) FROM limit_list WHERE trade_date = ? AND is_broken = TRUE AND reseal_time IS NULL`
+> - `max_streak`：`SELECT MAX(limit_times) FROM limit_list WHERE trade_date = ? AND limit_type = 'U'`
+> - `seal_rate`：API 层计算 `limit_up_count / (limit_up_count + broken_board_count) * 100`
+> - `total_amount`：`SELECT SUM(amount) FROM index_daily WHERE trade_date = ?`
 
 ---
 
@@ -1456,3 +1461,72 @@ backend/app/api/
   8. POST /api/simulation/timeline → 获取完整时间线
   9. 复盘：对比预案 vs 实际
 ```
+
+---
+
+## API 数据来源汇总
+
+### 股票 API 数据来源
+
+| API | 数据表 | 查询逻辑 |
+|-----|--------|---------|
+| 股票基本信息 | `stock_info` | `SELECT * FROM stock_info WHERE stock_code = ?` |
+| 股票日线 | `stock_daily` | `SELECT * FROM stock_daily WHERE stock_code = ? AND trade_date BETWEEN ? AND ?` |
+| 股票分时 | `stock_intraday` | `SELECT * FROM stock_intraday WHERE stock_code = ? AND trade_date = ?` |
+| 批量实时行情 | `stock_daily` + `stock_info` | 获取最新交易日数据，关联股票名称 |
+| 资金流向 | `capital_flow` | `SELECT * FROM capital_flow WHERE stock_code = ? AND trade_date = ?` |
+| 股票所属概念 | `stock_concept_mapping_east` + `concept_info_east` | 关联查询，获取概念名称 |
+| 搜索股票 | `stock_info` | `SELECT * FROM stock_info WHERE stock_name LIKE ? OR stock_code LIKE ?` |
+
+### 指数 API 数据来源
+
+| API | 数据表 | 查询逻辑 |
+|-----|--------|---------|
+| 指数列表 | `index_daily` | `SELECT DISTINCT index_code, index_name FROM index_daily` |
+| 指数日线 | `index_daily` | `SELECT * FROM index_daily WHERE index_code = ? AND trade_date BETWEEN ? AND ?` |
+| 指数分时 | `index_intraday` | `SELECT * FROM index_intraday WHERE index_code = ? AND trade_date = ?` |
+
+### 概念 API 数据来源
+
+| API | 数据表 | 查询逻辑 |
+|-----|--------|---------|
+| 概念列表 | `concept_info_east` | `SELECT * FROM concept_info_east` |
+| 概念详情 | `concept_info_east` | `SELECT * FROM concept_info_east WHERE concept_code = ?` |
+| 概念日线 | `concept_daily_east` | `SELECT * FROM concept_daily_east WHERE concept_code = ? AND trade_date BETWEEN ? AND ?` |
+| 概念分时 | `concept_intraday_east` | `SELECT * FROM concept_intraday_east WHERE concept_code = ? AND trade_date = ?` |
+| 概念成分股 | `stock_concept_mapping_east` + `stock_info` | 关联查询，获取股票名称和核心标识 |
+| 概念涨幅排行 | `concept_daily_east` | 按日期筛选，按 change_pct 排序 |
+
+### 市场 API 数据来源
+
+| API | 数据表 | 查询逻辑 |
+|-----|--------|---------|
+| 个股排行 | `stock_daily` + `capital_flow` + `stock_concept_mapping_east` | 关联查询，按指定字段排序 |
+| 涨停股列表 | `limit_list` | `SELECT * FROM limit_list WHERE trade_date = ? AND limit_type = 'U'` |
+| 炸板股列表 | `limit_list` | `SELECT * FROM limit_list WHERE trade_date = ? AND is_broken = TRUE AND reseal_time IS NULL` |
+| 跌停股列表 | `limit_list` | `SELECT * FROM limit_list WHERE trade_date = ? AND limit_type = 'D'` |
+| 连板天梯 | `limit_list` | `SELECT limit_times, COUNT(*), ARRAY_AGG(stock_code) FROM limit_list WHERE trade_date = ? AND limit_type = 'U' GROUP BY limit_times ORDER BY limit_times DESC` |
+| 连板股查询 | `limit_list` | `SELECT * FROM limit_list WHERE trade_date = ? AND limit_times = ?` |
+| 市场概览 | `index_daily` + `limit_list` | 聚合指数数据 + 统计涨跌停数 |
+| 涨停方向分布 | `limit_list` + `stock_concept_mapping_east` | 关联查询，按概念分组统计涨停数 |
+| 市场统计 | `limit_list` + `index_daily` | 聚合统计涨停/跌停/炸板数、最高连板；成交额聚合；封板率API层计算 |
+
+### 模拟看盘 API 数据来源
+
+| API | 数据表 | 查询逻辑 |
+|-----|--------|---------|
+| 全市场快照 | `index_intraday` + `stock_intraday` + `concept_intraday_east` + `limit_list` | 多表联合查询，按时间点筛选 |
+| 盯盘股快照 | `stock_intraday` | `SELECT * FROM stock_intraday WHERE stock_code IN (?) AND trade_date = ? AND trade_time = ?` |
+| 时间线快照 | `stock_intraday` | 批量查询多个时间点数据 |
+| 个股详情页 | `stock_info` + `stock_daily` + `stock_intraday` + `capital_flow` + `stock_concept_mapping_east` | 多表联合 |
+| 概念详情页 | `concept_info_east` + `concept_daily_east` + `concept_intraday_east` + `stock_concept_mapping_east` | 多表联合 |
+
+### 账户 API 数据来源
+
+| API | 数据表 | 查询逻辑 |
+|-----|--------|---------|
+| 账户状态 | `account_info` | `SELECT * FROM account_info WHERE id = ?` |
+| 当前持仓 | `position` + `stock_daily` | 关联查询获取当前价格和市值 |
+| 交易记录 | `trade_record` | `SELECT * FROM trade_record WHERE account_id = ? ORDER BY trade_time DESC` |
+| 记录交易 | `trade_record` + `position` + `account_info` | 插入交易记录，更新持仓和账户 |
+| 每日快照 | `account_snapshot` | `SELECT * FROM account_snapshot WHERE account_id = ? AND snapshot_date = ?` |
