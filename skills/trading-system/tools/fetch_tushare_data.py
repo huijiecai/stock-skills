@@ -1,32 +1,26 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-交易系统数据采集工具
+交易系统数据采集工具（Tushare 高积分）
 
-为预期驱动交易系统提供轻量级数据采集，直接保存为本地文件。
+为预期驱动交易系统提供涨跌停数据、历史分钟数据采集。
 依赖：tushare（pip install tushare）
 
 使用方法：
-    # 采集融捷股份最近30天日线+分钟数据
-    python fetch_data.py --code 002192 --days 30 --intraday
-
-    # 指定日期范围
-    python fetch_data.py --code 002192 --start 2026-03-01 --end 2026-03-27 --intraday
-
-    # 采集指定频率的分时数据
-    python fetch_data.py --code 002192 --days 7 --intraday --freq 5min
-
-    # 采集大盘指数日线
-    python fetch_data.py --code 000001 --days 60  # 上证指数
-
-    # 采集涨停数据（含首封时间、行业、炸板次数）
-    python fetch_data.py --limit-up --date 2026-03-27
+    # 采集涨停数据（含首封时间、炸板次数、连板高度）
+    python fetch_tushare_data.py --limit-up --date 2026-03-27
 
     # 采集跌停数据
-    python fetch_data.py --limit-up --date 2026-03-27 --type D
+    python fetch_tushare_data.py --limit-up --date 2026-03-27 --type D
 
-    # 采集全市场（所有盯盘股 + 指数 + 涨停跌停）一天的数据
-    python fetch_data.py --all --date 2026-03-27
+    # 采集历史分钟数据
+    python fetch_tushare_data.py --code 002192 --start 2026-03-01 --end 2026-03-27 --intraday
+
+    # 采集指定频率的分时数据
+    python fetch_tushare_data.py --code 002192 --days 7 --intraday --freq 5min
+
+    # 采集多只股票+指数的全量数据
+    python fetch_tushare_data.py --all --date 2026-03-27 --watchlist 002192 000722 --indices 000001 399001
 """
 
 import argparse
@@ -44,26 +38,13 @@ except ImportError:
     sys.exit(1)
 
 
-# ─── 配置（写死，无需环境变量）──────────────────────────────────────
+# ─── 配置 ─────────────────────────────────────────────────────────────
 
 TUSHARE_TOKEN = '78c2b09c8175affca2a45a788be6b0ba13369519220f7cd1b9c5b991'
 TUSHARE_DOMAIN = 'http://tushare.xyz'
 
-# 数据保存根目录（和脚本同级的上级 data/）
+# 数据保存根目录
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
-
-# 默认盯盘股列表（代码）
-DEFAULT_WATCHLIST = [
-    '002192',  # 融捷股份
-    '000722',  # 湖南发展
-    '600726',  # 华电能源
-    '600396',  # 华电辽能
-    '000720',  # 新能泰山
-    '002361',  # 神剑股份
-]
-
-# 指数列表（代码）
-DEFAULT_INDICES = ['000001', '399001', '399006']  # 上证 深成 创业板
 
 
 def get_pro():
@@ -90,7 +71,11 @@ def get_ts_code(code: str) -> str:
 # ─── 日线数据 ──────────────────────────────────────────────────────
 
 def fetch_daily(code: str, start_date: str, end_date: str) -> dict:
-    """采集日线数据"""
+    """
+    采集日线数据
+    Returns: {date: {open, high, low, close, volume, amount, change_pct, change, pre_close}, ...}
+    格式与 fetch_adata_data.fetch_stock_daily 统一
+    """
     pro = get_pro()
     ts_code = get_ts_code(code)
     start = start_date.replace('-', '')
@@ -107,14 +92,18 @@ def fetch_daily(code: str, start_date: str, end_date: str) -> dict:
     for _, row in df.iterrows():
         d = str(row['trade_date'])
         date_fmt = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
+        close_price = float(row['close'])
+        pre_close = float(row['pre_close'])
+        change = close_price - pre_close
         result[date_fmt] = {
             'open': float(row['open']),
             'high': float(row['high']),
             'low': float(row['low']),
-            'close': float(row['close']),
-            'pre_close': float(row['pre_close']),
-            'pct_chg': float(row['pct_chg']),
-            'vol': float(row['vol']),
+            'close': close_price,
+            'pre_close': pre_close,
+            'change_pct': float(row['pct_chg']),
+            'change': round(change, 2),
+            'volume': float(row['vol']),
             'amount': float(row['amount']) * 1000,
         }
     return result
@@ -122,14 +111,15 @@ def fetch_daily(code: str, start_date: str, end_date: str) -> dict:
 
 # ─── 分钟数据 ──────────────────────────────────────────────────────
 
-def fetch_intraday(code: str, start_date: str, end_date: str, freq: str = '1min') -> dict:
+def fetch_intraday(code: str, start_date: str, end_date: str, freq: str = '1min', is_index: bool = False) -> dict:
     """
     采集分钟级数据（个股用 stk_mins，指数用 idx_mins）
-    Returns: {date: [{time, open, high, low, close, vol, amount}, ...], ...}
+    is_index: 是否为指数（指数用 idx_mins，个股用 stk_mins）
+    Returns: {date: [{time, price, change, change_pct, volume, amount, avg_price}, ...], ...}
+    格式与 fetch_adata_data.fetch_stock_intraday 统一
     """
     pro = get_pro()
     ts_code = get_ts_code(code)
-    is_index = code in DEFAULT_INDICES
 
     start_dt = datetime.strptime(start_date.replace('-', ''), '%Y%m%d')
     end_dt = datetime.strptime(end_date.replace('-', ''), '%Y%m%d')
@@ -158,21 +148,47 @@ def fetch_intraday(code: str, start_date: str, end_date: str, freq: str = '1min'
                 )
 
             if df is not None and not df.empty:
+                # 按日期分组，用于计算涨跌幅
+                daily_data = {}
                 for _, row in df.iterrows():
                     trade_time = str(row['trade_time'])
                     date_part = trade_time[:10]
-                    time_part = trade_time[11:]
-                    if date_part not in result:
-                        result[date_part] = []
-                    result[date_part].append({
+                    time_part = trade_time[11:16]  # HH:MM 格式
+                    if date_part not in daily_data:
+                        daily_data[date_part] = []
+                    daily_data[date_part].append({
                         'time': time_part,
+                        'price': float(row['close']),  # 用 close 作为 price
                         'open': float(row['open']),
                         'high': float(row['high']),
                         'low': float(row['low']),
-                        'close': float(row['close']),
-                        'vol': float(row['vol']),
+                        'volume': float(row['vol']),
                         'amount': float(row['amount']) * 1000,
                     })
+
+                # 计算涨跌幅和均价
+                for date_part, bars in daily_data.items():
+                    if not bars:
+                        continue
+                    # 第一根K线的 open 作为昨收
+                    pre_close = bars[0]['open'] if bars else 0
+                    # 计算累计成交额和成交量
+                    total_amount = 0.0
+                    total_volume = 0.0
+                    for bar in bars:
+                        total_amount += bar['amount']
+                        total_volume += bar['volume']
+                        # 涨跌额和涨跌幅
+                        bar['change'] = bar['price'] - pre_close
+                        bar['change_pct'] = (bar['change'] / pre_close * 100) if pre_close else 0
+                        # 均价
+                        bar['avg_price'] = total_amount / total_volume / 100 if total_volume > 0 else bar['price']
+                        # 移除 OHLC 字段，保持与 adata 格式统一
+                        del bar['open']
+                        del bar['high']
+                        del bar['low']
+                    result[date_part] = bars
+
                 print(f"  ✅ {current.strftime('%Y-%m-%d')} ~ {batch_end.strftime('%Y-%m-%d')}: {len(df)} 条")
             else:
                 print(f"  ⏭️ {current.strftime('%Y-%m-%d')} ~ {batch_end.strftime('%Y-%m-%d')}: 无数据")
@@ -248,22 +264,22 @@ def fetch_limit_list(date: str, limit_type: str = 'U') -> list:
     result = []
     for _, row in df.iterrows():
         # 解析 first_time
-        ft = str(row.get('first_time', ''))
+        ft = str(row.get('first_time', '') or '')
         if len(ft) == 6:
             ft = f'{ft[:2]}:{ft[2:4]}:{ft[4:6]}'
 
         result.append({
             'code': row.get('ts_code', ''),
             'name': row.get('name', ''),
-            'close': float(row.get('close', 0)),
-            'pct_chg': float(row.get('pct_chg', 0)),
-            'amount': float(row.get('amount', 0)),
-            'limit_amount': float(row.get('limit_amount', 0)),
+            'close': float(row.get('close') or 0),
+            'pct_chg': float(row.get('pct_chg') or 0),
+            'amount': float(row.get('amount') or 0),
+            'limit_amount': float(row.get('limit_amount') or 0),
             'first_time': ft,
-            'last_time': row.get('last_time', ''),
-            'open_times': int(row.get('open_times', 0) or 0),
+            'last_time': str(row.get('last_time') or ''),
+            'open_times': int(row.get('open_times') or 0),
             'industry': row.get('industry', ''),
-            'fd_amount': float(row.get('fd_amount', 0)),
+            'fd_amount': float(row.get('fd_amount') or 0),
         })
     return result
 
@@ -298,14 +314,22 @@ def save_data(code: str, data_type: str, data):
 
 # ─── 全量采集（一天）──────────────────────────────────────────────
 
-def fetch_all(date: str, watchlist: list = None):
-    """采集一天的全量数据：盯盘股日线+分时 + 涨停 + 跌停 + 指数"""
-    if watchlist is None:
-        watchlist = DEFAULT_WATCHLIST
+def fetch_all(date: str, watchlist: list, indices: list):
+    """
+    采集一天的全量数据：盯盘股日线+分时 + 涨停 + 跌停 + 指数
+    必须传入 watchlist 和 indices
+    """
+    if not watchlist:
+        print("❌ 错误: 必须传入 watchlist")
+        return
+    if not indices:
+        print("❌ 错误: 必须传入 indices")
+        return
 
     print(f"{'='*60}")
     print(f"📊 全量采集: {date}")
     print(f"盯盘股: {watchlist}")
+    print(f"指数: {indices}")
     print(f"{'='*60}")
 
     # 1. 涨停数据
@@ -337,7 +361,7 @@ def fetch_all(date: str, watchlist: list = None):
         if daily:
             save_data(code, 'daily', daily)
             d = list(daily.values())[0]
-            print(f"  📅 日线: {d['close']:.2f} ({d['pct_chg']:+.2f}%)")
+            print(f"  📅 日线: {d['close']:.2f} ({d['change_pct']:+.2f}%)")
 
         # 分时
         intraday = fetch_intraday(code, date, date)
@@ -348,19 +372,18 @@ def fetch_all(date: str, watchlist: list = None):
 
     # 4. 指数（优先 Tushare idx_mins，失败则用腾讯）
     print(f"\n📊 指数数据...")
-    for code in DEFAULT_INDICES:
-        name = {'000001': '上证指数', '399001': '深证成指', '399006': '创业板指'}[code]
-        print(f"\n  --- {name} ({code}) ---")
+    for code in indices:
+        print(f"\n  --- 指数 {code} ---")
 
         # 日线
         daily = fetch_daily(code, date, date)
         if daily:
             save_data(code, 'daily', daily)
             d = list(daily.values())[0]
-            print(f"  📅 日线: {d['close']:.2f} ({d['pct_chg']:+.2f}%)")
+            print(f"  📅 日线: {d['close']:.2f} ({d['change_pct']:+.2f}%)")
 
         # 分时（Tushare idx_mins）
-        intraday = fetch_intraday(code, date, date)
+        intraday = fetch_intraday(code, date, date, is_index=True)
         if intraday:
             fp = save_data(code, 'intraday_1min', intraday)
             total = sum(len(v) for v in intraday.values())
@@ -394,7 +417,7 @@ def fetch_all(date: str, watchlist: list = None):
 # ─── 主流程 ────────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description='交易系统数据采集工具')
+    parser = argparse.ArgumentParser(description='交易系统数据采集工具（Tushare 高积分）')
     parser.add_argument('--code', type=str, help='股票/指数代码（如 002192）')
     parser.add_argument('--days', type=int, default=30, help='最近N天（默认30）')
     parser.add_argument('--start', type=str, help='开始日期（YYYY-MM-DD）')
@@ -404,25 +427,32 @@ def main():
     parser.add_argument('--limit-up', action='store_true', help='采集涨停/跌停数据')
     parser.add_argument('--type', type=str, default='U', choices=['U','D'], help='U=涨停 D=跌停')
     parser.add_argument('--date', type=str, help='指定日期')
-    parser.add_argument('--all', action='store_true', help='全量采集（盯盘股+涨停+指数）')
-    parser.add_argument('--watchlist', type=str, nargs='+', help='自定义盯盘股列表')
+    parser.add_argument('--all', action='store_true', help='全量采集（涨跌停+股票+指数）')
+    parser.add_argument('--watchlist', type=str, nargs='+', help='股票列表（用于 --all）')
+    parser.add_argument('--indices', type=str, nargs='+', help='指数列表（用于 --all）')
+    parser.add_argument('--is-index', action='store_true', help='指定代码为指数')
 
     args = parser.parse_args()
 
     if args.all:
-        date = args.date or datetime.now().strftime('%Y-%m-%d')
-        wl = args.watchlist or DEFAULT_WATCHLIST
-        fetch_all(date, wl)
+        if not args.date:
+            parser.error("--all 需要指定 --date")
+        if not args.watchlist:
+            parser.error("--all 需要指定 --watchlist")
+        if not args.indices:
+            parser.error("--all 需要指定 --indices")
+        fetch_all(args.date, args.watchlist, args.indices)
         return
 
     if args.limit_up:
-        date = args.date or datetime.now().strftime('%Y-%m-%d')
+        if not args.date:
+            parser.error("--limit-up 需要指定 --date")
         label = '涨停' if args.type == 'U' else '跌停'
-        print(f"📊 采集{label}数据: {date}")
-        data = fetch_limit_list(date, args.type)
+        print(f"📊 采集{label}数据: {args.date}")
+        data = fetch_limit_list(args.date, args.type)
         if data:
             tag = 'limit-up' if args.type == 'U' else 'limit-down'
-            filepath = save_data(f"{tag}-{date.replace('-', '')}", f'limit_{args.type.lower()}', data)
+            filepath = save_data(f"{tag}-{args.date.replace('-', '')}", f'limit_{args.type.lower()}', data)
             print(f"✅ {label} {len(data)} 只 → {filepath}")
         else:
             print("⚠️ 无数据")
@@ -447,7 +477,7 @@ def main():
     # 分钟数据
     if args.intraday:
         print(f"⏱️ 分钟数据（{args.freq}）...")
-        intraday = fetch_intraday(code, start, end, args.freq)
+        intraday = fetch_intraday(code, start, end, args.freq, is_index=args.is_index)
         if intraday:
             filepath = save_data(code, f'intraday_{args.freq}', intraday)
             total = sum(len(v) for v in intraday.values())

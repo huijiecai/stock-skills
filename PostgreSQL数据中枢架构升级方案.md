@@ -1,5 +1,112 @@
 # PostgreSQL 数据中枢架构升级方案
 
+## 零、数据源说明
+
+### 官方文档
+
+| 数据源 | 文档地址 | 说明 |
+|--------|----------|------|
+| **adata** | https://github.com/1nchaos/adata | GitHub 源码 + 使用文档 |
+| **Tushare** | https://tushare.pro/document/2 | 官方 API 文档（需登录） |
+
+> **报错排查建议**：遇到数据接口报错时，优先查阅官方文档确认接口参数、权限要求、返回字段是否有变更。
+
+### 数据源分工
+
+| 数据源 | 优先级 | 核心能力 | 脚本 |
+|--------|--------|----------|------|
+| **adata** | 主力 | 当日分时、日线、指数、概念、资金流向、股票信息 | `skills/trading-system/tools/fetch_adata_data.py` |
+| **Tushare** | 补充 | 涨跌停数据（连板高度）、历史分钟数据 | `skills/trading-system/tools/fetch_tushare_data.py` |
+
+### 详细数据来源
+
+| 数据类型 | 脚本 | 方法 | 数据源 | 说明 |
+|----------|------|------|--------|------|
+| **股票日线** | fetch_adata_data.py | `fetch_stock_daily()` | adata | OHLCV + 换手率 |
+| **股票分时（当日）** | fetch_adata_data.py | `fetch_stock_intraday()` | adata | 免费，仅当日 |
+| **股票分时（历史）** | fetch_tushare_data.py | `fetch_intraday()` | Tushare stk_mins | 需积分 |
+| **指数日线** | fetch_adata_data.py | `fetch_index_daily()` | adata | OHLCV |
+| **指数分时** | fetch_adata_data.py | `fetch_index_intraday()` | adata | 免费 |
+| **实时行情** | fetch_adata_data.py | `fetch_realtime()` | adata | 新浪/腾讯源 |
+| **资金流向** | fetch_adata_data.py | `fetch_capital_flow()` | adata | 主力/散户净流入 |
+| **股票基础信息** | fetch_adata_data.py | `fetch_stock_info()` | adata | 行业+地域+概念 |
+| **股票所属概念** | fetch_adata_data.py | `fetch_stock_concepts()` | adata | 含入选原因 |
+| **概念列表** | fetch_adata_data.py | `fetch_concept_list()` | adata | 同花顺概念 |
+| **概念日线** | fetch_adata_data.py | `fetch_concept_daily()` | adata | 东方财富 |
+| **概念分时** | fetch_adata_data.py | `fetch_concept_intraday()` | adata | 东方财富 |
+| **概念成分股** | fetch_adata_data.py | `fetch_concept_constituents()` | adata | 东方财富 |
+| **涨停数据** | fetch_tushare_data.py | `fetch_limit_list(type=U)` | Tushare limit_list_d | 首封时间、炸板次数、连板高度 |
+| **跌停数据** | fetch_tushare_data.py | `fetch_limit_list(type=D)` | Tushare limit_list_d | 同上 |
+
+### adata 常用接口速查
+
+| 功能 | 模块 | 方法 | 文档 |
+|------|------|------|------|
+| 股票日线 | `stock.market` | `get_market()` | [源码](https://github.com/1nchaos/adata/blob/main/adata stock/market.py) |
+| 股票分时 | `stock.market` | `get_market()` | k_type=1 |
+| 指数日线 | `stock.index` | `get_index()` | [源码](https://github.com/1nchaos/adata/blob/main/adata stock/index.py) |
+| 指数分时 | `stock.index` | `get_index()` | index_min=True |
+| 实时行情 | `stock.info` | `get_rt_data()` | 新浪/腾讯源 |
+| 资金流向 | `stock.info` | `get_deal_detail()` | [源码](https://github.com/1nchaos/adata/blob/main/adata stock/info.py) |
+| 股票基础信息 | `stock.info` | `get_info()` | 行业+地域+概念 |
+| 股票所属概念 | `stock.info` | `get_code_concept()` | 含入选原因 |
+| 概念列表(同花顺) | `stock.info` | `get_concept()` | 需安装 py_mini_racer |
+| 概念日线(东财) | `stock.info` | `get_concept_line_east()` | [源码](https://github.com/1nchaos/adata/blob/main/adata stock/info.py) |
+| 概念分时(东财) | `stock.info` | `get_concept_min_east()` | - |
+| 概念成分股(东财) | `stock.info` | `get_concept_constituent_east()` | 参数为 concept_code |
+
+### Tushare 常用接口速查
+
+| 功能 | 接口名 | 文档 | 权限要求 |
+|------|--------|------|----------|
+| 涨跌停列表 | `limit_list_d` | https://tushare.pro/document/2?doc_id=183 | 需积分 |
+| 股票分钟线 | `stk_mins` | https://tushare.pro/document/2?doc_id=170 | 需高积分 |
+| 指数分钟线 | `idx_mins` | https://tushare.pro/document/2?doc_id=171 | 需单独开权限 |
+| 股票日线 | `daily` | https://tushare.pro/document/2?doc_id=27 | 免费 |
+| 指数日线 | `index_daily` | https://tushare.pro/document/2?doc_id=186 | 免费 |
+
+> **自定义域名**：本项目使用 `http://tushare.xyz` 作为 API 域名，如遇连接失败请检查域名配置。
+
+### 数据格式统一
+
+**分时数据格式**（adata & tushare 统一）：
+```json
+{
+  "2026-03-27": [
+    {
+      "time": "09:30",
+      "price": 78.00,
+      "change": 7.09,
+      "change_pct": 10.00,
+      "volume": 10000,
+      "amount": 780000,
+      "avg_price": 78.50
+    }
+  ]
+}
+```
+
+**日线数据格式**（adata & tushare 统一）：
+```json
+{
+  "2026-03-27": {
+    "open": 73.33,
+    "high": 78.00,
+    "low": 72.72,
+    "close": 78.00,
+    "pre_close": 70.91,
+    "change": 7.09,
+    "change_pct": 9.99,
+    "volume": 421223,
+    "amount": 3145292965
+  }
+}
+```
+
+> 注：adata 日线额外包含 `turnover_ratio`（换手率）字段，tushare 无此字段。
+
+---
+
 ## 一、架构概览
 
 ```

@@ -9,9 +9,6 @@ adata 特点：免费、无需 token、支持当日分时数据
 依赖：adata（pip install adata）
 
 使用方法：
-    # 获取盯盘股今日全量数据（分时+日线+资金流向）
-    python fetch_adata_data.py --watch
-
     # 获取指定股票的分时数据
     python fetch_adata_data.py --code 002192 --intraday
 
@@ -20,11 +17,11 @@ adata 特点：免费、无需 token、支持当日分时数据
 
     # 获取指数数据
     python fetch_adata_data.py --index 000001 --intraday
-    python fetch_adata_data.py --index 000001 --daily --days 60
+    python fetch_adata_data.py --index 399001 --daily --days 60
 
     # 获取概念板块数据（日线/分时）
     python fetch_adata_data.py --concept BK0612 --daily
-    python fetch_adata_data.py --concept BK0612 --intraday
+    python fetch_adata_data.py --concept BK0558 --intraday
 
     # 获取概念板块列表
     python fetch_adata_data.py --concept-list
@@ -35,8 +32,14 @@ adata 特点：免费、无需 token、支持当日分时数据
     # 获取资金流向
     python fetch_adata_data.py --capital 002192
 
-    # 获取今日全量数据（盯盘股+指数）
-    python fetch_adata_data.py --all
+    # 获取股票基础信息
+    python fetch_adata_data.py --stock-info 002192
+
+    # 获取股票所属概念
+    python fetch_adata_data.py --stock-concepts 002192
+
+    # 获取概念成分股
+    python fetch_adata_data.py --concept-constituents BK0612
 """
 
 import argparse
@@ -58,38 +61,117 @@ except ImportError:
 # 数据保存根目录
 DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 
-# 默认盯盘股列表（代码）
-DEFAULT_WATCHLIST = [
-    '002192',  # 融捷股份
-    '000722',  # 湖南发展
-    '600726',  # 华电能源
-    '600396',  # 华电辽能
-    '000720',  # 新能泰山
-    '002361',  # 神剑股份
-]
-
-# 指数列表
-DEFAULT_INDICES = ['000001', '399001', '399006']  # 上证 深成 创业板
-
-# 指数名称映射
-INDEX_NAMES = {
-    '000001': '上证指数',
-    '399001': '深证成指',
-    '399006': '创业板指',
-}
-
-# 常用概念板块代码（东方财富）
-COMMON_CONCEPTS = {
-    'BK0612': '锂电池',
-    'BK0493': '新能源汽车',
-    'BK0558': '人工智能',
-    'BK0635': '机器人概念',
-    'BK0572': '算力',
-    'BK0428': '电力',
-}
-
 
 # ─── 数据采集函数 ───────────────────────────────────────────────────────
+
+def fetch_stock_info(code: str) -> dict:
+    """
+    获取股票基础信息（所属板块：行业+地域+概念）
+    返回: {industry: [...], region: str, concepts: [{code, name}, ...]}
+    """
+    try:
+        df = adata.stock.info.get_plate_east(stock_code=code)
+        if df is None or df.empty:
+            return {}
+
+        result = {
+            'stock_code': code,
+            'industry': [],
+            'region': '',
+            'concepts': [],
+        }
+
+        for _, row in df.iterrows():
+            plate_type = str(row.get('plate_type', ''))
+            plate_code = str(row.get('plate_code', ''))
+            plate_name = str(row.get('plate_name', ''))
+
+            if plate_type == '行业':
+                result['industry'].append({'code': plate_code, 'name': plate_name})
+            elif plate_type == '板块':
+                result['region'] = plate_name
+            elif plate_type == '概念':
+                result['concepts'].append({'code': plate_code, 'name': plate_name})
+
+        return result
+
+    except Exception as e:
+        print(f"  ❌ 获取股票基础信息失败: {e}")
+        return {}
+
+
+def fetch_stock_shares(code: str) -> dict:
+    """
+    获取股票股本信息（最新）
+    返回: {total_shares, list_a_shares, change_date}
+    """
+    try:
+        df = adata.stock.info.get_stock_shares(stock_code=code)
+        if df is None or df.empty:
+            return {}
+
+        # 取最新一条
+        latest = df.iloc[0]
+        return {
+            'stock_code': code,
+            'total_shares': float(latest.get('total_shares', 0)),
+            'list_a_shares': float(latest.get('list_a_shares', 0)),
+            'change_date': str(latest.get('change_date', '')),
+        }
+
+    except Exception as e:
+        print(f"  ❌ 获取股本信息失败: {e}")
+        return {}
+
+
+def fetch_stock_concepts(code: str) -> list:
+    """
+    获取股票所属概念（含原因）
+    返回: [{concept_code, name, reason}, ...]
+    """
+    try:
+        df = adata.stock.info.get_concept_east(stock_code=code)
+        if df is None or df.empty:
+            return []
+
+        result = []
+        for _, row in df.iterrows():
+            result.append({
+                'concept_code': str(row.get('concept_code', '')),
+                'name': str(row.get('name', '')),
+                'reason': str(row.get('reason', ''))[:200],  # 截取前200字
+                'source': str(row.get('source', '')),
+            })
+        return result
+
+    except Exception as e:
+        print(f"  ❌ 获取股票概念失败: {e}")
+        return []
+
+
+def fetch_concept_constituents(concept_code: str) -> list:
+    """
+    获取概念板块成分股
+    concept_code: 概念代码（如 BK0612）
+    返回: [{stock_code, short_name}, ...]
+    """
+    try:
+        df = adata.stock.info.concept_constituent_east(concept_code=concept_code)
+        if df is None or df.empty:
+            return []
+
+        result = []
+        for _, row in df.iterrows():
+            result.append({
+                'stock_code': str(row.get('stock_code', '')),
+                'short_name': str(row.get('short_name', '')),
+            })
+        return result
+
+    except Exception as e:
+        print(f"  ❌ 获取概念成分股失败: {e}")
+        return []
+
 
 def fetch_stock_intraday(code: str) -> dict:
     """
@@ -405,10 +487,11 @@ def save_data(code: str, data_type: str, data):
 
 # ─── 批量采集 ───────────────────────────────────────────────────────────
 
-def fetch_watchlist(watchlist: list = None):
-    """获取盯盘股今日全量数据"""
-    if watchlist is None:
-        watchlist = DEFAULT_WATCHLIST
+def fetch_watchlist(watchlist: list):
+    """获取盯盘股今日全量数据（必须传入股票列表）"""
+    if not watchlist:
+        print("❌ 错误: 必须传入股票列表")
+        return
 
     print(f"{'='*60}")
     print(f"📊 获取盯盘股今日数据")
@@ -445,18 +528,18 @@ def fetch_watchlist(watchlist: list = None):
             print(f"  ⚠️ 资金流向: 无数据")
 
 
-def fetch_indices(indices: list = None):
-    """获取指数数据"""
-    if indices is None:
-        indices = DEFAULT_INDICES
+def fetch_indices(indices: list):
+    """获取指数数据（必须传入指数列表）"""
+    if not indices:
+        print("❌ 错误: 必须传入指数列表")
+        return
 
     print(f"\n{'='*60}")
     print(f"📈 获取指数数据")
     print(f"{'='*60}")
 
     for code in indices:
-        name = INDEX_NAMES.get(code, code)
-        print(f"\n--- {name} ({code}) ---")
+        print(f"\n--- 指数 {code} ---")
 
         # 分时数据
         intraday = fetch_index_intraday(code)
@@ -477,15 +560,6 @@ def fetch_indices(indices: list = None):
             print(f"  ⚠️ 日线: 无数据")
 
 
-def fetch_all():
-    """获取今日全量数据（盯盘股+指数）"""
-    fetch_watchlist()
-    fetch_indices()
-    print(f"\n{'='*60}")
-    print("🎉 全量采集完成！")
-    print(f"{'='*60}")
-
-
 # ─── 主流程 ───────────────────────────────────────────────────────────
 
 def main():
@@ -494,9 +568,6 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  # 获取盯盘股今日全量数据
-  python fetch_adata_data.py --watch
-
   # 获取指定股票分时
   python fetch_adata_data.py --code 002192 --intraday
 
@@ -509,8 +580,11 @@ def main():
   # 获取实时行情
   python fetch_adata_data.py --realtime 002192 600519
 
-  # 获取今日全量数据
-  python fetch_adata_data.py --all
+  # 获取批量股票数据
+  python fetch_adata_data.py --watch 002192 000722 600726
+
+  # 获取批量指数数据
+  python fetch_adata_data.py --indices 000001 399001 399006
         """
     )
 
@@ -523,22 +597,83 @@ def main():
     parser.add_argument('--capital', type=str, help='获取资金流向')
     parser.add_argument('--concept', type=str, help='获取概念板块数据（东方财富代码，如 BK0612）')
     parser.add_argument('--concept-list', action='store_true', help='获取概念板块列表')
-    parser.add_argument('--watch', action='store_true', help='获取盯盘股全量数据')
-    parser.add_argument('--all', action='store_true', help='获取今日全量数据')
-    parser.add_argument('--watchlist', type=str, nargs='+', help='自定义盯盘股列表')
+    parser.add_argument('--concept-constituents', type=str, metavar='CODE', help='获取概念成分股（如 BK0612）')
+    parser.add_argument('--stock-info', type=str, metavar='CODE', help='获取股票基础信息（行业+地域+概念）')
+    parser.add_argument('--stock-concepts', type=str, metavar='CODE', help='获取股票所属概念（含原因）')
+    parser.add_argument('--stock-shares', type=str, metavar='CODE', help='获取股票股本信息')
+    parser.add_argument('--watch', type=str, nargs='+', help='批量获取股票数据')
+    parser.add_argument('--indices', type=str, nargs='+', help='批量获取指数数据')
 
     args = parser.parse_args()
 
-    # 全量采集
-    if args.all:
-        fetch_all()
+    # 股票基础信息
+    if args.stock_info:
+        code = args.stock_info
+        print(f"📊 获取股票基础信息: {code}")
+        data = fetch_stock_info(code)
+        if data:
+            print(f"  行业: {[i['name'] for i in data.get('industry', [])]}")
+            print(f"  地域: {data.get('region', '')}")
+            print(f"  概念数量: {len(data.get('concepts', []))}")
+            fp = save_data(code, 'stock_info', data)
+            print(f"✅ 已保存 → {fp}")
+        else:
+            print("  ⚠️ 无数据")
         return
 
-    # 盯盘股数据
+    # 股票所属概念
+    if args.stock_concepts:
+        code = args.stock_concepts
+        print(f"📊 获取股票所属概念: {code}")
+        data = fetch_stock_concepts(code)
+        if data:
+            print(f"✅ 共 {len(data)} 个概念")
+            for d in data[:5]:
+                print(f"  {d['concept_code']}: {d['name']}")
+            fp = save_data(code, 'stock_concepts', data)
+            print(f"✅ 已保存 → {fp}")
+        else:
+            print("  ⚠️ 无数据")
+        return
+
+    # 股票股本信息
+    if args.stock_shares:
+        code = args.stock_shares
+        print(f"📊 获取股票股本信息: {code}")
+        data = fetch_stock_shares(code)
+        if data:
+            print(f"  总股本: {data.get('total_shares', 0):,.0f}")
+            print(f"  流通股本: {data.get('list_a_shares', 0):,.0f}")
+            fp = save_data(code, 'stock_shares', data)
+            print(f"✅ 已保存 → {fp}")
+        else:
+            print("  ⚠️ 无数据")
+        return
+
+    # 概念成分股
+    if args.concept_constituents:
+        concept_code = args.concept_constituents
+        print(f"📊 获取概念成分股: {concept_code}")
+        data = fetch_concept_constituents(concept_code)
+        if data:
+            print(f"✅ 共 {len(data)} 只股票")
+            for d in data[:10]:
+                print(f"  {d['stock_code']}: {d['short_name']}")
+            # 保存到概念目录
+            fp = save_data(f'concept_{concept_code}', 'constituents', data)
+            print(f"✅ 已保存 → {fp}")
+        else:
+            print("  ⚠️ 无数据")
+        return
+
+    # 批量股票数据
     if args.watch:
-        watchlist = args.watchlist or DEFAULT_WATCHLIST
-        fetch_watchlist(watchlist)
-        fetch_indices()
+        fetch_watchlist(args.watch)
+        return
+
+    # 批量指数数据
+    if args.indices:
+        fetch_indices(args.indices)
         return
 
     # 实时行情
@@ -589,8 +724,7 @@ def main():
     # 概念板块数据
     if args.concept:
         index_code = args.concept
-        name = COMMON_CONCEPTS.get(index_code, index_code)
-        print(f"📊 获取概念板块数据: {name} ({index_code})")
+        print(f"📊 获取概念板块数据: {index_code}")
 
         if args.intraday:
             data = fetch_concept_intraday(index_code)
@@ -628,8 +762,7 @@ def main():
     # 指数数据
     if args.index:
         code = args.index
-        name = INDEX_NAMES.get(code, code)
-        print(f"📊 获取指数数据: {name} ({code})")
+        print(f"📊 获取指数数据: {code}")
 
         if args.intraday:
             data = fetch_index_intraday(code)
