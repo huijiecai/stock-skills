@@ -22,7 +22,6 @@ interface StockTableProps {
   showLimitTimes?: boolean;
   pagination?: false | object;
   size?: 'small' | 'middle' | 'large';
-  sortable?: boolean;
   onSortChange?: (field: string, order: 'asc' | 'desc') => void;
   currentSort?: { field: string; order: 'asc' | 'desc' };
 }
@@ -37,7 +36,6 @@ export const StockTable: React.FC<StockTableProps> = ({
   showLimitTimes = false,
   pagination = false,
   size = 'small',
-  sortable = false,
   onSortChange,
   currentSort
 }) => {
@@ -48,8 +46,8 @@ export const StockTable: React.FC<StockTableProps> = ({
       title: '代码', 
       dataIndex: 'stock_code', 
       width: 80,
-      sorter: sortable,
-      sortOrder: currentSort?.field === 'stock_code' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : undefined,
+      sorter: true,
+      sortOrder: currentSort?.field === 'stock_code' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : null,
       render: (v: string) => (
         <a 
           onClick={(e) => {
@@ -82,8 +80,8 @@ export const StockTable: React.FC<StockTableProps> = ({
     title: '涨幅', 
     dataIndex: 'change_pct', 
     width: 80,
-    sorter: sortable,
-    sortOrder: currentSort?.field === 'change_pct' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : undefined,
+    sorter: true,
+    sortOrder: currentSort?.field === 'change_pct' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : null,
     render: (v: number) => {
       let color = 'default';
       if (v >= 9.9) color = 'red';
@@ -112,8 +110,8 @@ export const StockTable: React.FC<StockTableProps> = ({
       title: '成交额',
       dataIndex: 'amount',
       width: 90,
-      sorter: sortable,
-      sortOrder: currentSort?.field === 'amount' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : undefined,
+      sorter: true,
+      sortOrder: currentSort?.field === 'amount' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : null,
       render: (v: number) => `${(v / 1e8).toFixed(2)}亿`
     });
   }
@@ -153,7 +151,7 @@ export const StockTable: React.FC<StockTableProps> = ({
   }
 
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
-    if (sortable && onSortChange && sorter && sorter.field && sorter.order) {
+    if (onSortChange && sorter && sorter.field && sorter.order) {
       const order = sorter.order === 'ascend' ? 'asc' : 'desc';
       onSortChange(sorter.field, order);
     }
@@ -164,7 +162,7 @@ export const StockTable: React.FC<StockTableProps> = ({
       columns={columns}
       dataSource={data}
       rowKey="stock_code"
-      loading={loading}
+      loading={false}
       pagination={pagination}
       size={size}
       onChange={handleTableChange}

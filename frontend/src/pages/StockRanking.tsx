@@ -58,11 +58,7 @@ const StockRanking: React.FC = () => {
 
   const handleSortChange = (newSort: SortType) => {
     setSortType(newSort);
-    if (newSort === 'change_pct') {
-      setOrder(order === 'desc' ? 'asc' : 'desc');
-    } else {
-      setOrder('desc');
-    }
+    setOrder('desc');
   };
 
   const handleTableSort = (field: string, newOrder: 'asc' | 'desc') => {
@@ -90,12 +86,21 @@ const StockRanking: React.FC = () => {
         </div>
       </div>
 
-      <Card>
+      <Card 
+        title={loading ? '加载中...' : null}
+        style={{ position: 'relative' }}
+        styles={{ 
+          header: loading ? { 
+            background: 'var(--color-primary)',
+            color: 'white',
+            padding: '4px 16px',
+            minHeight: '32px'
+          } : {}
+        }}
+      >
         <StockTable 
           data={data} 
-          loading={loading} 
           showConcept={true}
-          sortable={true}
           onSortChange={handleTableSort}
           currentSort={{ field: sortType, order }}
         />
