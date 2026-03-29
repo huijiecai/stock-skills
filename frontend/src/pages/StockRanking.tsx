@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Spin, Select } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Select } from 'antd';
 import { marketAPI } from '../services/api';
 import { DateSelector, StockTable } from '../components';
 import dayjs from 'dayjs';
@@ -31,11 +31,7 @@ const StockRanking: React.FC = () => {
     initDate();
   }, []);
 
-  useEffect(() => {
-    if (date) loadData();
-  }, [date, sortType, order]);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const res = await marketAPI.getStockRanking({
@@ -54,7 +50,11 @@ const StockRanking: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [date, sortType, order]);
+
+  useEffect(() => {
+    if (date) loadData();
+  }, [date, loadData]);
 
   const handleSortChange = (newSort: SortType) => {
     setSortType(newSort);
@@ -90,18 +90,16 @@ const StockRanking: React.FC = () => {
         </div>
       </div>
 
-      <Spin spinning={loading}>
-        <Card>
-          <StockTable 
-            data={data} 
-            loading={false} 
-            showConcept={true}
-            sortable={true}
-            onSortChange={handleTableSort}
-            currentSort={{ field: sortType, order }}
-          />
-        </Card>
-      </Spin>
+      <Card>
+        <StockTable 
+          data={data} 
+          loading={loading} 
+          showConcept={true}
+          sortable={true}
+          onSortChange={handleTableSort}
+          currentSort={{ field: sortType, order }}
+        />
+      </Card>
     </div>
   );
 };

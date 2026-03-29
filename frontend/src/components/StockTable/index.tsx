@@ -153,7 +153,7 @@ export const StockTable: React.FC<StockTableProps> = ({
   }
 
   const handleTableChange = (pagination: any, filters: any, sorter: any) => {
-    if (sortable && onSortChange && sorter && sorter.field) {
+    if (sortable && onSortChange && sorter && sorter.field && sorter.order) {
       const order = sorter.order === 'ascend' ? 'asc' : 'desc';
       onSortChange(sorter.field, order);
     }
