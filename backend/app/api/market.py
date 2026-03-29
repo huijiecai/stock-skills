@@ -1,7 +1,7 @@
 """市场数据相关 API"""
 from fastapi import APIRouter, Query
 from typing import Optional, List
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
 from sqlalchemy import text
 
 from app.core.database import get_db_session
@@ -13,6 +13,11 @@ router = APIRouter(prefix="/market", tags=["市场"])
 
 def success_response(data=None, message: str = "success"):
     return {"code": 200, "message": message, "data": data}
+
+
+def parse_date(date_str: str) -> date_type:
+    """解析日期字符串为 date 对象"""
+    return datetime.strptime(date_str, "%Y-%m-%d").date()
 
 
 # ==================== 市场概览 ====================
@@ -27,27 +32,29 @@ async def get_market_snapshot(
     返回涨停家数、跌停家数、炸板家数、封板率等市场情绪指标
     """
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         # 统计涨停
         up_result = await db.execute(
             text("SELECT COUNT(*) FROM limit_list WHERE trade_date = :date AND limit_type = 'U'"),
-            {"date": date}
+            {"date": query_date}
         )
         limit_up_count = up_result.scalar() or 0
         
         # 统计跌停
         down_result = await db.execute(
             text("SELECT COUNT(*) FROM limit_list WHERE trade_date = :date AND limit_type = 'D'"),
-            {"date": date}
+            {"date": query_date}
         )
         limit_down_count = down_result.scalar() or 0
         
         # 统计炸板
         broken_result = await db.execute(
             text("SELECT COUNT(*) FROM limit_list WHERE trade_date = :date AND is_broken = TRUE"),
-            {"date": date}
+            {"date": query_date}
         )
         broken_board_count = broken_result.scalar() or 0
         
@@ -63,7 +70,7 @@ async def get_market_snapshot(
                 WHERE trade_date = :date
                   AND index_code IN ('000001', '399001', '399006', '000688')
             """),
-            {"date": date}
+            {"date": query_date}
         )
         index_rows = index_result.fetchall()
         indices = []
@@ -95,7 +102,9 @@ async def get_limit_up_list(
 ):
     """获取涨停股列表"""
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         result = await db.execute(
@@ -107,7 +116,7 @@ async def get_limit_up_list(
                 ORDER BY limit_times DESC, first_time
                 LIMIT :limit OFFSET :offset
             """),
-            {"date": date, "limit": page_size, "offset": (page - 1) * page_size}
+            {"date": query_date, "limit": page_size, "offset": (page - 1) * page_size}
         )
         rows = result.fetchall()
         
@@ -125,7 +134,7 @@ async def get_limit_up_list(
                 "is_broken": row[8],
             })
         
-        return success_response({"date": date, "items": items})
+        return success_response({"date": date or query_date.strftime("%Y-%m-%d"), "items": items})
 
 
 @router.get("/limit-down")
@@ -136,7 +145,9 @@ async def get_limit_down_list(
 ):
     """获取跌停股列表"""
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         result = await db.execute(
@@ -148,7 +159,7 @@ async def get_limit_down_list(
                 ORDER BY first_time
                 LIMIT :limit OFFSET :offset
             """),
-            {"date": date, "limit": page_size, "offset": (page - 1) * page_size}
+            {"date": query_date, "limit": page_size, "offset": (page - 1) * page_size}
         )
         rows = result.fetchall()
         
@@ -166,7 +177,7 @@ async def get_limit_down_list(
                 "is_broken": row[8],
             })
         
-        return success_response({"date": date, "items": items})
+        return success_response({"date": date or query_date.strftime("%Y-%m-%d"), "items": items})
 
 
 # ==================== 连板天梯 ====================
@@ -177,7 +188,9 @@ async def get_continuous_board(
 ):
     """获取连板天梯"""
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         # 按连板数分组
@@ -191,7 +204,7 @@ async def get_continuous_board(
                 GROUP BY limit_times
                 ORDER BY limit_times DESC
             """),
-            {"date": date}
+            {"date": query_date}
         )
         rows = result.fetchall()
         
@@ -216,7 +229,7 @@ async def get_continuous_board(
                 "stocks": stocks,
             })
         
-        return success_response({"date": date, "ladder": ladder})
+        return success_response({"date": date or query_date.strftime("%Y-%m-%d"), "ladder": ladder})
 
 
 # ==================== 炸板股 ====================

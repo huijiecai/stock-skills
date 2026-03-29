@@ -15,6 +15,12 @@ def success_response(data=None, message: str = "success"):
     return {"code": 200, "message": message, "data": data}
 
 
+def parse_date(date_str: str):
+    """解析日期字符串为 date 对象"""
+    from datetime import datetime
+    return datetime.strptime(date_str, "%Y-%m-%d").date()
+
+
 @router.get("/market-overview")
 async def get_market_overview(
     date: Optional[str] = Query(None, description="日期"),
@@ -25,25 +31,27 @@ async def get_market_overview(
     返回当日市场情绪、主要指数、热门板块
     """
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         # 市场情绪
         up_result = await db.execute(
             text("SELECT COUNT(*) FROM limit_list WHERE trade_date = :date AND limit_type = 'U'"),
-            {"date": date}
+            {"date": query_date}
         )
         limit_up_count = up_result.scalar() or 0
         
         down_result = await db.execute(
             text("SELECT COUNT(*) FROM limit_list WHERE trade_date = :date AND limit_type = 'D'"),
-            {"date": date}
+            {"date": query_date}
         )
         limit_down_count = down_result.scalar() or 0
         
         broken_result = await db.execute(
             text("SELECT COUNT(*) FROM limit_list WHERE trade_date = :date AND is_broken = TRUE"),
-            {"date": date}
+            {"date": query_date}
         )
         broken_board_count = broken_result.scalar() or 0
         
@@ -58,7 +66,7 @@ async def get_market_overview(
                 WHERE trade_date = :date
                   AND index_code IN ('000001', '399001', '399006', '000688')
             """),
-            {"date": date}
+            {"date": query_date}
         )
         indices = []
         for row in index_result.fetchall():
@@ -79,7 +87,7 @@ async def get_market_overview(
                 ORDER BY cd.change_pct DESC
                 LIMIT 5
             """),
-            {"date": date}
+            {"date": query_date}
         )
         hot_concepts = []
         for row in concept_result.fetchall():
@@ -90,7 +98,7 @@ async def get_market_overview(
             })
         
         return success_response({
-            "date": date,
+            "date": date or query_date.strftime("%Y-%m-%d"),
             "market_sentiment": {
                 "limit_up_count": limit_up_count,
                 "limit_down_count": limit_down_count,
@@ -112,7 +120,9 @@ async def get_ladder_detail(
     返回各连板级别的详细信息
     """
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         result = await db.execute(
@@ -123,7 +133,7 @@ async def get_ladder_detail(
                 WHERE trade_date = :date AND limit_type = 'U'
                 ORDER BY limit_times DESC, first_time
             """),
-            {"date": date}
+            {"date": query_date}
         )
         rows = result.fetchall()
         
@@ -154,7 +164,7 @@ async def get_ladder_detail(
                 "stocks": ladder_map[limit_times],
             })
         
-        return success_response({"date": date, "ladder": ladder})
+        return success_response({"date": date or query_date.strftime("%Y-%m-%d"), "ladder": ladder})
 
 
 @router.get("/hot-stocks")
@@ -168,7 +178,9 @@ async def get_hot_stocks(
     返回当日成交额最大的个股
     """
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         result = await db.execute(
@@ -181,7 +193,7 @@ async def get_hot_stocks(
                 ORDER BY sd.amount DESC
                 LIMIT :limit
             """),
-            {"date": date, "limit": limit}
+            {"date": query_date, "limit": limit}
         )
         rows = result.fetchall()
         
@@ -197,7 +209,7 @@ async def get_hot_stocks(
                 "amount": float(row[5]) if row[5] else 0,
             })
         
-        return success_response({"date": date, "items": items})
+        return success_response({"date": date or query_date.strftime("%Y-%m-%d"), "items": items})
 
 
 @router.get("/capital-flow-rank")
@@ -212,7 +224,9 @@ async def get_capital_flow_rank(
     返回主力资金流入/流出排行
     """
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     order_sql = "DESC" if direction == "in" else "ASC"
     
@@ -228,7 +242,7 @@ async def get_capital_flow_rank(
                 ORDER BY cf.main_net_inflow {order_sql}
                 LIMIT :limit
             """),
-            {"date": date, "limit": limit}
+            {"date": query_date, "limit": limit}
         )
         rows = result.fetchall()
         
@@ -244,7 +258,7 @@ async def get_capital_flow_rank(
                 "main_net_inflow_pct": float(row[5]) if row[5] else 0,
             })
         
-        return success_response({"date": date, "direction": direction, "items": items})
+        return success_response({"date": date or query_date.strftime("%Y-%m-%d"), "direction": direction, "items": items})
 
 
 @router.get("/board-watch")
@@ -257,7 +271,9 @@ async def get_board_watch(
     返回今日涨停股监控列表（含炸板情况）
     """
     if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
+        query_date = datetime.now().date()
+    else:
+        query_date = parse_date(date)
     
     async with get_db_session() as db:
         result = await db.execute(
@@ -268,7 +284,7 @@ async def get_board_watch(
                 WHERE trade_date = :date AND limit_type = 'U'
                 ORDER BY is_broken, first_time
             """),
-            {"date": date}
+            {"date": query_date}
         )
         rows = result.fetchall()
         

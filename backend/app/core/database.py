@@ -1,7 +1,7 @@
 """数据库连接模块"""
 from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
+from sqlalchemy.orm import declarative_base
 from contextlib import asynccontextmanager
 
 from .config import settings
@@ -16,7 +16,7 @@ DATABASE_URL_ASYNC = settings.DATABASE_URL.replace("postgresql://", "postgresql+
 async_engine = create_async_engine(DATABASE_URL_ASYNC, echo=False, pool_pre_ping=True)
 
 # 会话工厂
-AsyncSessionLocal = sessionmaker(
+AsyncSessionLocal = async_sessionmaker(
     bind=async_engine,
     class_=AsyncSession,
     expire_on_commit=False,
@@ -42,6 +42,7 @@ async def get_db():
             await session.close()
 
 
+@asynccontextmanager
 async def get_db_session():
     """FastAPI 依赖注入用"""
     async with AsyncSessionLocal() as session:
