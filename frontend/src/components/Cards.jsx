@@ -109,15 +109,18 @@ export const IndexCard = ({
  * 市场情绪组件
  */
 export const MarketSentiment = ({ data = {} }) => {
+  // 确保 data 存在且有效
+  const safeData = data || {};
+  
   const items = [
-    { label: '涨停', value: data.limit_up_count || 0, type: 'up' },
-    { label: '跌停', value: data.limit_down_count || 0, type: 'down' },
-    { label: '炸板', value: data.broken_board_count || 0, type: 'warn' },
-    { label: '封板率', value: `${data.seal_rate || 0}%`, type: 'normal' },
+    { label: '涨停', value: safeData.limit_up_count || 0, type: 'up' },
+    { label: '跌停', value: safeData.limit_down_count || 0, type: 'down' },
+    { label: '炸板', value: safeData.broken_board_count || 0, type: 'warn' },
+    { label: '封板率', value: `${safeData.seal_rate || 0}%`, type: 'normal' },
   ];
 
-  if (data.max_continuous_board) {
-    items.push({ label: '最高连板', value: `${data.max_continuous_board}板`, type: 'warn' });
+  if (safeData.max_continuous_board) {
+    items.push({ label: '最高连板', value: `${safeData.max_continuous_board}板`, type: 'warn' });
   }
 
   return (
