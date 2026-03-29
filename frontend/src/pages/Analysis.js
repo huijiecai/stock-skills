@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Card, Form, Input, Button, Descriptions, Tag, Alert, Spin, DatePicker } from 'antd';
+import { Card, Form, Input, Button, Descriptions, Tag, Alert, Spin, DatePicker, message } from 'antd';
 import { SearchOutlined } from '@ant-design/icons';
-import { analysisAPI } from '../services/api';
+import { stockAPI, marketAPI } from '../services/api';
 import dayjs from 'dayjs';
 
 export default function Analysis() {
@@ -15,17 +15,42 @@ export default function Analysis() {
       setLoading(true);
       
       const date = values.date ? dayjs(values.date).format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD');
-      const res = await analysisAPI.analyzeStock(values.code, date);
       
-      if (res.data.success) {
-        setAnalysisResult(res.data);
+      // 获取股票信息和市场数据
+      const [stockRes, marketRes] = await Promise.all([
+        stockAPI.getInfo(values.code),
+        marketAPI.getSnapshot(date),
+      ]);
+      
+      if (stockRes.code === 200) {
+        const stockData = stockRes.data;
+        const marketData = marketRes.data;
+        
+        setAnalysisResult({
+          success: true,
+          stock_code: stockData.stock_code,
+          stock_name: stockData.stock_name,
+          date: date,
+          market_phase: marketData.limit_up_count > 50 ? '主升' : marketData.limit_up_count < 10 ? '冰点' : '正常',
+          market_sentiment: {
+            limit_up_count: marketData.limit_up_count,
+            limit_down_count: marketData.limit_down_count,
+            max_streak: 0,
+          },
+          is_leader_candidate: false,
+          popularity_rank: null,
+          change_percent: 0,
+          turnover: 0,
+          concepts: [],
+          suggestion: '请通过数据采集获取完整数据后进行分析',
+        });
       } else {
-        setAnalysisResult({ success: false, error: res.data.error });
+        setAnalysisResult({ success: false, error: stockRes.message || '获取股票信息失败' });
       }
     } catch (error) {
       setAnalysisResult({ 
         success: false, 
-        error: error.response?.data?.detail || '分析失败' 
+        error: error.response?.data?.message || '分析失败，请检查股票代码是否正确' 
       });
     } finally {
       setLoading(false);
@@ -103,14 +128,6 @@ export default function Analysis() {
                       第 {analysisResult.popularity_rank} 名
                     </span>
                   ) : '未进入前100'}
-                </Descriptions.Item>
-                <Descriptions.Item label="涨跌幅">
-                  <span style={{ color: analysisResult.change_percent >= 0 ? '#cf1322' : '#3f8600' }}>
-                    {(analysisResult.change_percent * 100).toFixed(2)}%
-                  </span>
-                </Descriptions.Item>
-                <Descriptions.Item label="成交额">
-                  {(analysisResult.turnover / 100000000).toFixed(2)}亿
                 </Descriptions.Item>
                 <Descriptions.Item label="概念归属" span={2}>
                   {analysisResult.concepts && analysisResult.concepts.length > 0 ? (

@@ -30,10 +30,10 @@ class DataCollector:
         try:
             import adata
             df = adata.stock.market.get_market(
-                code=stock_code,
-                k_type=0,  # 日线
-                start_date=date.replace("-", ""),
-                end_date=date.replace("-", "")
+                stock_code=stock_code,
+                k_type=1,  # 日线
+                start_date=date,
+                end_date=date
             )
             if df is not None and len(df) > 0:
                 await self._save_stock_daily(df)
@@ -42,25 +42,74 @@ class DataCollector:
             logger.error(f"采集股票日线失败 {stock_code}: {e}")
     
     async def collect_stock_daily_batch(self, date: str):
-        """批量采集股票日线"""
+        """批量采集股票日线 - 需要先获取股票列表"""
         try:
             import adata
-            df = adata.stock.market.get_market(
-                k_type=0,
-                start_date=date.replace("-", ""),
-                end_date=date.replace("-", "")
-            )
-            if df is not None and len(df) > 0:
-                await self._save_stock_daily(df)
-                logger.info(f"批量采集股票日线 {date}: {len(df)} 条")
+            # 获取股票列表（从概念成分股或指数成分股）
+            stock_codes = await self._get_active_stock_codes()
+            total = 0
+            for stock_code in stock_codes[:100]:  # 限制采集前100只
+                try:
+                    df = adata.stock.market.get_market(
+                        stock_code=stock_code,
+                        k_type=1,  # 日线
+                        start_date=date,
+                        end_date=date
+                    )
+                    if df is not None and len(df) > 0:
+                        await self._save_stock_daily(df)
+                        total += len(df)
+                except Exception as e:
+                    logger.warning(f"采集股票 {stock_code} 失败: {e}")
+            logger.info(f"批量采集股票日线 {date}: {total} 条")
         except Exception as e:
             logger.error(f"批量采集股票日线失败: {e}")
     
+    async def _get_active_stock_codes(self) -> List[str]:
+        """获取活跃股票代码列表"""
+        # 常用活跃股票代码
+        return [
+            '000001', '000002', '000063', '000333', '000651',
+            '000725', '000768', '000858', '002230', '002304',
+            '002415', '002594', '002714', '003816', '300014',
+            '300015', '300033', '300059', '300750', '600000',
+            '600009', '600010', '600011', '600015', '600016',
+            '600018', '600019', '600028', '600029', '600030',
+            '600031', '600036', '600048', '600050', '600104',
+            '600109', '600111', '600150', '600176', '600183',
+            '600276', '600309', '600332', '600346', '600352',
+            '600436', '600438', '600486', '600489', '600519',
+            '600547', '600570', '600585', '600588', '600660',
+            '600690', '600703', '600745', '600809', '600837',
+            '600887', '600893', '600900', '600905', '600918',
+            '600919', '600926', '600941', '601012', '601021',
+            '601066', '601088', '601111', '601138', '601166',
+            '601211', '601225', '601236', '601288', '601318',
+            '601328', '601336', '601390', '601398', '601555',
+            '601601', '601628', '601633', '601658', '601668',
+            '601669', '601688', '601728', '601766', '601788',
+            '601818', '601857', '601877', '601888', '601899',
+            '601900', '601901', '601916', '601919', '601933',
+            '601939', '601985', '601988', '601989', '603019',
+            '603087', '601127', '601799', '603160', '603259',
+            '603260', '603288', '603501', '603596', '603799',
+            '603833', '603899', '603986', '688001', '688012',
+            '688041', '688065', '688111', '688126', '688169',
+            '688187', '688223', '688256', '688303', '688369',
+            '688396', '688432', '688496', '688561', '688599',
+        ]
+    
     async def _save_stock_daily(self, df):
         """保存股票日线数据"""
+        from datetime import datetime as dt
         async with AsyncSessionLocal() as session:
             for _, row in df.iterrows():
                 try:
+                    # 转换日期格式
+                    trade_date = row.get("trade_date", "")
+                    if isinstance(trade_date, str):
+                        trade_date = dt.strptime(trade_date, "%Y-%m-%d").date()
+                    
                     await session.execute(text("""
                         INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
                             high_price, low_price, change_pct, volume, amount, turnover_rate)
@@ -76,7 +125,7 @@ class DataCollector:
                             amount = EXCLUDED.amount,
                             turnover_rate = EXCLUDED.turnover_rate
                     """), {
-                        "trade_date": row.get("trade_date", ""),
+                        "trade_date": trade_date,
                         "stock_code": row.get("stock_code", ""),
                         "open_price": row.get("open", 0),
                         "close_price": row.get("close", 0),
@@ -85,7 +134,7 @@ class DataCollector:
                         "change_pct": row.get("change_pct", 0),
                         "volume": row.get("volume", 0),
                         "amount": row.get("amount", 0),
-                        "turnover_rate": row.get("turnover_rate", 0),
+                        "turnover_rate": row.get("turnover_ratio", 0),
                     })
                 except Exception as e:
                     logger.warning(f"保存股票日线失败: {e}")
@@ -94,17 +143,39 @@ class DataCollector:
     # ==================== 指数数据采集 ====================
     
     async def collect_index_daily(self, index_code: str, start_date: str, end_date: str):
-        """采集指数日线"""
+        """采集指数日线 - 参考 fetch_adata_data.py"""
         try:
             import adata
-            df = adata.stock.index.get_index(
+            from datetime import datetime as dt
+            
+            # 参考 fetch_adata_data.py 的正确写法
+            df = adata.stock.market.get_market_index(
                 index_code=index_code,
-                start_date=start_date.replace("-", ""),
-                end_date=end_date.replace("-", "")
+                k_type=1,  # 日K
             )
-            if df is not None and len(df) > 0:
-                await self._save_index_daily(df)
-                logger.info(f"采集指数日线 {index_code}: {len(df)} 条")
+            if df is None or df.empty:
+                logger.info(f"采集指数日线 {index_code}: 0 条")
+                return
+            
+            # 过滤到目标日期范围
+            start = dt.strptime(start_date, "%Y-%m-%d").date()
+            end = dt.strptime(end_date, "%Y-%m-%d").date()
+            
+            filtered_rows = []
+            for _, row in df.iterrows():
+                trade_date = row.get('trade_date', '')
+                if isinstance(trade_date, str) and len(trade_date) >= 10:
+                    row_date = dt.strptime(trade_date[:10], "%Y-%m-%d").date()
+                    if start <= row_date <= end:
+                        filtered_rows.append(row)
+            
+            if filtered_rows:
+                import pandas as pd
+                filtered_df = pd.DataFrame(filtered_rows)
+                await self._save_index_daily(filtered_df)
+                logger.info(f"采集指数日线 {index_code}: {len(filtered_df)} 条")
+            else:
+                logger.info(f"采集指数日线 {index_code}: 0 条（日期范围内无数据）")
         except Exception as e:
             logger.error(f"采集指数日线失败 {index_code}: {e}")
     
@@ -116,9 +187,15 @@ class DataCollector:
     
     async def _save_index_daily(self, df):
         """保存指数日线数据"""
+        from datetime import datetime as dt
         async with AsyncSessionLocal() as session:
             for _, row in df.iterrows():
                 try:
+                    # 转换日期格式
+                    trade_date = row.get("trade_date", "")
+                    if isinstance(trade_date, str) and len(trade_date) >= 10:
+                        trade_date = dt.strptime(trade_date[:10], "%Y-%m-%d").date()
+                    
                     await session.execute(text("""
                         INSERT INTO index_daily (trade_date, index_code, index_name, open_price, close_price,
                             high_price, low_price, change_pct, volume, amount)
@@ -133,7 +210,7 @@ class DataCollector:
                             volume = EXCLUDED.volume,
                             amount = EXCLUDED.amount
                     """), {
-                        "trade_date": row.get("trade_date", ""),
+                        "trade_date": trade_date,
                         "index_code": row.get("index_code", ""),
                         "index_name": row.get("index_name", ""),
                         "open_price": row.get("open", 0),
@@ -160,9 +237,8 @@ class DataCollector:
         """采集股票分时"""
         try:
             import adata
-            df = adata.stock.market.get_market(
+            df = adata.stock.market.get_market_min(
                 code=stock_code,
-                k_type=1,  # 分时
                 start_date=date.replace("-", ""),
                 end_date=date.replace("-", "")
             )
@@ -222,22 +298,19 @@ class DataCollector:
             import adata
             index_codes = ["000001", "399001", "399006", "000688"]
             for code in index_codes:
-                df = adata.stock.index.get_index(
-                    index_code=code,
-                    index_min=True,
-                    start_date=date.replace("-", ""),
-                    end_date=date.replace("-", "")
-                )
+                df = adata.stock.market.get_market_index_min(index_code=code)
                 if df is not None and len(df) > 0:
-                    await self._save_index_intraday(df)
+                    await self._save_index_intraday(df, date)
         except Exception as e:
             logger.error(f"采集指数分时失败: {e}")
     
-    async def _save_index_intraday(self, df):
+    async def _save_index_intraday(self, df, date: str = None):
         """保存指数分时数据"""
         async with AsyncSessionLocal() as session:
             for _, row in df.iterrows():
                 try:
+                    # 如果没有trade_date，使用传入的date
+                    trade_date = row.get("trade_date", "") or date
                     await session.execute(text("""
                         INSERT INTO index_intraday (trade_date, index_code, trade_time, price,
                             change_pct, volume, amount)
@@ -249,7 +322,7 @@ class DataCollector:
                             volume = EXCLUDED.volume,
                             amount = EXCLUDED.amount
                     """), {
-                        "trade_date": row.get("trade_date", ""),
+                        "trade_date": trade_date,
                         "index_code": row.get("index_code", ""),
                         "trade_time": row.get("trade_time", "00:00:00"),
                         "price": row.get("price", 0),
@@ -273,7 +346,7 @@ class DataCollector:
         """采集概念板块列表"""
         try:
             import adata
-            df = adata.stock.info.get_concept()
+            df = adata.stock.info.get_concept_east()
             if df is not None and len(df) > 0:
                 await self._save_concept_list(df)
                 logger.info(f"采集概念板块列表: {len(df)} 条")
@@ -301,21 +374,64 @@ class DataCollector:
             await session.commit()
     
     async def collect_concept_daily(self, date: str):
-        """采集概念板块日线"""
+        """采集概念板块日线 - 参考 fetch_adata_data.py"""
         try:
             import adata
-            df = adata.stock.info.get_concept_line_east()
-            if df is not None and len(df) > 0:
-                await self._save_concept_daily(df)
-                logger.info(f"采集概念板块日线: {len(df)} 条")
+            from datetime import datetime as dt
+            
+            # 获取概念列表（只取前50个热点概念）
+            async with AsyncSessionLocal() as session:
+                result = await session.execute(text("SELECT concept_code FROM concept_info_east LIMIT 50"))
+                concepts = [row[0] for row in result.fetchall()]
+            
+            if not concepts:
+                logger.warning("概念列表为空，请先采集概念列表")
+                return
+            
+            target_date = dt.strptime(date, "%Y-%m-%d").date()
+            total = 0
+            
+            for concept_code in concepts:
+                try:
+                    # 参考 fetch_adata_data.py 的正确写法
+                    df = adata.stock.market.get_market_concept_east(
+                        index_code=concept_code,
+                        k_type=1,
+                    )
+                    if df is None or df.empty:
+                        continue
+                    
+                    # 过滤到目标日期
+                    filtered_rows = []
+                    for _, row in df.iterrows():
+                        trade_date = row.get('trade_date', '')
+                        if isinstance(trade_date, str) and len(trade_date) >= 10:
+                            row_date = dt.strptime(trade_date[:10], "%Y-%m-%d").date()
+                            if row_date == target_date:
+                                filtered_rows.append(row)
+                    
+                    if filtered_rows:
+                        import pandas as pd
+                        await self._save_concept_daily(pd.DataFrame(filtered_rows))
+                        total += len(filtered_rows)
+                except Exception as e:
+                    logger.warning(f"采集概念 {concept_code} 失败: {e}")
+            
+            logger.info(f"采集概念板块日线: {total} 条")
         except Exception as e:
             logger.error(f"采集概念板块日线失败: {e}")
     
     async def _save_concept_daily(self, df):
         """保存概念板块日线"""
+        from datetime import datetime as dt
         async with AsyncSessionLocal() as session:
             for _, row in df.iterrows():
                 try:
+                    # 转换日期格式
+                    trade_date = row.get("trade_date", "")
+                    if isinstance(trade_date, str) and len(trade_date) >= 10:
+                        trade_date = dt.strptime(trade_date[:10], "%Y-%m-%d").date()
+                    
                     await session.execute(text("""
                         INSERT INTO concept_daily_east (trade_date, concept_code, open_price, close_price,
                             high_price, low_price, change_pct, volume, amount)
@@ -330,7 +446,7 @@ class DataCollector:
                             volume = EXCLUDED.volume,
                             amount = EXCLUDED.amount
                     """), {
-                        "trade_date": row.get("trade_date", ""),
+                        "trade_date": trade_date,
                         "concept_code": row.get("concept_code", ""),
                         "open_price": row.get("open", 0),
                         "close_price": row.get("close", 0),
@@ -355,7 +471,7 @@ class DataCollector:
             
             for concept_code in concepts[:50]:  # 只更新前50个概念
                 try:
-                    df = adata.stock.info.get_concept_constituent_east(concept_code=concept_code)
+                    df = adata.stock.info.concept_constituent_east(concept_code=concept_code)
                     if df is not None and len(df) > 0:
                         await self._save_concept_mapping(concept_code, df)
                 except Exception as e:

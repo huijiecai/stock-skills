@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Row, Col, Tree, Table, Button, Modal, Form, Input, Checkbox, message, Spin, Card, Space, Tag, Typography, Empty, Tooltip, Badge } from 'antd';
 import { PlusOutlined, DeleteOutlined, AppstoreOutlined, BranchesOutlined, InfoCircleOutlined, SearchOutlined, DownloadOutlined } from '@ant-design/icons';
-import { conceptsAPI } from '../services/api';
+import { conceptAPI } from '../services/api';
 
 const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
 
 export default function ConceptManage() {
   const [loading, setLoading] = useState(true);
-  const [concepts, setConcepts] = useState({});
+  const [concepts, setConcepts] = useState([]);
   const [treeData, setTreeData] = useState([]);
   const [selectedConcept, setSelectedConcept] = useState(null);
   const [selectedConceptInfo, setSelectedConceptInfo] = useState(null);
@@ -35,31 +35,6 @@ export default function ConceptManage() {
     }
   }, [searchText, conceptStocks]);
 
-  // 概念树搜索
-  useEffect(() => {
-    if (treeSearchText) {
-      const expandedKeys = [];
-      const searchInTree = (data, parentKey = '') => {
-        data.forEach(item => {
-          if (item.title.toLowerCase().includes(treeSearchText.toLowerCase())) {
-            if (parentKey) {
-              expandedKeys.push(parentKey);
-            }
-          }
-          if (item.children) {
-            searchInTree(item.children, item.key);
-          }
-        });
-      };
-      searchInTree(treeData);
-      setExpandedKeys(expandedKeys);
-      setAutoExpandParent(true);
-    } else {
-      setExpandedKeys([]);
-      setAutoExpandParent(false);
-    }
-  }, [treeSearchText, treeData]);
-
   useEffect(() => {
     loadConcepts();
   }, []);
@@ -67,25 +42,36 @@ export default function ConceptManage() {
   const loadConcepts = async () => {
     setLoading(true);
     try {
-      const res = await conceptsAPI.getList();
-      const conceptsData = res.data.data;
-      setConcepts(conceptsData);
-      
-      // 转换为Tree组件需要的格式
-      const formatted = Object.entries(conceptsData).map(([key, value]) => ({
-        title: key,
-        key: key,
-        icon: <AppstoreOutlined />,
-        description: value.description,
-        children: Object.entries(value.subconcepts || {}).map(([subKey, subValue]) => ({
-          title: subKey,
-          key: subKey,
-          icon: <BranchesOutlined />,
-          conceptName: subKey,
-          description: subValue.description,
-        }))
-      }));
-      setTreeData(formatted);
+      const res = await conceptAPI.getList(1, 500);
+      if (res.code === 200) {
+        const conceptsData = res.data.items || [];
+        setConcepts(conceptsData);
+        
+        // 转换为Tree组件需要的格式 - 按首字母分组
+        const grouped = {};
+        conceptsData.forEach(concept => {
+          const firstChar = concept.concept_name?.charAt(0) || '#';
+          if (!grouped[firstChar]) {
+            grouped[firstChar] = [];
+          }
+          grouped[firstChar].push(concept);
+        });
+        
+        const formatted = Object.entries(grouped).map(([key, items]) => ({
+          title: `${key}开头 (${items.length}个)`,
+          key: key,
+          icon: <AppstoreOutlined />,
+          children: items.map(item => ({
+            title: item.concept_name,
+            key: item.concept_code,
+            icon: <BranchesOutlined />,
+            conceptName: item.concept_name,
+            conceptCode: item.concept_code,
+            description: `成分股: ${item.component_count || 0}只`,
+          }))
+        }));
+        setTreeData(formatted);
+      }
     } catch (error) {
       message.error('加载概念失败');
     } finally {
@@ -93,12 +79,14 @@ export default function ConceptManage() {
     }
   };
 
-  const loadConceptStocks = async (conceptName) => {
+  const loadConceptStocks = async (conceptCode) => {
     try {
-      const res = await conceptsAPI.getStocks(conceptName);
-      const stocks = res.data.stocks || [];
-      setConceptStocks(stocks);
-      setFilteredStocks(stocks);
+      const res = await conceptAPI.getComponents(conceptCode);
+      if (res.code === 200) {
+        const stocks = res.data.items || [];
+        setConceptStocks(stocks);
+        setFilteredStocks(stocks);
+      }
     } catch (error) {
       message.error('加载股票列表失败');
     }
@@ -134,10 +122,10 @@ export default function ConceptManage() {
   };
 
   const handleSelect = (selectedKeys, info) => {
-    if (selectedKeys.length > 0 && info.node.conceptName) {
+    if (selectedKeys.length > 0 && info.node.conceptCode) {
       setSelectedConcept(info.node.conceptName);
       setSelectedConceptInfo(info.node);
-      loadConceptStocks(info.node.conceptName);
+      loadConceptStocks(info.node.conceptCode);
     }
   };
 
@@ -152,34 +140,17 @@ export default function ConceptManage() {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      await conceptsAPI.addStock(selectedConcept, {
-        stock_code: values.stock_code,
-        is_core: values.is_core || false,
-        note: selectedConcept,
-      });
-      message.success('添加成功');
+      // 注意：当前后端不支持添加股票到概念，这里只是模拟
+      message.info('当前版本暂不支持手动添加股票到概念');
       setIsModalVisible(false);
       form.resetFields();
-      loadConceptStocks(selectedConcept);
     } catch (error) {
       message.error(error.response?.data?.detail || '添加失败');
     }
   };
 
   const handleRemove = async (stockCode) => {
-    Modal.confirm({
-      title: '确认移除',
-      content: `确定要从 ${selectedConcept} 中移除股票 ${stockCode} 吗？`,
-      onOk: async () => {
-        try {
-          await conceptsAPI.removeStock(selectedConcept, stockCode);
-          message.success('移除成功');
-          loadConceptStocks(selectedConcept);
-        } catch (error) {
-          message.error('移除失败');
-        }
-      },
-    });
+    message.info('当前版本暂不支持移除概念成分股');
   };
 
   const columns = [
@@ -242,7 +213,7 @@ export default function ConceptManage() {
           概念管理
         </Title>
         <Paragraph type="secondary">
-          管理股票概念层级和股票归属关系
+          查看股票概念层级和成分股归属关系
         </Paragraph>
       </div>
 
@@ -254,7 +225,7 @@ export default function ConceptManage() {
               <Space>
                 <BranchesOutlined />
                 <span>概念层级树</span>
-                <Badge count={Object.keys(concepts).length} showZero color="#1890ff" />
+                <Badge count={concepts.length} showZero color="#1890ff" />
               </Space>
             }
             bordered={false}
@@ -321,14 +292,6 @@ export default function ConceptManage() {
                       导出
                     </Button>
                   </Tooltip>
-                  <Button
-                    type="primary"
-                    icon={<PlusOutlined />}
-                    onClick={handleAddStock}
-                    size="small"
-                  >
-                    添加股票
-                  </Button>
                 </Space>
               )
             }
@@ -373,7 +336,7 @@ export default function ConceptManage() {
                 ) : (
                   <Empty
                     image={Empty.PRESENTED_IMAGE_SIMPLE}
-                    description={searchText ? "未找到匹配的股票" : "暂无股票，点击上方按钮添加"}
+                    description={searchText ? "未找到匹配的股票" : "该概念暂无成分股数据"}
                   />
                 )}
               </>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Row, Col, Statistic, Table, Tag, Spin, DatePicker, Space, Typography, Button, message } from 'antd';
 import { ArrowUpOutlined, ArrowDownOutlined, FireOutlined, CalendarOutlined, LeftOutlined, RightOutlined, ReloadOutlined } from '@ant-design/icons';
-import { marketAPI, analysisAPI, stocksAPI } from '../services/api';
+import { marketAPI, simulationAPI, stockAPI } from '../services/api';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -10,8 +10,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [marketData, setMarketData] = useState(null);
-  const [leaders, setLeaders] = useState(null);
-  const [popularity, setPopularity] = useState([]);
+  const [hotStocks, setHotStocks] = useState([]);
 
   useEffect(() => {
     loadData();
@@ -21,15 +20,18 @@ export default function Dashboard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [marketRes, leadersRes, popularityRes] = await Promise.all([
-        marketAPI.getSentiment(date),
-        analysisAPI.getLeaders(date),
-        stocksAPI.getPopularity(date, 30),
+      const [snapshotRes, hotStocksRes] = await Promise.all([
+        marketAPI.getSnapshot(date),
+        simulationAPI.getHotStocks(date, 30),
       ]);
       
-      setMarketData(marketRes.data.data);
-      setLeaders(leadersRes.data);
-      setPopularity(popularityRes.data.data);
+      if (snapshotRes.code === 200) {
+        setMarketData(snapshotRes.data);
+      }
+      
+      if (hotStocksRes.code === 200) {
+        setHotStocks(hotStocksRes.data.items || []);
+      }
     } catch (error) {
       console.error('加载数据失败:', error);
       message.error('加载数据失败，请重试');
@@ -63,7 +65,15 @@ export default function Dashboard() {
     return 'default';
   };
 
-  const popularityColumns = [
+  // 根据涨停家数判断市场阶段
+  const getMarketPhase = () => {
+    const upCount = marketData?.limit_up_count || 0;
+    if (upCount > 50) return '主升';
+    if (upCount < 10) return '冰点';
+    return '正常';
+  };
+
+  const hotStocksColumns = [
     {
       title: '排名',
       dataIndex: 'rank',
@@ -90,12 +100,12 @@ export default function Dashboard() {
       dataIndex: 'stock_name',
       key: 'stock_name',
       width: 120,
-      render: (name) => <Text strong>{name}</Text>,
+      render: (name) => <Text strong>{name || '-'}</Text>,
     },
     {
       title: '涨跌幅',
-      dataIndex: 'change_percent',
-      key: 'change_percent',
+      dataIndex: 'change_pct',
+      key: 'change_pct',
       width: 100,
       align: 'right',
       render: (value) => (
@@ -104,21 +114,21 @@ export default function Dashboard() {
           fontWeight: 'bold',
           fontSize: '14px'
         }}>
-          {value >= 0 ? '+' : ''}{(value * 100).toFixed(2)}%
+          {value >= 0 ? '+' : ''}{(value || 0).toFixed(2)}%
         </span>
       ),
-      sorter: (a, b) => a.change_percent - b.change_percent,
+      sorter: (a, b) => (a.change_pct || 0) - (b.change_pct || 0),
     },
     {
       title: '成交额',
-      dataIndex: 'turnover',
-      key: 'turnover',
+      dataIndex: 'amount',
+      key: 'amount',
       width: 120,
       align: 'right',
       render: (value) => (
-        <Text>{(value / 100000000).toFixed(2)}亿</Text>
+        <Text>{((value || 0) / 100000000).toFixed(2)}亿</Text>
       ),
-      sorter: (a, b) => a.turnover - b.turnover,
+      sorter: (a, b) => (a.amount || 0) - (b.amount || 0),
     },
   ];
 
@@ -191,9 +201,9 @@ export default function Dashboard() {
           <Card>
             <Statistic
               title="市场阶段"
-              value={marketData?.market_phase || '正常'}
-              valueStyle={{ color: getPhaseColor(marketData?.market_phase) === 'red' ? '#cf1322' : '#3f8600' }}
-              prefix={<Tag color={getPhaseColor(marketData?.market_phase)}>{marketData?.market_phase}</Tag>}
+              value={getMarketPhase()}
+              valueStyle={{ color: getPhaseColor(getMarketPhase()) === 'red' ? '#cf1322' : '#3f8600' }}
+              prefix={<Tag color={getPhaseColor(getMarketPhase())}>{getMarketPhase()}</Tag>}
             />
           </Card>
         </Col>
@@ -222,53 +232,35 @@ export default function Dashboard() {
         <Col span={6}>
           <Card>
             <Statistic
-              title="最高连板"
-              value={marketData?.max_streak || 0}
+              title="封板率"
+              value={marketData?.seal_rate || 0}
               prefix={<FireOutlined />}
-              suffix="板"
+              suffix="%"
             />
           </Card>
         </Col>
       </Row>
 
-      {/* 人气榜 */}
+      {/* 热门个股 */}
       <Card 
         title={
           <Space>
             <FireOutlined style={{ color: '#fa541c' }} />
-            <span>人气榜 Top 30</span>
-            <Tag color="orange">{popularity.length}只</Tag>
+            <span>热门个股 Top 30</span>
+            <Tag color="orange">{hotStocks.length}只</Tag>
           </Space>
         } 
         style={{ marginBottom: 24 }}
       >
         <Table
-          columns={popularityColumns}
-          dataSource={popularity}
+          columns={hotStocksColumns}
+          dataSource={hotStocks}
           rowKey="stock_code"
           pagination={false}
           size="small"
           scroll={{ y: 400 }}
         />
       </Card>
-
-      {/* 概念龙头 */}
-      {leaders?.concept_leaders && leaders.concept_leaders.length > 0 && (
-        <Card title="概念龙头">
-          <Row gutter={[16, 16]}>
-            {leaders.concept_leaders.map((leader) => (
-              <Col span={8} key={leader.concept_name}>
-                <Card size="small">
-                  <h4>{leader.concept_name}</h4>
-                  <p>涨停：{leader.limit_up_count}家</p>
-                  <p>领涨股：{leader.leader_name}</p>
-                  <p>平均涨幅：{(leader.avg_change * 100).toFixed(2)}%</p>
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </Card>
-      )}
     </div>
   );
 }

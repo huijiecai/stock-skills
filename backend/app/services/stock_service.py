@@ -1,11 +1,17 @@
 """股票服务层"""
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date as date_type
 from typing import Optional, List, Dict
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import AsyncSessionLocal
 from app.core.logger import get_logger
+
+def parse_date(d: str) -> date_type:
+    """将字符串日期转换为 date 对象"""
+    if isinstance(d, str):
+        return datetime.strptime(d, "%Y-%m-%d").date()
+    return d
 
 logger = get_logger(__name__)
 
@@ -43,6 +49,10 @@ class StockService:
         if not start_date:
             start_date = (datetime.now() - timedelta(days=30)).strftime("%Y-%m-%d")
         
+        # 转换日期格式
+        start_date_obj = parse_date(start_date)
+        end_date_obj = parse_date(end_date)
+        
         async with AsyncSessionLocal() as session:
             # 获取股票名称
             info_result = await session.execute(
@@ -62,7 +72,7 @@ class StockService:
                       AND trade_date BETWEEN :start_date AND :end_date
                     ORDER BY trade_date DESC
                 """),
-                {"code": code, "start_date": start_date, "end_date": end_date}
+                {"code": code, "start_date": start_date_obj, "end_date": end_date_obj}
             )
             rows = result.fetchall()
             
@@ -91,6 +101,8 @@ class StockService:
         if not date:
             date = datetime.now().strftime("%Y-%m-%d")
         
+        date_obj = parse_date(date)
+        
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 text("""
@@ -99,7 +111,7 @@ class StockService:
                     WHERE stock_code = :code AND trade_date = :date
                     ORDER BY trade_time
                 """),
-                {"code": code, "date": date}
+                {"code": code, "date": date_obj}
             )
             rows = result.fetchall()
             
@@ -157,13 +169,15 @@ class StockService:
         if not date:
             date = datetime.now().strftime("%Y-%m-%d")
         
+        date_obj = parse_date(date)
+        
         async with AsyncSessionLocal() as session:
             result = await session.execute(
                 text("""
                     SELECT * FROM capital_flow 
                     WHERE stock_code = :code AND trade_date = :date
                 """),
-                {"code": code, "date": date}
+                {"code": code, "date": date_obj}
             )
             row = result.fetchone()
             

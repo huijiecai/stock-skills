@@ -32,3 +32,1941 @@
 2026-03-29 11:59:27 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
 2026-03-29 11:59:27 | INFO     | app.main | ✅ 定时任务调度器已启动
 2026-03-29 12:04:50 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:20:26 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:20:26 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:20:26 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:20:26 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:20:38 | ERROR    | app.services.data_collector | 采集涨跌停数据失败: 您的token不对，请确认。
+2026-03-29 13:20:41 | INFO     | app.services.data_collector | 采集指数日线 000001: 0 条
+2026-03-29 13:20:42 | INFO     | app.services.data_collector | 采集指数日线 399001: 0 条
+2026-03-29 13:20:46 | INFO     | app.services.data_collector | 采集指数日线 399006: 0 条
+2026-03-29 13:20:46 | INFO     | app.services.data_collector | 采集指数日线 000001: 0 条
+2026-03-29 13:20:46 | INFO     | app.services.data_collector | 采集指数日线 000688: 0 条
+2026-03-29 13:20:46 | INFO     | app.services.data_collector | 采集指数日线 399001: 0 条
+2026-03-29 13:20:47 | INFO     | app.services.data_collector | 采集指数日线 399006: 0 条
+2026-03-29 13:20:48 | INFO     | app.services.data_collector | 采集指数日线 000688: 0 条
+2026-03-29 13:20:48 | ERROR    | app.services.data_collector | 采集涨跌停数据失败: 您的token不对，请确认。
+2026-03-29 13:24:49 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:24:52 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:24:52 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:24:52 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:24:52 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:25:03 | INFO     | app.services.data_collector | 采集指数日线 000001: 0 条
+2026-03-29 13:25:03 | INFO     | app.services.data_collector | 采集指数日线 399001: 0 条
+2026-03-29 13:25:04 | INFO     | app.services.data_collector | 采集指数日线 399006: 0 条
+2026-03-29 13:25:04 | INFO     | app.services.data_collector | 采集指数日线 000688: 0 条
+2026-03-29 13:25:04 | INFO     | app.services.data_collector | 采集指数日线 000001: 0 条
+2026-03-29 13:25:04 | INFO     | app.services.data_collector | 采集指数日线 399001: 0 条
+2026-03-29 13:25:04 | INFO     | app.services.data_collector | 采集指数日线 399006: 0 条
+2026-03-29 13:25:04 | INFO     | app.services.data_collector | 采集指数日线 000688: 0 条
+2026-03-29 13:25:04 | INFO     | app.services.data_collector | 采集概念板块列表: 4 条
+2026-03-29 13:25:04 | ERROR    | app.services.data_collector | 采集概念板块日线失败: ConceptMarketEase.get_market_concept_east() got an unexpected keyword argument 'start_date'
+2026-03-29 13:27:23 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:27:23 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:27:23 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:27:23 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:27:23 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:27:32 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000001', 10.91, 10.94, 11.05, 10.9, 0.0, 82766400, 909199430.74, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:32 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000002', 4.1, 4.04, 4.14, 4.03, -1.94, 84825900, 345974692.05, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:32 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000063', 33.27, 32.68, 33.53, 32.59, -2.3, 48435800, 1599337986.47, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:32 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000333', 74.89, 74.32, 75.54, 74.18, -0.64, 17708500, 1325335068.75, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:32 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000651', 38.16, 37.94, 38.35, 37.9, -0.5, 19284400, 734511604.08, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:32 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000725', 3.99, 3.94, 4.01, 3.93, -1.25, 394296300, 1562818115.25, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000768', 25.09, 24.59, 25.09, 24.5, -2.34, 22429700, 554495322.27, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '000858', 102.2, 101.28, 102.89, 101.28, -1.14, 9592400, 977853749.31, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '002230', 47.6, 46.57, 47.62, 46.43, -2.1, 23796900, 1118509968.41, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '002304', 50.2, 49.88, 50.99, 49.86, -0.28, 5071200, 255594918.2, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '002415', 30.73, 30.37, 31.0, 30.17, -1.33, 28777700, 881257877.44, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '002594', 106.62, 103.14, 107.68, 102.7, -3.25, 82812100, 8655663075.43, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '002714', 44.33, 44.0, 44.8, 43.9, -1.17, 31247900, 1381424058.68, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '003816', 4.47, 4.6, 4.63, 4.44, 2.0, 413559000, 1894250863.64, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '300014', 70.84, 70.0, 72.94, 69.02, -0.53, 74333800, 5283884223.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '300015', 9.7, 9.42, 9.72, 9.39, -3.09, 67758900, 647563695.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '300033', 309.95, 296.84, 309.95, 295.18, -4.74, 9841500, 2964599560.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:33 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '300059', 19.81, 19.12, 19.82, 19.1, -3.92, 279439000, 5416802117.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '300750', 393.84, 402.5, 413.72, 392.0, 1.18, 26763700, 10811439764.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600000', 10.07, 10.06, 10.18, 10.03, -0.4, 36081400, 364208120.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600009', 27.98, 27.59, 28.18, 27.57, -1.39, 6838800, 190471851.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600010', 2.57, 2.5, 2.58, 2.49, -3.1, 627537200, 1586003302.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600011', 7.67, 7.53, 7.67, 7.49, -1.95, 198827900, 1500705084.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600015', 7.17, 7.15, 7.23, 7.12, -0.42, 47380100, 340173055.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600016', 3.87, 3.84, 3.89, 3.83, -1.03, 158081200, 609744598.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600018', 5.14, 5.12, 5.18, 5.11, -0.58, 41604600, 213960585.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600019', 6.42, 6.31, 6.46, 6.28, -1.71, 78359500, 498357660.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:34 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600028', 5.89, 5.88, 5.94, 5.85, -0.68, 220019800, 1296597916.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600029', 5.74, 5.69, 5.93, 5.66, -1.22, 187002700, 1085690163.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600030', 24.58, 24.13, 24.62, 24.05, -2.15, 113838900, 2763937440.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600031', 19.7, 19.26, 19.74, 19.17, -2.38, 41874800, 811711754.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600036', 39.15, 39.56, 39.69, 39.14, 0.76, 61679000, 2437289721.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600048', 6.01, 5.88, 6.03, 5.88, -2.16, 82054300, 488226456.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600050', 4.54, 4.49, 4.56, 4.48, -1.32, 131360000, 592953562.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600104', 14.47, 14.35, 14.62, 14.33, -1.03, 47370900, 685887960.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600109', 8.38, 8.3, 8.42, 8.26, -1.19, 20864800, 173886873.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600111', 47.35, 46.21, 47.35, 46.14, -3.37, 69408100, 3236783277.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600150', 31.85, 30.67, 31.85, 30.52, -3.7, 83268800, 2587542862.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:35 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600176', 25.1, 24.5, 25.42, 24.34, -3.12, 56563000, 1401031659.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600183', 57.88, 55.41, 57.99, 55.2, -4.13, 47562700, 2680013220.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600276', 53.28, 51.63, 54.1, 51.54, -4.57, 64941700, 3412838811.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600309', 78.0, 79.23, 80.89, 77.6, 0.99, 33646200, 2676734858.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600332', 23.24, 22.8, 23.26, 22.7, -2.02, 16905400, 388111238.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600346', 21.5, 21.13, 21.71, 21.01, -1.72, 24835700, 529671492.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600352', 13.33, 13.19, 13.54, 13.13, -1.12, 30830300, 409816109.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600436', 154.06, 152.15, 154.57, 151.81, -1.25, 1228500, 187655645.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600438', 17.4, 16.76, 17.4, 16.71, -3.95, 65064100, 1106417382.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600486', 73.0, 72.43, 74.79, 71.38, -0.78, 4648400, 338476143.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600489', 25.47, 25.04, 25.78, 24.88, -1.88, 63061500, 1594890859.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600519', 1409.0, 1401.18, 1413.9, 1400.3, -0.64, 2309300, 3243387502.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:36 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600547', 39.48, 38.03, 39.65, 37.6, -3.87, 50156300, 1929375508.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600570', 25.7, 24.98, 25.72, 24.97, -3.18, 19781600, 500298637.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600585', 23.27, 22.93, 23.48, 22.76, -1.76, 35515800, 821835969.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600588', 11.99, 11.63, 12.03, 11.6, -2.92, 31427200, 370265497.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600660', 56.65, 56.65, 57.29, 56.36, 0.18, 10952900, 622202233.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600690', 23.59, 23.11, 23.74, 23.03, -2.03, 41441600, 967275943.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600703', 13.95, 12.91, 14.01, 12.84, -7.52, 318636600, 4233008831.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600745', 32.41, 32.49, 33.68, 32.32, 0.28, 29691400, 979809924.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600809', 149.0, 147.8, 149.47, 147.06, -0.94, 5730000, 846175418.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600887', 25.81, 25.95, 26.25, 25.8, 0.27, 29023800, 755975233.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:37 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600893', 49.6, 48.0, 49.99, 47.66, -3.19, 35655400, 1731020469.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600900', 27.19, 27.31, 27.45, 27.1, 0.37, 84501400, 2305295042.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600905', 4.55, 4.5, 4.56, 4.44, -1.32, 417687100, 1873123812.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600918', 6.15, 6.08, 6.17, 6.07, -1.3, 19745800, 120609392.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600919', 10.75, 10.88, 10.95, 10.75, 0.83, 92898800, 1011968240.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600926', 16.7, 16.69, 16.88, 16.62, 0.12, 23032900, 385405492.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '600941', 93.8, 93.87, 94.29, 93.3, 0.02, 7376500, 691207374.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601012', 18.89, 18.37, 19.06, 18.31, -2.75, 245895200, 4577231092.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601021', 45.4, 46.18, 47.19, 45.12, 0.61, 12822900, 595990088.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601066', 21.91, 21.47, 21.96, 21.46, -2.5, 9155900, 198577833.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601088', 47.13, 47.69, 47.98, 47.05, 0.93, 35922600, 1707565397.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:38 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601111', 6.87, 6.82, 7.01, 6.77, -1.45, 108461700, 747883987.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601138', 50.0, 49.74, 51.5, 49.57, -1.13, 107289000, 5412614174.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601166', 18.75, 18.88, 18.98, 18.71, 0.64, 58122200, 1097370098.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601211', 17.17, 16.76, 17.22, 16.69, -2.61, 91563900, 1545973115.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601225', 25.83, 26.24, 26.33, 25.77, 1.9, 39978800, 1043222814.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601236', 7.95, 7.84, 8.0, 7.82, -1.38, 14831100, 117080271.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601288', 6.53, 6.51, 6.59, 6.51, -0.61, 224826900, 1471353417.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601318', 58.78, 56.8, 58.78, 56.53, -3.38, 101189600, 5801815138.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601328', 6.8, 6.86, 6.89, 6.8, 0.44, 122240200, 839300570.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601336', 66.21, 63.75, 66.5, 63.57, -4.28, 22010900, 1422140968.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601390', 5.49, 5.39, 5.5, 5.37, -1.82, 207349200, 1125100934.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:39 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601398', 7.31, 7.42, 7.44, 7.3, 1.09, 263470800, 1944436803.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601555', 7.89, 7.69, 7.9, 7.65, -2.78, 68959100, 534880819.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601601', 38.13, 37.09, 38.36, 36.68, -3.36, 52489400, 1957019793.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601628', 39.29, 37.74, 39.34, 37.13, -4.43, 44263900, 1672307332.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601633', 20.87, 20.73, 21.09, 20.7, -0.81, 10546900, 220299439.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601658', 5.07, 5.11, 5.13, 5.06, 0.59, 146832900, 750025009.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601668', 4.96, 4.93, 4.98, 4.92, -0.8, 161002800, 797452777.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601669', 6.12, 5.95, 6.12, 5.93, -2.94, 440797900, 2641607545.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601688', 18.87, 18.42, 18.94, 18.32, -2.75, 75279700, 1393927461.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601728', 5.83, 5.73, 5.85, 5.72, -1.72, 135506400, 783131431.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601766', 6.35, 6.28, 6.37, 6.25, -1.26, 101009500, 638073651.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:40 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601788', 15.47, 15.19, 15.5, 15.16, -1.94, 13017000, 199320684.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:41 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601818', 3.29, 3.3, 3.32, 3.29, 0.0, 233883000, 772227200.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:41 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601857', 11.7, 11.94, 12.03, 11.68, 2.05, 273889300, 3252415842.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:41 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601877', 35.08, 34.52, 35.64, 34.27, -2.29, 31120300, 1084780744.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:41 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601888', 71.52, 70.69, 72.12, 70.41, -1.57, 15324000, 1089117512.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:41 | WARNING  | app.services.data_collector | 保存股票日线失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: '2026-03-26' ('str' object has no attribute 'toordinal')
+[SQL: 
+                        INSERT INTO stock_daily (trade_date, stock_code, open_price, close_price, 
+                            high_price, low_price, change_pct, volume, amount, turnover_rate)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10)
+                        ON CONFLICT (trade_date, stock_code) DO UPDATE SET
+                            open_price = EXCLUDED.open_price,
+                            close_price = EXCLUDED.close_price,
+                            high_price = EXCLUDED.high_price,
+                            low_price = EXCLUDED.low_price,
+                            change_pct = EXCLUDED.change_pct,
+                            volume = EXCLUDED.volume,
+                            amount = EXCLUDED.amount,
+                            turnover_rate = EXCLUDED.turnover_rate
+                    ]
+[parameters: ('2026-03-26', '601899', 33.1, 32.09, 33.24, 31.83, -3.46, 305047300, 9885918296.0, 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:27:41 | INFO     | app.services.data_collector | 批量采集股票日线 2026-03-26: 99 条
+2026-03-29 13:27:41 | INFO     | app.services.data_collector | 采集指数日线 000001: 0 条
+2026-03-29 13:27:41 | INFO     | app.services.data_collector | 采集指数日线 399001: 0 条
+2026-03-29 13:27:41 | INFO     | app.services.data_collector | 采集指数日线 399006: 0 条
+2026-03-29 13:27:41 | INFO     | app.services.data_collector | 采集指数日线 000688: 0 条
+2026-03-29 13:28:47 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:28:48 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:28:48 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:28:48 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:28:48 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:29:12 | INFO     | app.services.data_collector | 批量采集股票日线 2026-03-26: 99 条
+2026-03-29 13:29:12 | INFO     | app.services.data_collector | 采集指数日线 000001: 0 条
+2026-03-29 13:29:12 | INFO     | app.services.data_collector | 采集指数日线 399001: 0 条
+2026-03-29 13:29:12 | INFO     | app.services.data_collector | 采集指数日线 399006: 0 条
+2026-03-29 13:29:12 | INFO     | app.services.data_collector | 采集指数日线 000688: 0 条
+2026-03-29 13:29:17 | INFO     | app.services.data_collector | 批量采集股票日线 2026-03-27: 99 条
+2026-03-29 13:29:18 | INFO     | app.services.data_collector | 采集指数日线 000001: 0 条
+2026-03-29 13:29:18 | INFO     | app.services.data_collector | 采集指数日线 399001: 0 条
+2026-03-29 13:29:18 | INFO     | app.services.data_collector | 采集指数日线 399006: 0 条
+2026-03-29 13:29:18 | INFO     | app.services.data_collector | 采集指数日线 000688: 0 条
+2026-03-29 13:30:47 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:30:47 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:30:47 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:30:47 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:30:47 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:46:51 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:46:51 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:46:51 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:46:51 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:46:51 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:47:10 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:47:11 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:47:11 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:47:11 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:47:11 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:47:38 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:47:39 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:47:39 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:47:39 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:47:39 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:47:42 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:47:42 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:47:42 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:47:42 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:47:42 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:47:43 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:47:43 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:47:43 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:47:43 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:47:43 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:47:54 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:47:54 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:47:54 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:47:54 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:47:54 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:48:07 | INFO     | app.services.data_collector | 采集概念板块列表: 4 条
+2026-03-29 13:48:08 | WARNING  | app.services.data_collector | 采集概念 AI应用 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:08 | WARNING  | app.services.data_collector | 采集概念 AIGC应用 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:08 | WARNING  | app.services.data_collector | 采集概念 AI医疗 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:08 | WARNING  | app.services.data_collector | 采集概念 AI安全 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:08 | WARNING  | app.services.data_collector | 采集概念 AI营销 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:08 | WARNING  | app.services.data_collector | 采集概念 垂直行业AI 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 AI硬件 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 CPO光互联 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 PCB制造 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 PCB材料 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 液冷散热 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 染料化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:09 | WARNING  | app.services.data_collector | 采集概念 氟化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:10 | WARNING  | app.services.data_collector | 采集概念 玻纤 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:10 | WARNING  | app.services.data_collector | 采集概念 磷化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:10 | WARNING  | app.services.data_collector | 采集概念 聚氨酯 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:10 | WARNING  | app.services.data_collector | 采集概念 半导体 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:10 | WARNING  | app.services.data_collector | 采集概念 半导体材料 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:10 | WARNING  | app.services.data_collector | 采集概念 半导体设备 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:10 | WARNING  | app.services.data_collector | 采集概念 封装测试 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:11 | WARNING  | app.services.data_collector | 采集概念 晶圆制造 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:11 | WARNING  | app.services.data_collector | 采集概念 芯片设计 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:11 | WARNING  | app.services.data_collector | 采集概念 商业航天 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:11 | WARNING  | app.services.data_collector | 采集概念 北斗导航 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:11 | WARNING  | app.services.data_collector | 采集概念 卫星制造 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:11 | WARNING  | app.services.data_collector | 采集概念 卫星通信 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:11 | WARNING  | app.services.data_collector | 采集概念 火箭发射 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 航天电子 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 通信设备 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 存储芯片 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 存储封测 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 存储模组 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 存储芯片设计 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 新能源 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:12 | WARNING  | app.services.data_collector | 采集概念 HJT电池 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:13 | WARNING  | app.services.data_collector | 采集概念 光伏储能 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:13 | WARNING  | app.services.data_collector | 采集概念 磷酸铁锂 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:13 | WARNING  | app.services.data_collector | 采集概念 钠电池 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:13 | WARNING  | app.services.data_collector | 采集概念 锂电池 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:13 | WARNING  | app.services.data_collector | 采集概念 锂矿 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:13 | WARNING  | app.services.data_collector | 采集概念 有色金属 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:13 | WARNING  | app.services.data_collector | 采集概念 白银 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | WARNING  | app.services.data_collector | 采集概念 稀土永磁 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | WARNING  | app.services.data_collector | 采集概念 金属钨 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | WARNING  | app.services.data_collector | 采集概念 金属铜 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | WARNING  | app.services.data_collector | 采集概念 金属锌 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | WARNING  | app.services.data_collector | 采集概念 黄金 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | WARNING  | app.services.data_collector | 采集概念 机器人 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | WARNING  | app.services.data_collector | 采集概念 伺服电机 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:48:14 | INFO     | app.services.data_collector | 采集概念板块日线: 0 条
+2026-03-29 13:48:33 | INFO     | app.services.data_collector | 批量采集股票日线 2026-03-27: 99 条
+2026-03-29 13:48:34 | INFO     | app.services.data_collector | 批量采集股票日线 2026-03-26: 99 条
+2026-03-29 13:48:34 | INFO     | app.services.data_collector | 采集指数日线 000001: 1 条
+2026-03-29 13:48:34 | INFO     | app.services.data_collector | 采集指数日线 000001: 1 条
+2026-03-29 13:48:34 | INFO     | app.services.data_collector | 采集指数日线 399001: 1 条
+2026-03-29 13:48:35 | INFO     | app.services.data_collector | 采集指数日线 399001: 1 条
+2026-03-29 13:48:35 | INFO     | app.services.data_collector | 采集指数日线 399006: 1 条
+2026-03-29 13:48:35 | INFO     | app.services.data_collector | 采集指数日线 399006: 1 条
+2026-03-29 13:48:35 | INFO     | app.services.data_collector | 采集指数日线 000688: 1 条
+2026-03-29 13:48:35 | INFO     | app.services.data_collector | 采集指数日线 000688: 1 条
+2026-03-29 13:48:36 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:48:36 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:48:36 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:48:36 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:48:36 | INFO     | app.main | ✅ 定时任务调度器已启动

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Tag, Spin, DatePicker, Space, Typography, message, Input, Modal, Drawer, Badge, Tooltip, Row, Col, Statistic } from 'antd';
 import { AppstoreOutlined, CalendarOutlined, LeftOutlined, RightOutlined, ReloadOutlined, SearchOutlined, TeamOutlined, LineChartOutlined, RiseOutlined, FallOutlined } from '@ant-design/icons';
-import { thsAPI } from '../services/api';
+import { conceptAPI } from '../services/api';
 import dayjs from 'dayjs';
 
 const { Title, Text } = Typography;
@@ -28,14 +28,23 @@ export default function ConceptBoard() {
   const loadData = async () => {
     setLoading(true);
     try {
-      // 加载概念日行情
-      const dailyRes = await thsAPI.getConceptDaily({ trade_date: date, limit: 200 });
-      setConceptDaily(dailyRes.data || []);
+      // 加载概念日行情排行
+      const dailyRes = await conceptAPI.getRank(date, 'change_pct', 'desc', 1, 200);
+      if (dailyRes.code === 200 && dailyRes.data.items) {
+        setConceptDaily(dailyRes.data.items.map(item => ({
+          ...item,
+          pct_change: item.change_pct,
+          concept_code: item.concept_code,
+          concept_name: item.concept_name,
+        })));
+      }
       
       // 加载概念列表（如果日行情为空）
-      if (!dailyRes.data || dailyRes.data.length === 0) {
-        const conceptsRes = await thsAPI.getConcepts(null, 200);
-        setConcepts(conceptsRes.data || []);
+      if (!dailyRes.data?.items?.length) {
+        const conceptsRes = await conceptAPI.getList(1, 200);
+        if (conceptsRes.code === 200) {
+          setConcepts(conceptsRes.data.items || []);
+        }
       }
     } catch (error) {
       console.error('加载概念数据失败:', error);
@@ -49,11 +58,16 @@ export default function ConceptBoard() {
   const loadMembers = async (conceptCode) => {
     setMembersLoading(true);
     try {
-      const res = await thsAPI.getConceptMembers(conceptCode);
-      setMembers(res.data || []);
+      const res = await conceptAPI.getComponents(conceptCode);
+      if (res.code === 200) {
+        setMembers(res.data.items || []);
+      } else {
+        setMembers([]);
+      }
     } catch (error) {
       console.error('加载成分股失败:', error);
       message.error('加载成分股失败');
+      setMembers([]);
     } finally {
       setMembersLoading(false);
     }
@@ -82,20 +96,20 @@ export default function ConceptBoard() {
   const showConceptDetail = (concept) => {
     setSelectedConcept(concept);
     setDrawerVisible(true);
-    loadMembers(concept.concept_code || concept.ts_code);
+    loadMembers(concept.concept_code);
   };
 
   // 过滤数据
   const filteredData = conceptDaily.length > 0 
-    ? conceptDaily.filter(item => 
-        !searchText || 
+    ? conceptDaily.filter(item =>
+        !searchText ||
         item.concept_name?.toLowerCase().includes(searchText.toLowerCase()) ||
         item.concept_code?.toLowerCase().includes(searchText.toLowerCase())
       )
-    : concepts.filter(item => 
-        !searchText || 
-        item.name?.toLowerCase().includes(searchText.toLowerCase()) ||
-        item.ts_code?.toLowerCase().includes(searchText.toLowerCase())
+    : concepts.filter(item =>
+        !searchText ||
+        item.concept_name?.toLowerCase().includes(searchText.toLowerCase()) ||
+        item.concept_code?.toLowerCase().includes(searchText.toLowerCase())
       );
 
   // 概念日行情列配置
@@ -142,14 +156,6 @@ export default function ConceptBoard() {
       },
     },
     {
-      title: '开盘',
-      dataIndex: 'open',
-      key: 'open',
-      width: 80,
-      align: 'right',
-      render: (val) => parseFloat(val || 0).toFixed(2),
-    },
-    {
       title: '收盘',
       dataIndex: 'close',
       key: 'close',
@@ -158,38 +164,14 @@ export default function ConceptBoard() {
       render: (val) => parseFloat(val || 0).toFixed(2),
     },
     {
-      title: '最高',
-      dataIndex: 'high',
-      key: 'high',
-      width: 80,
+      title: '成交额',
+      dataIndex: 'amount',
+      key: 'amount',
+      width: 100,
       align: 'right',
-      render: (val) => parseFloat(val || 0).toFixed(2),
-    },
-    {
-      title: '最低',
-      dataIndex: 'low',
-      key: 'low',
-      width: 80,
-      align: 'right',
-      render: (val) => parseFloat(val || 0).toFixed(2),
-    },
-    {
-      title: '换手率',
-      dataIndex: 'turnover_rate',
-      key: 'turnover_rate',
-      width: 80,
-      align: 'right',
-      render: (rate) => `${parseFloat(rate || 0).toFixed(2)}%`,
-    },
-    {
-      title: '总市值',
-      dataIndex: 'total_mv',
-      key: 'total_mv',
-      width: 90,
-      align: 'right',
-      render: (mv) => {
-        const num = parseFloat(mv) || 0;
-        return <Text>{num.toFixed(0)}亿</Text>;
+      render: (val) => {
+        const num = parseFloat(val) || 0;
+        return <Text>{(num / 100000000).toFixed(2)}亿</Text>;
       },
     },
     {
@@ -213,8 +195,8 @@ export default function ConceptBoard() {
   const conceptColumns = [
     {
       title: '概念名称',
-      dataIndex: 'name',
-      key: 'name',
+      dataIndex: 'concept_name',
+      key: 'concept_name',
       width: 200,
       render: (name, record) => (
         <a onClick={() => showConceptDetail(record)}>
@@ -224,8 +206,8 @@ export default function ConceptBoard() {
     },
     {
       title: '概念代码',
-      dataIndex: 'ts_code',
-      key: 'ts_code',
+      dataIndex: 'concept_code',
+      key: 'concept_code',
       width: 120,
       render: (code) => <Text copyable style={{ fontFamily: 'monospace' }}>{code}</Text>,
     },
@@ -236,12 +218,6 @@ export default function ConceptBoard() {
       width: 100,
       align: 'right',
       sorter: (a, b) => (a.component_count || 0) - (b.component_count || 0),
-    },
-    {
-      title: '发布日期',
-      dataIndex: 'list_date',
-      key: 'list_date',
-      width: 100,
     },
     {
       title: '操作',
@@ -272,6 +248,13 @@ export default function ConceptBoard() {
       width: 120,
       render: (name) => <Text strong>{name}</Text>,
     },
+    {
+      title: '核心标的',
+      dataIndex: 'is_core',
+      key: 'is_core',
+      width: 80,
+      render: (isCore) => <Tag color={isCore ? 'red' : 'default'}>{isCore ? '核心' : '相关'}</Tag>,
+    },
   ];
 
   // 统计信息
@@ -290,7 +273,7 @@ export default function ConceptBoard() {
             <Title level={3} style={{ margin: 0 }}>
               <AppstoreOutlined style={{ color: '#1890ff', marginRight: 8 }} />
               概念板块
-              <Badge count="同花顺" style={{ marginLeft: 8, backgroundColor: '#52c41a' }} />
+              <Badge count="东方财富" style={{ marginLeft: 8, backgroundColor: '#52c41a' }} />
             </Title>
             <Space>
               <LeftOutlined onClick={goToPreviousDay} style={{ cursor: 'pointer', fontSize: 16 }} />
@@ -365,7 +348,7 @@ export default function ConceptBoard() {
             <Table
               dataSource={filteredData}
               columns={conceptDaily.length > 0 ? dailyColumns : conceptColumns}
-              rowKey={conceptDaily.length > 0 ? 'concept_code' : 'ts_code'}
+              rowKey="concept_code"
               scroll={{ x: 1200 }}
               pagination={{
                 pageSize: 50,
@@ -383,7 +366,7 @@ export default function ConceptBoard() {
         title={
           <Space>
             <TeamOutlined />
-            {selectedConcept?.concept_name || selectedConcept?.name} - 成分股
+            {selectedConcept?.concept_name} - 成分股
           </Space>
         }
         placement="right"
