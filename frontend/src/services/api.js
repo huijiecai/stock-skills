@@ -73,6 +73,8 @@ export const conceptAPI = {
 
 // ==================== 市场数据 API ====================
 export const marketAPI = {
+  // 获取最近交易日
+  getLatestTradeDate: () => api.get('/market/latest-trade-date'),
   // 获取市场快照
   getSnapshot: (date) => api.get('/market/snapshot', { params: { date } }),
   // 获取市场统计

@@ -7,7 +7,7 @@ const { Title } = Typography;
 
 const StockRanking = () => {
   const [loading, setLoading] = useState(false);
-  const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [date, setDate] = useState(null); // 初始为null
   const [sortType, setSortType] = useState('change_pct');
   const [order, setOrder] = useState('desc');
   const [page, setPage] = useState(1);
@@ -15,8 +15,25 @@ const StockRanking = () => {
   const [data, setData] = useState([]);
   const [total, setTotal] = useState(0);
 
+  // 获取最近交易日
   useEffect(() => {
-    loadData();
+    const initDate = async () => {
+      try {
+        const res = await marketAPI.getLatestTradeDate();
+        if (res.code === 200 && res.data?.date) {
+          setDate(res.data.date);
+        } else {
+          setDate(dayjs().format('YYYY-MM-DD'));
+        }
+      } catch {
+        setDate(dayjs().format('YYYY-MM-DD'));
+      }
+    };
+    initDate();
+  }, []);
+
+  useEffect(() => {
+    if (date) loadData();
   }, [date, sortType, order, page]);
 
   const loadData = async () => {

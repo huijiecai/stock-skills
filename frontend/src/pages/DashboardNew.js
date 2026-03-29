@@ -16,15 +16,32 @@ const INDEX_MAP = {
 
 const Dashboard = () => {
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [date, setDate] = useState(null); // 初始为null，等待获取最近交易日
   const [snapshot, setSnapshot] = useState(null);
   const [limitUpList, setLimitUpList] = useState([]);
   const [indexData, setIndexData] = useState({});
   const [activeIndex, setActiveIndex] = useState('000001');
   const [chartType, setChartType] = useState('intraday'); // 'intraday' | 'daily'
 
+  // 组件加载时获取最近交易日
   useEffect(() => {
-    loadData();
+    const initDate = async () => {
+      try {
+        const res = await marketAPI.getLatestTradeDate();
+        if (res.code === 200 && res.data?.date) {
+          setDate(res.data.date);
+        } else {
+          setDate(dayjs().format('YYYY-MM-DD'));
+        }
+      } catch {
+        setDate(dayjs().format('YYYY-MM-DD'));
+      }
+    };
+    initDate();
+  }, []);
+
+  useEffect(() => {
+    if (date) loadData();
   }, [date]);
 
   const loadData = async () => {

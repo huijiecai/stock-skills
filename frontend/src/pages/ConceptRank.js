@@ -7,7 +7,7 @@ const { Title } = Typography;
 
 const ConceptRank = () => {
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [date, setDate] = useState(null); // 初始为null，由后端决定
   const [conceptList, setConceptList] = useState([]);
   const [page, setPage] = useState(1);
   const [total, setTotal] = useState(0);
@@ -15,15 +15,20 @@ const ConceptRank = () => {
 
   useEffect(() => {
     loadData();
-  }, [date, page]);
+  }, [page]);
 
-  const loadData = async () => {
+  const loadData = async (selectedDate = null) => {
     setLoading(true);
     try {
-      const res = await conceptAPI.getRank(date, 'change_pct', 'desc', page, pageSize);
+      // 如果用户选择了日期则传递，否则让后端自动选择最新日期
+      const res = await conceptAPI.getRank(selectedDate || date, 'change_pct', 'desc', page, pageSize);
       if (res.code === 200) {
         setConceptList(res.data.items || []);
         setTotal(res.data.total || 0);
+        // 如果没有传日期，使用后端返回的日期
+        if (!selectedDate && res.data.date) {
+          setDate(res.data.date);
+        }
       }
     } catch (error) {
       console.error('加载数据失败:', error);
@@ -99,8 +104,12 @@ const ConceptRank = () => {
       <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={3} style={{ margin: 0, color: 'var(--text-primary)' }}>板块排行</Title>
         <DatePicker 
-          value={dayjs(date)} 
-          onChange={(d) => setDate(d.format('YYYY-MM-DD'))}
+          value={date ? dayjs(date) : null}
+          onChange={(d) => {
+            const newDate = d ? d.format('YYYY-MM-DD') : null;
+            setDate(newDate);
+            loadData(newDate);
+          }}
           style={{ width: 160 }}
         />
       </div>

@@ -8,12 +8,29 @@ const { Title } = Typography;
 
 const Ladder = () => {
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [date, setDate] = useState(null); // 初始为null
   const [ladder, setLadder] = useState([]);
   const [statistics, setStatistics] = useState({});
 
+  // 获取最近交易日
   useEffect(() => {
-    loadData();
+    const initDate = async () => {
+      try {
+        const res = await marketAPI.getLatestTradeDate();
+        if (res.code === 200 && res.data?.date) {
+          setDate(res.data.date);
+        } else {
+          setDate(dayjs().format('YYYY-MM-DD'));
+        }
+      } catch {
+        setDate(dayjs().format('YYYY-MM-DD'));
+      }
+    };
+    initDate();
+  }, []);
+
+  useEffect(() => {
+    if (date) loadData();
   }, [date]);
 
   const loadData = async () => {
