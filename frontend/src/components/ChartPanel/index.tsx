@@ -1,15 +1,30 @@
 import React, { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import * as echarts from 'echarts';
+import { StockIntraday, StockDaily, IndexIntraday, IndexDaily } from '../../types';
+
+interface IntradayChartProps {
+  data: StockIntraday[] | IndexIntraday[];
+  preClose: number;
+  name?: string;
+  height?: number;
+}
+
+interface KLineChartProps {
+  data: (StockDaily | IndexDaily)[];
+  maLines?: Array<{ key: string; color: string }>;
+  height?: number;
+}
 
 /**
  * 分时图组件
- * @param {Array} data - 分时数据 [{time: '09:30', price: 10.5, volume: 1000, avg: 10.3}, ...]
- * @param {number} preClose - 昨收价
- * @param {string} name - 股票名称
- * @param {number} height - 图表高度
  */
-export const IntradayChart = ({ data = [], preClose = 0, name = '', height = 400 }) => {
+export const IntradayChart: React.FC<IntradayChartProps> = ({ 
+  data = [], 
+  preClose = 0, 
+  name = '', 
+  height = 400 
+}) => {
   const option = useMemo(() => {
     if (!data || data.length === 0) {
       return {};
@@ -17,10 +32,9 @@ export const IntradayChart = ({ data = [], preClose = 0, name = '', height = 400
 
     const times = data.map(d => d.time);
     const prices = data.map(d => d.price);
-    const avgs = data.map(d => d.avg || d.price);
+    const avgs = data.map(d => ('avg' in d ? d.avg : d.price) || d.price);
     const volumes = data.map(d => d.volume || 0);
     
-    // 计算涨跌幅范围
     const maxPrice = Math.max(...prices, preClose);
     const minPrice = Math.min(...prices, preClose);
     const priceRange = Math.max(maxPrice - preClose, preClose - minPrice);
@@ -35,16 +49,16 @@ export const IntradayChart = ({ data = [], preClose = 0, name = '', height = 400
         backgroundColor: 'rgba(30, 34, 45, 0.95)',
         borderColor: '#2A2E39',
         textStyle: { color: '#D1D4DC' },
-        formatter: (params) => {
+        formatter: (params: any) => {
           const time = params[0].axisValue;
           const price = params[0].value;
           const change = ((price - preClose) / preClose * 100).toFixed(2);
-          const sign = change >= 0 ? '+' : '';
+          const sign = Number(change) >= 0 ? '+' : '';
           return `
             <div style="font-family: SF Mono, monospace;">
               <div style="color: #787B86; margin-bottom: 4px;">${time}</div>
-              <div>价格: <span style="color: ${change >= 0 ? '#26A69A' : '#EF5350'}">${price.toFixed(2)}</span></div>
-              <div>涨跌: <span style="color: ${change >= 0 ? '#26A69A' : '#EF5350'}">${sign}${change}%</span></div>
+              <div>价格: <span style="color: ${Number(change) >= 0 ? '#26A69A' : '#EF5350'}">${price.toFixed(2)}</span></div>
+              <div>涨跌: <span style="color: ${Number(change) >= 0 ? '#26A69A' : '#EF5350'}">${sign}${change}%</span></div>
             </div>
           `;
         }
@@ -93,7 +107,7 @@ export const IntradayChart = ({ data = [], preClose = 0, name = '', height = 400
           axisLabel: { 
             color: '#787B86',
             fontSize: 11,
-            formatter: (value) => value.toFixed(2)
+            formatter: (value: number) => value.toFixed(2)
           },
           splitLine: { 
             lineStyle: { color: '#2A2E39' }
@@ -152,7 +166,7 @@ export const IntradayChart = ({ data = [], preClose = 0, name = '', height = 400
           yAxisIndex: 1,
           data: volumes,
           itemStyle: {
-            color: (params) => {
+            color: (params: any) => {
               const idx = params.dataIndex;
               if (idx === 0) return prices[0] >= preClose ? '#26A69A' : '#EF5350';
               return prices[idx] >= prices[idx - 1] ? '#26A69A' : '#EF5350';
@@ -181,24 +195,25 @@ export const IntradayChart = ({ data = [], preClose = 0, name = '', height = 400
 
 /**
  * K线图组件
- * @param {Array} data - K线数据 [{date: '2026-03-27', open: 10, close: 10.5, high: 11, low: 9.8, volume: 10000}, ...]
- * @param {Array} maLines - 均线配置 [{key: 'ma5', color: '#fff'}, ...]
- * @param {number} height - 图表高度
  */
-export const KLineChart = ({ data = [], maLines = [], height = 400 }) => {
+export const KLineChart: React.FC<KLineChartProps> = ({ 
+  data = [], 
+  maLines = [], 
+  height = 400 
+}) => {
   const option = useMemo(() => {
     if (!data || data.length === 0) {
       return {};
     }
 
-    const dates = data.map(d => d.date);
+    const dates = data.map(d => d.trade_date || (d as any).date);
     const ohlc = data.map(d => [d.open, d.close, d.low, d.high]);
     const volumes = data.map(d => d.volume || 0);
     const closes = data.map(d => d.close);
 
     // 计算均线
-    const calculateMA = (dayCount) => {
-      const result = [];
+    const calculateMA = (dayCount: number) => {
+      const result: (string | number)[] = [];
       for (let i = 0; i < closes.length; i++) {
         if (i < dayCount - 1) {
           result.push('-');
@@ -213,7 +228,7 @@ export const KLineChart = ({ data = [], maLines = [], height = 400 }) => {
       return result;
     };
 
-    const maData = {};
+    const maData: Record<string, (string | number)[]> = {};
     maLines.forEach(ma => {
       maData[ma.key] = calculateMA(parseInt(ma.key.replace('ma', '')));
     });
@@ -230,17 +245,17 @@ export const KLineChart = ({ data = [], maLines = [], height = 400 }) => {
           type: 'cross',
           crossStyle: { color: '#787B86' }
         },
-        formatter: (params) => {
+        formatter: (params: any) => {
           const date = params[0].axisValue;
           const ohlcData = params[0].data;
           const change = ((ohlcData[1] - ohlcData[0]) / ohlcData[0] * 100).toFixed(2);
-          const sign = change >= 0 ? '+' : '';
+          const sign = Number(change) >= 0 ? '+' : '';
           return `
             <div style="font-family: SF Mono, monospace;">
               <div style="color: #787B86; margin-bottom: 4px;">${date}</div>
               <div>开: ${ohlcData[0]?.toFixed(2)} 高: ${ohlcData[3]?.toFixed(2)}</div>
-              <div>收: <span style="color: ${change >= 0 ? '#26A69A' : '#EF5350'}">${ohlcData[1]?.toFixed(2)}</span> 低: ${ohlcData[2]?.toFixed(2)}</div>
-              <div>涨跌: <span style="color: ${change >= 0 ? '#26A69A' : '#EF5350'}">${sign}${change}%</span></div>
+              <div>收: <span style="color: ${Number(change) >= 0 ? '#26A69A' : '#EF5350'}">${ohlcData[1]?.toFixed(2)}</span> 低: ${ohlcData[2]?.toFixed(2)}</div>
+              <div>涨跌: <span style="color: ${Number(change) >= 0 ? '#26A69A' : '#EF5350'}">${sign}${change}%</span></div>
             </div>
           `;
         }
@@ -330,7 +345,7 @@ export const KLineChart = ({ data = [], maLines = [], height = 400 }) => {
           yAxisIndex: 1,
           data: volumes,
           itemStyle: {
-            color: (params) => {
+            color: (params: any) => {
               const idx = params.dataIndex;
               if (idx === 0 || !ohlc[idx - 1]) return '#26A69A';
               return ohlc[idx][1] >= ohlc[idx - 1][1] ? '#26A69A' : '#EF5350';
@@ -357,4 +372,64 @@ export const KLineChart = ({ data = [], maLines = [], height = 400 }) => {
   );
 };
 
-export default { IntradayChart, KLineChart };
+interface ChartPanelProps {
+  type: 'intraday' | 'daily';
+  data: StockIntraday[] | IndexIntraday[] | StockDaily[] | IndexDaily[];
+  preClose?: number;
+  name?: string;
+  height?: number;
+  onTypeChange?: (type: 'intraday' | 'daily') => void;
+}
+
+/**
+ * 图表面板组件 - 统一的分时/K线切换
+ */
+const ChartPanel: React.FC<ChartPanelProps> = ({
+  type,
+  data,
+  preClose = 0,
+  name = '',
+  height = 400,
+  onTypeChange
+}) => {
+  return (
+    <div className="chart-panel">
+      {onTypeChange && (
+        <div className="chart-tabs" style={{ marginBottom: 12 }}>
+          <span 
+            className={`chart-tab ${type === 'intraday' ? 'active' : ''}`}
+            onClick={() => onTypeChange('intraday')}
+          >
+            分时
+          </span>
+          <span 
+            className={`chart-tab ${type === 'daily' ? 'active' : ''}`}
+            onClick={() => onTypeChange('daily')}
+          >
+            日K
+          </span>
+        </div>
+      )}
+      {type === 'intraday' ? (
+        <IntradayChart 
+          data={data as (StockIntraday[] | IndexIntraday[])}
+          preClose={preClose}
+          name={name}
+          height={height}
+        />
+      ) : (
+        <KLineChart 
+          data={data as (StockDaily[] | IndexDaily[])}
+          maLines={[
+            { key: 'ma5', color: '#fff' },
+            { key: 'ma10', color: '#FFA726' },
+            { key: 'ma20', color: '#9C27B0' },
+          ]}
+          height={height}
+        />
+      )}
+    </div>
+  );
+};
+
+export default ChartPanel;

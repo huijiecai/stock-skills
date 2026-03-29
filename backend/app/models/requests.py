@@ -71,3 +71,25 @@ class ChatRequest(BaseModel):
     messages: List[ChatMessage] = Field(..., description="消息历史")
     date: Optional[str] = Field(None, description="分析日期（默认今天）")
 
+
+# ==================== 新增：模拟看盘请求 ====================
+
+class MarketSnapshotRequest(BaseModel):
+    """全市场时间点快照请求"""
+    time: str = Field(..., description="时间点，如 '10:17'")
+    date: Optional[str] = Field(None, description="日期 YYYY-MM-DD，默认今日")
+    top_n: int = Field(10, ge=1, le=50, description="返回涨幅榜前N名")
+
+
+class WatchlistSnapshotRequest(BaseModel):
+    """盯盘股时间点快照请求"""
+    time: str = Field(..., description="时间点，如 '10:17'")
+    date: Optional[str] = Field(None, description="日期 YYYY-MM-DD，默认今日")
+    codes: List[str] = Field(..., description="股票代码列表")
+
+
+class TimelineRequest(BaseModel):
+    """时间线序列请求"""
+    date: Optional[str] = Field(None, description="日期 YYYY-MM-DD，默认今日")
+    times: List[str] = Field(..., description="时间点列表，如 ['09:30', '10:00', '10:30']")
+    codes: List[str] = Field(..., description="股票代码列表")

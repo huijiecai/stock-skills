@@ -438,6 +438,57 @@ class MarketService:
 
             return {"stock_code": stock_code, "items": items}
 
+    async def get_limit_up_distribution(self, date: Optional[str] = None) -> Dict:
+        """
+        获取涨停方向分布
+        
+        统计各概念下涨停股的数量，用于判断市场热点方向
+        
+        Args:
+            date: 日期，默认最近交易日
+            
+        Returns:
+            概念涨停分布列表，按涨停数量降序排序
+        """
+        async with AsyncSessionLocal() as session:
+            if not date:
+                query_date = await self._get_latest_trade_date(session)
+            else:
+                query_date = self._parse_date(date)
+            
+            # 关联查询：涨停股 + 概念映射 + 概念信息
+            result = await session.execute(
+                text("""
+                    SELECT 
+                        ci.concept_code,
+                        ci.concept_name,
+                        COUNT(DISTINCT ll.stock_code) as limit_up_count,
+                        ARRAY_AGG(DISTINCT ll.stock_code) as stocks
+                    FROM limit_list ll
+                    JOIN stock_concept_mapping_east scm ON ll.stock_code = scm.stock_code
+                    JOIN concept_info_east ci ON scm.concept_code = ci.concept_code
+                    WHERE ll.trade_date = :date AND ll.limit_type = 'U'
+                    GROUP BY ci.concept_code, ci.concept_name
+                    HAVING COUNT(DISTINCT ll.stock_code) > 0
+                    ORDER BY limit_up_count DESC, ci.concept_name
+                """),
+                {"date": query_date}
+            )
+            
+            items = []
+            for row in result.fetchall():
+                items.append({
+                    "concept_code": row[0],
+                    "concept_name": row[1],
+                    "limit_up_count": row[2],
+                    "stocks": row[3] if row[3] else [],
+                })
+            
+            return {
+                "date": date or query_date.strftime("%Y-%m-%d"),
+                "items": items,
+            }
+
 
 # 单例
 market_service = MarketService()

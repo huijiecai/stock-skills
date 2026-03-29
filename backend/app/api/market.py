@@ -152,3 +152,31 @@ async def get_limit_times_history(
     """获取个股连板次数历史"""
     result = await market_service.get_limit_times_history(stock_code, limit_type, limit)
     return success_response(result)
+
+
+# ==================== 涨停方向分布 ====================
+
+@router.get("/limit-up-distribution")
+async def get_limit_up_distribution(
+    date: Optional[str] = Query(None, description="日期"),
+):
+    """
+    获取涨停方向分布
+    
+    统计各概念下涨停股的数量，用于盘前分析判断市场热点方向
+    
+    返回示例：
+    {
+        "date": "2026-03-27",
+        "items": [
+            {
+                "concept_code": "BK0612",
+                "concept_name": "锂电池",
+                "limit_up_count": 5,
+                "stocks": ["002192", "002466", "002460"]
+            }
+        ]
+    }
+    """
+    result = await market_service.get_limit_up_distribution(date)
+    return success_response(result)

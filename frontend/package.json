@@ -1,6 +1,6 @@
 {
   "name": "dragon-stock-frontend",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "description": "龙头战法Web平台前端",
   "scripts": {
@@ -12,6 +12,9 @@
   "dependencies": {
     "@ant-design/icons": "^5.2.6",
     "@ant-design/pro-components": "^2.6.43",
+    "@types/node": "^20.10.0",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.18",
     "antd": "^5.12.0",
     "axios": "^1.6.2",
     "dayjs": "^1.11.10",
@@ -21,18 +24,22 @@
     "react-countup": "^6.5.3",
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
-    "react-router-dom": "^6.20.0"
+    "react-router-dom": "^6.20.0",
+    "typescript": "^4.9.5"
   },
   "devDependencies": {
-    "@types/react": "^18.2.45",
-    "@types/react-dom": "^18.2.18",
-    "react-scripts": "5.0.1",
-    "typescript": "~4.9.5"
+    "@types/react-countup": "^4.3.1",
+    "react-scripts": "5.0.1"
   },
   "eslintConfig": {
     "extends": [
       "react-app"
-    ]
+    ],
+    "rules": {
+      "@typescript-eslint/no-unused-vars": "warn",
+      "jsx-a11y/anchor-is-valid": "warn",
+      "react-hooks/exhaustive-deps": "warn"
+    }
   },
   "browserslist": {
     "production": [

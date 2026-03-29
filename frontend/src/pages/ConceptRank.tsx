@@ -1,29 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, Spin, DatePicker, Typography, Pagination } from 'antd';
+import { Card, Table, Spin, Pagination, Typography } from 'antd';
 import { conceptAPI } from '../services/api';
+import { DateSelector } from '../components';
 import dayjs from 'dayjs';
+import type { ConceptRank as ConceptRankType } from '../types';
+import type { SortOrder } from 'antd/es/table/interface';
 
 const { Title } = Typography;
 
-const ConceptRank = () => {
+const ConceptRank: React.FC = () => {
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(null);
-  const [conceptList, setConceptList] = useState([]);
+  const [date, setDate] = useState<string>('');
+  const [conceptList, setConceptList] = useState<ConceptRankType[]>([]);
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState('change_pct');
-  const [sortOrder, setSortOrder] = useState('desc');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [total, setTotal] = useState(0);
   const pageSize = 50;
 
   useEffect(() => {
-    loadData();
-  }, [page, sortField, sortOrder]);
+    if (date) loadData();
+  }, [page, sortField, sortOrder, date]);
 
-  const loadData = async (selectedDate = null) => {
+  useEffect(() => {
+    const initDate = async () => {
+      try {
+        const res = await conceptAPI.getRank(undefined, 'change_pct', 'desc', 1, 1);
+        if (res.code === 200 && res.data) {
+          setDate(dayjs().format('YYYY-MM-DD'));
+        } else {
+          setDate(dayjs().format('YYYY-MM-DD'));
+        }
+      } catch {
+        setDate(dayjs().format('YYYY-MM-DD'));
+      }
+    };
+    initDate();
+  }, []);
+
+  const loadData = async () => {
     setLoading(true);
     try {
       const res = await conceptAPI.getRank(
-        selectedDate || date, 
+        date, 
         sortField, 
         sortOrder, 
         page, 
@@ -32,9 +51,6 @@ const ConceptRank = () => {
       if (res.code === 200) {
         setConceptList(res.data.items || []);
         setTotal(res.data.total || 0);
-        if (!selectedDate && res.data.date) {
-          setDate(res.data.date);
-        }
       }
     } catch (error) {
       console.error('加载数据失败:', error);
@@ -43,32 +59,25 @@ const ConceptRank = () => {
     }
   };
 
-  // 表格排序变化
-  const handleTableChange = (pagination, filters, sorter) => {
+  const handleTableChange = (pagination: any, filters: any, sorter: any) => {
     if (sorter && sorter.field) {
       setSortField(sorter.field);
       setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
       setPage(1);
-    } else if (sorter && sorter.length > 0) {
-      const first = sorter[0];
-      setSortField(first.field);
-      setSortOrder(first.order === 'ascend' ? 'asc' : 'desc');
-      setPage(1);
     }
   };
 
-  // 获取涨跌颜色
-  const getChangeColor = (value) => {
-    if (value > 0) return 'var(--color-up)';    // 涨 - 红色
-    if (value < 0) return 'var(--color-down)';  // 跌 - 绿色
-    return 'var(--text-muted)';                  // 平 - 灰色
+  const getChangeColor = (value: number) => {
+    if (value > 0) return 'var(--color-up)';
+    if (value < 0) return 'var(--color-down)';
+    return 'var(--text-muted)';
   };
 
   const columns = [
     {
       title: '排名',
       width: 60,
-      render: (_, __, idx) => (
+      render: (_: any, __: any, idx: number) => (
         <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
           {(page - 1) * pageSize + idx + 1}
         </span>
@@ -78,7 +87,7 @@ const ConceptRank = () => {
       title: '概念名称',
       dataIndex: 'concept_name',
       width: 150,
-      render: (v, r) => (
+      render: (v: string, r: ConceptRankType) => (
         <a 
           href={`/concept/${r.concept_code}`} 
           style={{ color: 'var(--color-primary)' }}
@@ -91,25 +100,12 @@ const ConceptRank = () => {
       title: '涨幅',
       dataIndex: 'change_pct',
       width: 100,
-      align: 'right',
+      align: 'right' as const,
       sorter: true,
-      sortOrder: sortField === 'change_pct' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
-      render: (v) => (
+      sortOrder: sortField === 'change_pct' ? (sortOrder === 'asc' ? ('ascend' as SortOrder) : ('descend' as SortOrder)) : undefined,
+      render: (v: number) => (
         <span style={{ fontFamily: 'var(--font-mono)', color: getChangeColor(v), fontWeight: 500 }}>
           {v > 0 ? '+' : ''}{v?.toFixed(2)}%
-        </span>
-      ),
-    },
-    {
-      title: '成交额',
-      dataIndex: 'amount',
-      width: 120,
-      align: 'right',
-      sorter: true,
-      sortOrder: sortField === 'amount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
-      render: (v) => (
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
-          {v > 100000000 ? `${(v / 100000000).toFixed(2)}亿` : `${(v / 10000).toFixed(0)}万`}
         </span>
       ),
     },
@@ -117,8 +113,8 @@ const ConceptRank = () => {
       title: '涨停家数',
       dataIndex: 'limit_up_count',
       width: 100,
-      align: 'center',
-      render: (v) => (
+      align: 'center' as const,
+      render: (v: number) => (
         <span style={{ color: v > 0 ? 'var(--color-up)' : 'var(--text-muted)', fontWeight: v > 0 ? 500 : 400 }}>
           {v || 0}
         </span>
@@ -130,18 +126,10 @@ const ConceptRank = () => {
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={3} style={{ margin: 0, color: 'var(--text-primary)' }}>板块排行</Title>
-        <DatePicker 
-          value={date ? dayjs(date) : null}
-          onChange={(d) => {
-            const newDate = d ? d.format('YYYY-MM-DD') : null;
-            setDate(newDate);
-            loadData(newDate);
-          }}
-          style={{ width: 160 }}
-        />
+        <DateSelector value={date} onChange={setDate} />
       </div>
 
-      <Card styles={{ body: { padding: 16 } }}>
+      <Card>
         <Spin spinning={loading}>
           <Table
             columns={columns}

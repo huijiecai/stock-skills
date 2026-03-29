@@ -23,7 +23,7 @@ import Account from './pages/Account';
 import './styles/dark-theme.css';
 
 // 错误边界
-import ErrorBoundary from './components/ErrorBoundary';
+import { ErrorBoundary } from './components';
 
 const { Header, Content, Sider } = Layout;
 
@@ -60,7 +60,7 @@ const menuItems = [
   },
 ];
 
-const AppContent = () => {
+const AppContent: React.FC = () => {
   const location = useLocation();
   const selectedKey = '/' + location.pathname.split('/')[1] || '/';
 
@@ -98,7 +98,7 @@ const AppContent = () => {
   );
 };
 
-function App() {
+const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <Router>
@@ -106,6 +106,6 @@ function App() {
       </Router>
     </ErrorBoundary>
   );
-}
+};
 
 export default App;
