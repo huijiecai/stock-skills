@@ -22,6 +22,9 @@ interface StockTableProps {
   showLimitTimes?: boolean;
   pagination?: false | object;
   size?: 'small' | 'middle' | 'large';
+  sortable?: boolean;
+  onSortChange?: (field: string, order: 'asc' | 'desc') => void;
+  currentSort?: { field: string; order: 'asc' | 'desc' };
 }
 
 /**
@@ -33,7 +36,10 @@ export const StockTable: React.FC<StockTableProps> = ({
   showConcept = false,
   showLimitTimes = false,
   pagination = false,
-  size = 'small'
+  size = 'small',
+  sortable = false,
+  onSortChange,
+  currentSort
 }) => {
   const navigate = useNavigate();
 
@@ -42,6 +48,8 @@ export const StockTable: React.FC<StockTableProps> = ({
       title: '代码', 
       dataIndex: 'stock_code', 
       width: 80,
+      sorter: sortable,
+      sortOrder: currentSort?.field === 'stock_code' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : undefined,
       render: (v: string) => (
         <a 
           onClick={(e) => {
@@ -74,11 +82,20 @@ export const StockTable: React.FC<StockTableProps> = ({
     title: '涨幅', 
     dataIndex: 'change_pct', 
     width: 80,
-    render: (v: number) => (
-      <Tag color={v >= 9.9 ? 'red' : v > 0 ? 'green' : v < 0 ? 'blue' : 'default'}>
-        {v >= 0 ? '+' : ''}{v?.toFixed(2)}%
-      </Tag>
-    )
+    sorter: sortable,
+    sortOrder: currentSort?.field === 'change_pct' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : undefined,
+    render: (v: number) => {
+      let color = 'default';
+      if (v >= 9.9) color = 'red';
+      else if (v > 0) color = 'red';
+      else if (v < 0) color = 'green';
+      
+      return (
+        <Tag color={color}>
+          {v >= 0 ? '+' : ''}{v?.toFixed(2)}%
+        </Tag>
+      );
+    }
   });
 
   if (data[0]?.close) {
@@ -95,6 +112,8 @@ export const StockTable: React.FC<StockTableProps> = ({
       title: '成交额',
       dataIndex: 'amount',
       width: 90,
+      sorter: sortable,
+      sortOrder: currentSort?.field === 'amount' ? (currentSort.order === 'asc' ? 'ascend' : 'descend') : undefined,
       render: (v: number) => `${(v / 1e8).toFixed(2)}亿`
     });
   }
@@ -133,6 +152,13 @@ export const StockTable: React.FC<StockTableProps> = ({
     });
   }
 
+  const handleTableChange = (pagination: any, filters: any, sorter: any) => {
+    if (sortable && onSortChange && sorter && sorter.field) {
+      const order = sorter.order === 'ascend' ? 'asc' : 'desc';
+      onSortChange(sorter.field, order);
+    }
+  };
+
   return (
     <Table
       columns={columns}
@@ -141,6 +167,7 @@ export const StockTable: React.FC<StockTableProps> = ({
       loading={loading}
       pagination={pagination}
       size={size}
+      onChange={handleTableChange}
       onRow={(record) => ({
         onClick: () => navigate(`/stock/${record.stock_code}`),
         style: { cursor: 'pointer' }

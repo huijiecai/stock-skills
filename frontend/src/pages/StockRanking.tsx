@@ -65,25 +65,41 @@ const StockRanking: React.FC = () => {
     }
   };
 
+  const handleTableSort = (field: string, newOrder: 'asc' | 'desc') => {
+    setSortType(field as SortType);
+    setOrder(newOrder);
+  };
+
   return (
     <div style={{ padding: 24 }}>
       <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h2 style={{ margin: 0, color: 'var(--text-primary)' }}>个股排行</h2>
-        <DateSelector value={date} onChange={setDate} />
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <span style={{ color: 'var(--text-secondary)' }}>排序:</span>
+          <Select value={sortType} onChange={handleSortChange} style={{ width: 120 }}>
+            <Option value="change_pct">涨跌幅</Option>
+            <Option value="amount">成交额</Option>
+            <Option value="turnover_rate">换手率</Option>
+            <Option value="main_inflow">大单流入</Option>
+          </Select>
+          <Select value={order} onChange={(v) => setOrder(v as 'asc' | 'desc')} style={{ width: 100 }}>
+            <Option value="desc">降序 ↓</Option>
+            <Option value="asc">升序 ↑</Option>
+          </Select>
+          <DateSelector value={date} onChange={setDate} />
+        </div>
       </div>
 
       <Spin spinning={loading}>
         <Card>
-          <div style={{ marginBottom: 16 }}>
-            <span style={{ marginRight: 8 }}>排序方式: </span>
-            <Select value={sortType} onChange={handleSortChange} style={{ width: 120 }}>
-              <Option value="change_pct">涨跌幅</Option>
-              <Option value="amount">成交额</Option>
-              <Option value="turnover_rate">换手率</Option>
-              <Option value="main_inflow">大单流入</Option>
-            </Select>
-          </div>
-          <StockTable data={data} loading={false} showConcept={true} />
+          <StockTable 
+            data={data} 
+            loading={false} 
+            showConcept={true}
+            sortable={true}
+            onSortChange={handleTableSort}
+            currentSort={{ field: sortType, order }}
+          />
         </Card>
       </Spin>
     </div>
