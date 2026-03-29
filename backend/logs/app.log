@@ -1970,3 +1970,147 @@
 2026-03-29 13:48:36 | INFO     | app.scheduler.jobs | 初始化定时任务...
 2026-03-29 13:48:36 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
 2026-03-29 13:48:36 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:49:43 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:49:44 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:49:44 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:49:44 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:49:44 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:49:48 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:49:49 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:49:49 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:49:49 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:49:49 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:49:59 | WARNING  | app.services.data_collector | 保存概念板块失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: nan (expected str, got float)
+[SQL: 
+                        INSERT INTO concept_info_east (concept_code, concept_name, component_count)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT (concept_code) DO UPDATE SET
+                            concept_name = EXCLUDED.concept_name,
+                            component_count = EXCLUDED.component_count
+                    ]
+[parameters: (nan, 'WiFi 6', 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:49:59 | INFO     | app.services.data_collector | 采集概念板块列表: 391 条
+2026-03-29 13:49:59 | WARNING  | app.services.data_collector | 采集概念 AI应用 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:49:59 | WARNING  | app.services.data_collector | 采集概念 AIGC应用 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:49:59 | WARNING  | app.services.data_collector | 采集概念 AI医疗 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:49:59 | WARNING  | app.services.data_collector | 采集概念 AI安全 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:00 | WARNING  | app.services.data_collector | 采集概念 AI营销 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:00 | WARNING  | app.services.data_collector | 采集概念 垂直行业AI 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:00 | WARNING  | app.services.data_collector | 采集概念 AI硬件 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:00 | WARNING  | app.services.data_collector | 采集概念 CPO光互联 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:00 | WARNING  | app.services.data_collector | 采集概念 PCB制造 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:00 | WARNING  | app.services.data_collector | 采集概念 PCB材料 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:00 | WARNING  | app.services.data_collector | 采集概念 液冷散热 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 染料化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 氟化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 玻纤 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 磷化工 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 聚氨酯 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 半导体 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:01 | WARNING  | app.services.data_collector | 采集概念 半导体材料 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 半导体设备 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 封装测试 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 晶圆制造 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 芯片设计 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 商业航天 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 北斗导航 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 卫星制造 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:02 | WARNING  | app.services.data_collector | 采集概念 卫星通信 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:03 | WARNING  | app.services.data_collector | 采集概念 火箭发射 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:03 | WARNING  | app.services.data_collector | 采集概念 航天电子 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:03 | WARNING  | app.services.data_collector | 采集概念 通信设备 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:03 | WARNING  | app.services.data_collector | 采集概念 存储芯片 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:03 | WARNING  | app.services.data_collector | 采集概念 存储封测 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:04 | WARNING  | app.services.data_collector | 采集概念 存储模组 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:04 | WARNING  | app.services.data_collector | 采集概念 存储芯片设计 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:04 | WARNING  | app.services.data_collector | 采集概念 新能源 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:04 | WARNING  | app.services.data_collector | 采集概念 HJT电池 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:04 | WARNING  | app.services.data_collector | 采集概念 光伏储能 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:04 | WARNING  | app.services.data_collector | 采集概念 磷酸铁锂 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:04 | WARNING  | app.services.data_collector | 采集概念 钠电池 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:05 | WARNING  | app.services.data_collector | 采集概念 锂电池 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:05 | WARNING  | app.services.data_collector | 采集概念 锂矿 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:05 | WARNING  | app.services.data_collector | 采集概念 有色金属 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:05 | WARNING  | app.services.data_collector | 采集概念 白银 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:05 | WARNING  | app.services.data_collector | 采集概念 稀土永磁 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:05 | WARNING  | app.services.data_collector | 采集概念 金属钨 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:05 | WARNING  | app.services.data_collector | 采集概念 金属铜 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:06 | WARNING  | app.services.data_collector | 采集概念 金属锌 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:06 | WARNING  | app.services.data_collector | 采集概念 黄金 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:06 | WARNING  | app.services.data_collector | 采集概念 机器人 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:06 | WARNING  | app.services.data_collector | 采集概念 伺服电机 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:06 | INFO     | app.services.data_collector | 采集概念板块日线: 0 条
+2026-03-29 13:50:24 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:50:27 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:50:27 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:50:27 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:50:27 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-29 13:50:40 | WARNING  | app.services.data_collector | 保存概念板块失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $1: nan (expected str, got float)
+[SQL: 
+                        INSERT INTO concept_info_east (concept_code, concept_name, component_count)
+                        VALUES ($1, $2, $3)
+                        ON CONFLICT (concept_code) DO UPDATE SET
+                            concept_name = EXCLUDED.concept_name,
+                            component_count = EXCLUDED.component_count
+                    ]
+[parameters: (nan, 'WiFi 6', 0)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-29 13:50:40 | INFO     | app.services.data_collector | 采集概念板块列表: 391 条
+2026-03-29 13:50:40 | WARNING  | app.services.data_collector | 采集概念 886108 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:40 | WARNING  | app.services.data_collector | 采集概念 886107 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:40 | WARNING  | app.services.data_collector | 采集概念 886106 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:40 | WARNING  | app.services.data_collector | 采集概念 886105 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:40 | WARNING  | app.services.data_collector | 采集概念 886102 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:41 | WARNING  | app.services.data_collector | 采集概念 886101 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:41 | WARNING  | app.services.data_collector | 采集概念 886100 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:41 | WARNING  | app.services.data_collector | 采集概念 886099 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:41 | WARNING  | app.services.data_collector | 采集概念 886098 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:41 | WARNING  | app.services.data_collector | 采集概念 886096 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:41 | WARNING  | app.services.data_collector | 采集概念 886095 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:41 | WARNING  | app.services.data_collector | 采集概念 886094 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:42 | WARNING  | app.services.data_collector | 采集概念 886093 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:42 | WARNING  | app.services.data_collector | 采集概念 886091 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:42 | WARNING  | app.services.data_collector | 采集概念 886090 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:42 | WARNING  | app.services.data_collector | 采集概念 886089 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:42 | WARNING  | app.services.data_collector | 采集概念 886087 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:42 | WARNING  | app.services.data_collector | 采集概念 886086 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:42 | WARNING  | app.services.data_collector | 采集概念 886085 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886084 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886082 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886081 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886080 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886078 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886077 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886076 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:43 | WARNING  | app.services.data_collector | 采集概念 886075 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886074 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886073 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886072 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886071 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886070 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886069 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886068 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:44 | WARNING  | app.services.data_collector | 采集概念 886067 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886066 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886065 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886064 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886063 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886062 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886061 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886060 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:45 | WARNING  | app.services.data_collector | 采集概念 886059 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | WARNING  | app.services.data_collector | 采集概念 886058 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | WARNING  | app.services.data_collector | 采集概念 886057 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | WARNING  | app.services.data_collector | 采集概念 886056 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | WARNING  | app.services.data_collector | 采集概念 886055 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | WARNING  | app.services.data_collector | 采集概念 886054 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | WARNING  | app.services.data_collector | 采集概念 886053 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | WARNING  | app.services.data_collector | 采集概念 886052 失败: 'NoneType' object is not subscriptable
+2026-03-29 13:50:46 | INFO     | app.services.data_collector | 采集概念板块日线: 0 条
+2026-03-29 13:52:05 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-03-29 13:52:06 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-03-29 13:52:06 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-03-29 13:52:06 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-03-29 13:52:06 | INFO     | app.main | ✅ 定时任务调度器已启动

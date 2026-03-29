@@ -343,10 +343,11 @@ class DataCollector:
         await self.collect_concept_daily(today)
     
     async def collect_concept_list(self):
-        """采集概念板块列表"""
+        """采集概念板块列表 - 参考 fetch_adata_data.py"""
         try:
             import adata
-            df = adata.stock.info.get_concept_east()
+            # 正确方法：all_concept_code_ths
+            df = adata.stock.info.all_concept_code_ths()
             if df is not None and len(df) > 0:
                 await self._save_concept_list(df)
                 logger.info(f"采集概念板块列表: {len(df)} 条")
@@ -358,6 +359,7 @@ class DataCollector:
         async with AsyncSessionLocal() as session:
             for _, row in df.iterrows():
                 try:
+                    # index_code 是概念代码（如 BK0612），name 是概念名称
                     await session.execute(text("""
                         INSERT INTO concept_info_east (concept_code, concept_name, component_count)
                         VALUES (:concept_code, :concept_name, :component_count)
@@ -365,8 +367,8 @@ class DataCollector:
                             concept_name = EXCLUDED.concept_name,
                             component_count = EXCLUDED.component_count
                     """), {
-                        "concept_code": row.get("concept_code", ""),
-                        "concept_name": row.get("concept_name", ""),
+                        "concept_code": row.get("index_code", ""),  # BK0612 格式
+                        "concept_name": row.get("name", ""),
                         "component_count": row.get("component_count", 0),
                     })
                 except Exception as e:
@@ -393,8 +395,8 @@ class DataCollector:
             
             for concept_code in concepts:
                 try:
-                    # 参考 fetch_adata_data.py 的正确写法
-                    df = adata.stock.market.get_market_concept_east(
+                    # 同花顺概念用 get_market_concept_ths
+                    df = adata.stock.market.get_market_concept_ths(
                         index_code=concept_code,
                         k_type=1,
                     )
