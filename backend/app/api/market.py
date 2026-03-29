@@ -15,6 +15,17 @@ def success_response(data=None, message: str = "success"):
 
 # ==================== 市场概览 ====================
 
+@router.get("/latest-trade-date")
+async def get_latest_trade_date():
+    """
+    获取最近交易日
+    
+    返回数据库中有数据的最近交易日
+    """
+    result = await market_service.get_latest_trade_date()
+    return success_response(result)
+
+
 @router.get("/snapshot")
 async def get_market_snapshot(
     date: Optional[str] = Query(None, description="日期"),
@@ -23,6 +34,19 @@ async def get_market_snapshot(
     获取市场快照
     
     返回涨停家数、跌停家数、炸板家数、封板率等市场情绪指标
+    """
+    result = await market_service.get_market_snapshot(date)
+    return success_response(result)
+
+
+@router.get("/statistics")
+async def get_market_statistics(
+    date: Optional[str] = Query(None, description="日期"),
+):
+    """
+    获取市场统计
+    
+    返回涨停家数、跌停家数、炸板家数、封板率等
     """
     result = await market_service.get_market_snapshot(date)
     return success_response(result)
@@ -87,6 +111,22 @@ async def get_stock_rank(
     page_size: int = Query(50, ge=1, le=100),
 ):
     """获取个股排行"""
+    result = await market_service.get_stock_rank(date, rank_type, direction, page, page_size)
+    return success_response(result)
+
+
+@router.get("/stock-ranking")
+async def get_stock_ranking(
+    date: Optional[str] = Query(None),
+    sort: str = Query("change_pct", description="排序字段"),
+    order: str = Query("desc", description="排序方向: desc/asc"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+):
+    """获取个股排行（前端接口）"""
+    # 转换参数
+    rank_type = sort
+    direction = "up" if order == "desc" else "down"
     result = await market_service.get_stock_rank(date, rank_type, direction, page, page_size)
     return success_response(result)
 

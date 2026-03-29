@@ -174,13 +174,23 @@ class ConceptService:
         page_size: int = 20
     ) -> Dict:
         """获取概念板块涨幅榜"""
-        if not date:
-            date = datetime.now().strftime("%Y-%m-%d")
-        
         order_sql = "DESC" if order == "desc" else "ASC"
         sort_field = "change_pct" if sort_by == "change_pct" else "amount"
         
         async with AsyncSessionLocal() as session:
+            if not date:
+                # 从概念日线表获取最新日期
+                result = await session.execute(
+                    text("SELECT MAX(trade_date) FROM concept_daily_east")
+                )
+                latest = result.scalar()
+                if latest:
+                    query_date = latest
+                else:
+                    query_date = datetime.now().date()
+            else:
+                query_date = datetime.strptime(date, "%Y-%m-%d").date()
+            
             result = await session.execute(
                 text(f"""
                     SELECT cd.concept_code, ci.concept_name, cd.close_price, cd.change_pct,
@@ -191,7 +201,7 @@ class ConceptService:
                     ORDER BY cd.{sort_field} {order_sql}
                     LIMIT :limit OFFSET :offset
                 """),
-                {"date": date, "limit": page_size, "offset": (page - 1) * page_size}
+                {"date": query_date, "limit": page_size, "offset": (page - 1) * page_size}
             )
             rows = result.fetchall()
             
@@ -207,7 +217,7 @@ class ConceptService:
                     "amount": float(row[5]) if row[5] else 0,
                 })
             
-            return {"date": date, "items": items}
+            return {"date": str(query_date), "items": items, "total": len(items)}
     
     async def search_concept(self, keyword: str) -> Dict:
         """搜索概念板块"""

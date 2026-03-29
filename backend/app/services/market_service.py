@@ -16,14 +16,29 @@ class MarketService:
         """解析日期字符串为 date 对象"""
         return datetime.strptime(date_str, "%Y-%m-%d").date()
 
+    async def _get_latest_trade_date(self, session) -> date_type:
+        """获取最近交易日"""
+        result = await session.execute(
+            text("SELECT MAX(trade_date) FROM stock_daily")
+        )
+        latest = result.scalar()
+        if latest:
+            return latest
+        result = await session.execute(
+            text("SELECT MAX(trade_date) FROM limit_list")
+        )
+        latest = result.scalar()
+        if latest:
+            return latest
+        return datetime.now().date()
+
     async def get_market_snapshot(self, date: Optional[str] = None) -> Dict:
         """获取市场快照"""
-        if not date:
-            query_date = datetime.now().date()
-        else:
-            query_date = self._parse_date(date)
-
         async with AsyncSessionLocal() as session:
+            if not date:
+                query_date = await self._get_latest_trade_date(session)
+            else:
+                query_date = self._parse_date(date)
             # 统计涨停
             up_result = await session.execute(
                 text("SELECT COUNT(*) FROM limit_list WHERE trade_date = :date AND limit_type = 'U'"),
@@ -52,7 +67,7 @@ class MarketService:
             # 获取主要指数
             index_result = await session.execute(
                 text("""
-                    SELECT index_code, index_name, close_price, change_pct
+                    SELECT index_code, index_name, close_price, change_pct, amount
                     FROM index_daily 
                     WHERE trade_date = :date
                       AND index_code IN ('000001', '399001', '399006', '000688')
@@ -67,6 +82,7 @@ class MarketService:
                     "index_name": row[1],
                     "close": float(row[2]) if row[2] else 0,
                     "change_pct": float(row[3]) if row[3] else 0,
+                    "amount": float(row[4]) if row[4] else 0,
                 })
 
             return {
@@ -78,19 +94,41 @@ class MarketService:
                 "indices": indices,
             }
 
+    async def get_latest_trade_date(self) -> Dict:
+        """获取最近交易日"""
+        async with AsyncSessionLocal() as session:
+            # 从 stock_daily 表获取最近交易日
+            result = await session.execute(
+                text("SELECT MAX(trade_date) FROM stock_daily")
+            )
+            latest = result.scalar()
+            if latest:
+                return {"date": latest.strftime("%Y-%m-%d")}
+            
+            # 如果 stock_daily 没数据，从 limit_list 获取
+            result = await session.execute(
+                text("SELECT MAX(trade_date) FROM limit_list")
+            )
+            latest = result.scalar()
+            if latest:
+                return {"date": latest.strftime("%Y-%m-%d")}
+            
+            # 默认返回今天
+            return {"date": datetime.now().strftime("%Y-%m-%d")}
+
     async def get_limit_up_list(
         self, 
         date: Optional[str] = None, 
-        page: int = 1, 
+        page: int = 1,
         page_size: int = 50
     ) -> Dict:
         """获取涨停股列表"""
-        if not date:
-            query_date = datetime.now().date()
-        else:
-            query_date = self._parse_date(date)
-
         async with AsyncSessionLocal() as session:
+            if not date:
+                query_date = await self._get_latest_trade_date(session)
+            else:
+                query_date = self._parse_date(date)
+    
             result = await session.execute(
                 text("""
                     SELECT stock_code, stock_name, close_price, change_pct,
@@ -123,16 +161,16 @@ class MarketService:
     async def get_limit_down_list(
         self, 
         date: Optional[str] = None, 
-        page: int = 1, 
+        page: int = 1,
         page_size: int = 50
     ) -> Dict:
         """获取跌停股列表"""
-        if not date:
-            query_date = datetime.now().date()
-        else:
-            query_date = self._parse_date(date)
-
         async with AsyncSessionLocal() as session:
+            if not date:
+                query_date = await self._get_latest_trade_date(session)
+            else:
+                query_date = self._parse_date(date)
+    
             result = await session.execute(
                 text("""
                     SELECT stock_code, stock_name, close_price, change_pct,
@@ -164,20 +202,20 @@ class MarketService:
 
     async def get_continuous_board(self, date: Optional[str] = None) -> Dict:
         """获取连板天梯"""
-        if not date:
-            query_date = datetime.now().date()
-        else:
-            query_date = self._parse_date(date)
-
         async with AsyncSessionLocal() as session:
-            # 按连板数分组
+            if not date:
+                query_date = await self._get_latest_trade_date(session)
+            else:
+                query_date = self._parse_date(date)
+
+            # 按连板数分组（包含首板）
             result = await session.execute(
                 text("""
                     SELECT limit_times, COUNT(*) as count,
                            array_agg(stock_code ORDER BY first_time) as stock_codes,
                            array_agg(stock_name ORDER BY first_time) as stock_names
                     FROM limit_list 
-                    WHERE trade_date = :date AND limit_type = 'U' AND limit_times >= 2
+                    WHERE trade_date = :date AND limit_type = 'U'
                     GROUP BY limit_times
                     ORDER BY limit_times DESC
                 """),
@@ -255,12 +293,14 @@ class MarketService:
         page_size: int = 50
     ) -> Dict:
         """获取个股排行"""
-        if not date:
-            date = datetime.now().strftime("%Y-%m-%d")
-
         order_sql = "DESC" if direction == "up" else "ASC"
 
         async with AsyncSessionLocal() as session:
+            if not date:
+                query_date = await self._get_latest_trade_date(session)
+            else:
+                query_date = self._parse_date(date)
+
             if rank_type == "change_pct":
                 result = await session.execute(
                     text(f"""
@@ -272,7 +312,7 @@ class MarketService:
                         ORDER BY sd.change_pct {order_sql}
                         LIMIT :limit OFFSET :offset
                     """),
-                    {"date": date, "limit": page_size, "offset": (page - 1) * page_size}
+                    {"date": query_date, "limit": page_size, "offset": (page - 1) * page_size}
                 )
             elif rank_type == "amount":
                 result = await session.execute(
@@ -285,7 +325,7 @@ class MarketService:
                         ORDER BY sd.amount {order_sql}
                         LIMIT :limit OFFSET :offset
                     """),
-                    {"date": date, "limit": page_size, "offset": (page - 1) * page_size}
+                    {"date": query_date, "limit": page_size, "offset": (page - 1) * page_size}
                 )
             else:  # capital_flow
                 result = await session.execute(
@@ -299,7 +339,7 @@ class MarketService:
                         ORDER BY cf.main_net_inflow {order_sql}
                         LIMIT :limit OFFSET :offset
                     """),
-                    {"date": date, "limit": page_size, "offset": (page - 1) * page_size}
+                    {"date": query_date, "limit": page_size, "offset": (page - 1) * page_size}
                 )
 
             rows = result.fetchall()
@@ -316,7 +356,14 @@ class MarketService:
                     "amount": float(row[5]) if row[5] else 0,
                 })
 
-            return {"date": date, "rank_type": rank_type, "items": items}
+            # 获取总数
+            count_result = await session.execute(
+                text("SELECT COUNT(*) FROM stock_daily WHERE trade_date = :date"),
+                {"date": query_date}
+            )
+            total = count_result.scalar() or 0
+
+            return {"date": str(query_date), "rank_type": rank_type, "items": items, "total": total}
 
     async def get_seal_rate_history(
         self, 

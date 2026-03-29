@@ -343,14 +343,41 @@ class DataCollector:
         await self.collect_concept_daily(today)
     
     async def collect_concept_list(self):
-        """采集概念板块列表 - 参考 fetch_adata_data.py"""
+        """采集概念板块列表 - 东方财富"""
         try:
             import adata
-            # 正确方法：all_concept_code_ths
-            df = adata.stock.info.all_concept_code_ths()
-            if df is not None and len(df) > 0:
-                await self._save_concept_list(df)
-                logger.info(f"采集概念板块列表: {len(df)} 条")
+            
+            # 从热门股票获取概念列表（因为 all_concept_code_east 缓存文件缺失）
+            # 使用更多热门股票以获取更全面的概念列表
+            hot_stocks = [
+                '000001', '600519', '000858', '002594', '300750',
+                '600036', '601318', '000333', '002475', '300059',
+                '601166', '000002', '600276', '002415', '300014',
+                '603259', '600900', '002352', '000568', '600887',
+            ]
+            
+            all_concepts = {}
+            for stock_code in hot_stocks:
+                try:
+                    df = adata.stock.info.get_plate_east(stock_code=stock_code)
+                    if df is not None:
+                        for _, row in df.iterrows():
+                            if row.get('plate_type') == '概念':
+                                plate_code = row['plate_code']
+                                if plate_code not in all_concepts:
+                                    all_concepts[plate_code] = row['plate_name']
+                except Exception:
+                    pass
+            
+            if all_concepts:
+                import pandas as pd
+                # 转换为 DataFrame 格式
+                concept_df = pd.DataFrame([
+                    {'index_code': code, 'name': name, 'component_count': 0}
+                    for code, name in all_concepts.items()
+                ])
+                await self._save_concept_list(concept_df)
+                logger.info(f"采集东方财富概念板块列表: {len(all_concepts)} 条")
         except Exception as e:
             logger.error(f"采集概念板块列表失败: {e}")
     
@@ -395,8 +422,8 @@ class DataCollector:
             
             for concept_code in concepts:
                 try:
-                    # 同花顺概念用 get_market_concept_ths
-                    df = adata.stock.market.get_market_concept_ths(
+                    # 东方财富概念日线
+                    df = adata.stock.market.get_market_concept_east(
                         index_code=concept_code,
                         k_type=1,
                     )
@@ -449,7 +476,7 @@ class DataCollector:
                             amount = EXCLUDED.amount
                     """), {
                         "trade_date": trade_date,
-                        "concept_code": row.get("concept_code", ""),
+                        "concept_code": row.get("index_code", ""),  # adata 返回的是 index_code
                         "open_price": row.get("open", 0),
                         "close_price": row.get("close", 0),
                         "high_price": row.get("high", 0),
