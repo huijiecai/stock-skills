@@ -24,8 +24,8 @@ export const stockAPI = {
   // 获取股票信息
   getInfo: (code) => api.get(`/stock/info/${code}`),
   // 获取股票日线
-  getDaily: (code, startDate, endDate) => api.get(`/stock/daily/${code}`, {
-    params: { start_date: startDate, end_date: endDate }
+  getDaily: (code, days = 60) => api.get(`/stock/daily/${code}`, {
+    params: { days }
   }),
   // 获取股票分时
   getIntraday: (code, date) => api.get(`/stock/intraday/${code}`, { params: { date } }),
@@ -44,8 +44,8 @@ export const indexAPI = {
   // 获取指数列表
   getList: () => api.get('/index/list'),
   // 获取指数日线
-  getDaily: (code, startDate, endDate) => api.get(`/index/daily/${code}`, {
-    params: { start_date: startDate, end_date: endDate }
+  getDaily: (code, days = 60) => api.get(`/index/daily/${code}`, {
+    params: { days }
   }),
   // 获取指数分时
   getIntraday: (code, date) => api.get(`/index/intraday/${code}`, { params: { date } }),
@@ -75,6 +75,12 @@ export const conceptAPI = {
 export const marketAPI = {
   // 获取市场快照
   getSnapshot: (date) => api.get('/market/snapshot', { params: { date } }),
+  // 获取市场统计
+  getStatistics: (date) => api.get('/market/statistics', { params: { date } }),
+  // 获取个股排行
+  getStockRanking: ({ date, sort, order, page, page_size }) => api.get('/market/stock-ranking', {
+    params: { date, sort, order, page, page_size }
+  }),
   // 获取涨停股列表
   getLimitUp: (date, page, pageSize) => api.get('/market/limit-up', {
     params: { date, page, page_size: pageSize }

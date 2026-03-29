@@ -1,217 +1,171 @@
 import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Button, Tabs, DatePicker, Card, Row, Col, Spin, message, Typography } from 'antd';
-import { ArrowLeftOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
+import { useParams } from 'react-router-dom';
+import { Card, Row, Col, Tag, Spin, Typography } from 'antd';
 import { stockAPI } from '../services/api';
-import IntradayChart from '../components/IntradayChart';
-import DailyChart from '../components/DailyChart';
+import { KLineChart } from '../components/Charts';
+import CountUp from 'react-countup';
 
-const { Text } = Typography;
+const { Title } = Typography;
 
-export default function StockDetail() {
+const StockDetail = () => {
   const { code } = useParams();
-  const navigate = useNavigate();
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [stockInfo, setStockInfo] = useState(null);
-  const [activeTab, setActiveTab] = useState('intraday');
-  const [selectedDate, setSelectedDate] = useState(dayjs());
-  const [intradayData, setIntradayData] = useState([]);
   const [dailyData, setDailyData] = useState([]);
+  const [chartType, setChartType] = useState('intraday');
+  const [concepts, setConcepts] = useState([]);
 
   useEffect(() => {
-    loadStockInfo();
-    loadDailyData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    loadStockData();
   }, [code]);
 
-  useEffect(() => {
-    if (selectedDate) {
-      loadIntradayData();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDate]);
-
-  const loadStockInfo = async () => {
-    try {
-      const res = await stockAPI.getInfo(code);
-      if (res.code === 200) {
-        setStockInfo(res.data);
-      }
-    } catch (error) {
-      message.error('加载股票信息失败');
-    }
-  };
-
-  const loadIntradayData = async () => {
+  const loadStockData = async () => {
     setLoading(true);
     try {
-      const res = await stockAPI.getIntraday(code, selectedDate.format('YYYY-MM-DD'));
-      if (res.code === 200) {
-        setIntradayData(res.data.items || []);
+      const [infoRes, dailyRes, conceptsRes] = await Promise.all([
+        stockAPI.getInfo(code),
+        stockAPI.getDaily(code, 60),
+        stockAPI.getConcepts(code),
+      ]);
+
+      if (infoRes.code === 200) {
+        setStockInfo(infoRes.data);
+      }
+      if (dailyRes.code === 200) {
+        setDailyData(dailyRes.data || []);
+      }
+      if (conceptsRes.code === 200) {
+        setConcepts(conceptsRes.data || []);
       }
     } catch (error) {
-      setIntradayData([]);
+      console.error('加载股票数据失败:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadDailyData = async () => {
-    try {
-      const endDate = dayjs().format('YYYY-MM-DD');
-      const startDate = dayjs().subtract(1, 'year').format('YYYY-MM-DD');
-      const res = await stockAPI.getDaily(code, startDate, endDate);
-      if (res.code === 200) {
-        setDailyData(res.data.items || []);
-      }
-    } catch (error) {
-      setDailyData([]);
-    }
-  };
+  if (loading) {
+    return (
+      <div style={{ padding: 24, textAlign: 'center' }}>
+        <Spin size="large" />
+      </div>
+    );
+  }
 
-  const handleTabChange = (key) => {
-    setActiveTab(key);
-  };
+  if (!stockInfo) {
+    return (
+      <div style={{ padding: 24 }}>
+        <div className="empty-data">股票不存在或暂无数据</div>
+      </div>
+    );
+  }
 
-  const handleDateChange = (date) => {
-    setSelectedDate(date);
-  };
-
-  const handleBack = () => {
-    navigate(-1);
-  };
-
-  // 从K线图跳转到分时图
-  const handleJumpToIntraday = (date) => {
-    setSelectedDate(dayjs(date));
-    setActiveTab('intraday');
-  };
-
-  // 渲染价格颜色
-  const getPriceColor = (value) => {
-    if (!value) return '#000';
-    return value >= 0 ? '#f5222d' : '#52c41a';
-  };
-
-  const tabItems = [
-    {
-      key: 'intraday',
-      label: '分时图',
-      children: loading ? (
-        <div style={{ textAlign: 'center', padding: '100px' }}>
-          <Spin size="large" />
-        </div>
-      ) : (
-        <IntradayChart
-          data={intradayData}
-          stockCode={code}
-          stockName={stockInfo?.stock_name || code}
-          date={selectedDate.format('YYYY-MM-DD')}
-        />
-      ),
-    },
-    {
-      key: 'daily',
-      label: '日K线',
-      children: loading ? (
-        <div style={{ textAlign: 'center', padding: '100px' }}>
-          <Spin size="large" />
-        </div>
-      ) : (
-        <DailyChart
-          data={dailyData}
-          stockCode={code}
-          stockName={stockInfo?.stock_name || code}
-          onDateClick={handleJumpToIntraday}
-        />
-      ),
-    },
-    {
-      key: 'info',
-      label: '基本信息',
-      children: (
-        <div style={{ padding: '20px' }}>
-          <Card title="股票信息">
-            {stockInfo ? (
-              <Row gutter={[16, 8]}>
-                <Col span={8}><Text strong>股票代码：</Text><Text>{stockInfo.stock_code}</Text></Col>
-                <Col span={8}><Text strong>股票名称：</Text><Text>{stockInfo.stock_name}</Text></Col>
-                <Col span={8}><Text strong>所属行业：</Text><Text>{stockInfo.industry || '-'}</Text></Col>
-                <Col span={8}><Text strong>上市日期：</Text><Text>{stockInfo.list_date || '-'}</Text></Col>
-                <Col span={8}><Text strong>市场：</Text><Text>{stockInfo.market || '-'}</Text></Col>
-              </Row>
-            ) : (
-              <Spin />
-            )}
-          </Card>
-        </div>
-      ),
-    },
-  ];
+  const isUp = (stockInfo.change_pct || 0) >= 0;
+  const preClose = stockInfo.pre_close || dailyData[0]?.close || 0;
 
   return (
-    <div>
-      <div style={{ marginBottom: 12 }}>
-        <Button 
-          icon={<ArrowLeftOutlined />} 
-          onClick={handleBack}
-          size="small"
-        >
-          返回
-        </Button>
-      </div>
-
-      {/* 顶部股票信息栏 */}
-      {stockInfo && (
-        <Card size="small" style={{ marginBottom: 12 }}>
-          <Row gutter={16} align="middle">
-            <Col>
-              <div style={{ fontWeight: 'bold', fontSize: 18 }}>
+    <div style={{ padding: 24 }}>
+      {/* 股票头部信息 */}
+      <Card style={{ marginBottom: 20 }} bodyStyle={{ padding: 20 }}>
+        <Row gutter={24}>
+          <Col span={12}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
+              <Title level={2} style={{ margin: 0, color: 'var(--text-primary)' }}>
                 {stockInfo.stock_name}
-                <span style={{ fontSize: 12, color: '#999', marginLeft: 4 }}>({stockInfo.stock_code})</span>
+              </Title>
+              <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+                {code}
+              </span>
+            </div>
+            <div style={{ marginTop: 16 }}>
+              <span style={{ 
+                fontSize: 36, 
+                fontWeight: 600,
+                fontFamily: 'var(--font-mono)',
+                color: isUp ? 'var(--color-up)' : 'var(--color-down)'
+              }}>
+                <CountUp end={stockInfo.close} duration={0.5} decimals={2} />
+              </span>
+              <span style={{ 
+                marginLeft: 12,
+                fontSize: 18,
+                fontFamily: 'var(--font-mono)',
+                color: isUp ? 'var(--color-up)' : 'var(--color-down)'
+              }}>
+                {isUp ? '+' : ''}{stockInfo.change_pct?.toFixed(2)}%
+              </span>
+            </div>
+            <div style={{ marginTop: 8, color: 'var(--text-secondary)' }}>
+              昨收: {preClose?.toFixed(2)} | 
+              成交额: {(stockInfo.amount / 1e8)?.toFixed(2)}亿 |
+              换手率: {stockInfo.turnover_rate?.toFixed(2)}%
+            </div>
+          </Col>
+          <Col span={12}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: 8 }}>所属概念</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'flex-end' }}>
+                {concepts.map((c, idx) => (
+                  <Tag 
+                    key={idx}
+                    style={{ 
+                      background: c.is_core ? 'var(--color-primary-bg)' : 'var(--bg-tertiary)',
+                      color: c.is_core ? 'var(--color-primary)' : 'var(--text-primary)',
+                      border: c.is_core ? '1px solid var(--color-primary)' : 'none'
+                    }}
+                  >
+                    {c.concept_name}
+                    {c.is_core && <span style={{ marginLeft: 4, fontSize: 11 }}>(龙头)</span>}
+                  </Tag>
+                ))}
               </div>
-              <div style={{ color: '#999', fontSize: 12 }}>
-                {stockInfo.industry || '-'} | {stockInfo.market || '-'}
-              </div>
-            </Col>
-          </Row>
-        </Card>
-      )}
+            </div>
+          </Col>
+        </Row>
+      </Card>
 
       {/* 图表区域 */}
-      <Card>
-        <div style={{ marginBottom: 12 }}>
-          {activeTab === 'intraday' && (
-            <DatePicker 
-              value={selectedDate}
-              onChange={handleDateChange}
-              format="YYYY-MM-DD"
-              allowClear={false}
-              size="small"
-            />
-          )}
+      <Card style={{ marginBottom: 20 }} bodyStyle={{ padding: 16 }}>
+        <div className="chart-container" style={{ border: 'none', padding: 0, background: 'transparent' }}>
+          <div className="chart-header">
+            <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+              {stockInfo.stock_name} · 图表
+            </div>
+            <div className="chart-tabs">
+              <span 
+                className={`chart-tab ${chartType === 'intraday' ? 'active' : ''}`}
+                onClick={() => setChartType('intraday')}
+              >
+                分时
+              </span>
+              <span 
+                className={`chart-tab ${chartType === 'daily' ? 'active' : ''}`}
+                onClick={() => setChartType('daily')}
+              >
+                日K
+              </span>
+            </div>
+          </div>
         </div>
-        <Tabs
-          activeKey={activeTab}
-          items={tabItems}
-          onChange={handleTabChange}
-          size="small"
-        />
+        {chartType === 'daily' ? (
+          <KLineChart 
+            data={dailyData}
+            maLines={[
+              { key: 'ma5', color: '#fff' },
+              { key: 'ma10', color: '#FFA726' },
+              { key: 'ma20', color: '#9C27B0' },
+            ]}
+            height={400}
+          />
+        ) : (
+          <div className="empty-data" style={{ padding: 60 }}>分时数据暂未加载，请查看日K图</div>
+        )}
+        {dailyData.length === 0 && (
+          <div className="empty-data">暂无图表数据</div>
+        )}
       </Card>
     </div>
   );
-}
-
-// 样式定义
-const labelStyle = { 
-  fontSize: 12, 
-  color: '#999', 
-  lineHeight: 1.2 
 };
 
-const valueStyle = { 
-  fontSize: 14, 
-  fontWeight: 500, 
-  lineHeight: 1.4 
-};
+export default StockDetail;

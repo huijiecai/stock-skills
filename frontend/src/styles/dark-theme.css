@@ -1,0 +1,580 @@
+/* 龙头战法 Web 平台 - TradingView 风格深色主题 */
+
+:root {
+  /* 核心配色 */
+  --bg-primary: #131722;
+  --bg-secondary: #1E222D;
+  --bg-tertiary: #2A2E39;
+  --bg-card: #1E222D;
+  --bg-hover: #2A2E39;
+  
+  /* 边框 */
+  --border-color: #2A2E39;
+  --border-light: #363A45;
+  
+  /* 文字 */
+  --text-primary: #D1D4DC;
+  --text-secondary: #787B86;
+  --text-muted: #5D606B;
+  
+  /* 涨跌色 */
+  --color-up: #26A69A;
+  --color-up-bg: rgba(38, 166, 154, 0.15);
+  --color-down: #EF5350;
+  --color-down-bg: rgba(239, 83, 80, 0.15);
+  --color-warn: #FFA726;
+  --color-warn-bg: rgba(255, 167, 38, 0.15);
+  
+  /* 强调色 */
+  --color-primary: #2962FF;
+  --color-primary-bg: rgba(41, 98, 255, 0.15);
+  
+  /* 发光效果 */
+  --glow-up: 0 0 20px rgba(38, 166, 154, 0.4);
+  --glow-down: 0 0 20px rgba(239, 83, 80, 0.4);
+  --glow-primary: 0 0 20px rgba(41, 98, 255, 0.4);
+  
+  /* 字体 */
+  --font-mono: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* 全局样式 */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg-primary) !important;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* 覆盖 Ant Design 深色主题 */
+.ant-layout {
+  background: var(--bg-primary) !important;
+}
+
+.ant-layout-header {
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-color);
+  height: 56px !important;
+  line-height: 56px !important;
+  padding: 0 24px !important;
+}
+
+.ant-layout-sider {
+  background: var(--bg-secondary) !important;
+  border-right: 1px solid var(--border-color) !important;
+}
+
+.ant-layout-content {
+  background: var(--bg-primary) !important;
+}
+
+/* 菜单样式 */
+.ant-menu {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: none !important;
+}
+
+.ant-menu-item {
+  color: var(--text-secondary) !important;
+  margin: 4px 8px !important;
+  border-radius: 6px !important;
+  
+  &:hover {
+    color: var(--text-primary) !important;
+    background: var(--bg-hover) !important;
+  }
+  
+  &.ant-menu-item-selected {
+    background: var(--color-primary-bg) !important;
+    color: var(--color-primary) !important;
+  }
+}
+
+.ant-menu-item .anticon {
+  font-size: 16px;
+}
+
+/* 卡片样式 */
+.ant-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  color: var(--text-primary) !important;
+  
+  .ant-card-head {
+    border-bottom: 1px solid var(--border-color) !important;
+    color: var(--text-primary) !important;
+    padding: 12px 16px !important;
+    min-height: auto !important;
+    
+    .ant-card-head-title {
+      color: var(--text-primary) !important;
+      padding: 0 !important;
+    }
+  }
+  
+  .ant-card-body {
+    padding: 16px !important;
+  }
+}
+
+/* 表格样式 */
+.ant-table {
+  background: transparent !important;
+  color: var(--text-primary) !important;
+  
+  .ant-table-thead > tr > th {
+    background: var(--bg-tertiary) !important;
+    color: var(--text-secondary) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    padding: 10px 12px !important;
+    font-weight: 500;
+  }
+  
+  .ant-table-tbody > tr > td {
+    border-bottom: 1px solid var(--border-color) !important;
+    padding: 10px 12px !important;
+  }
+  
+  .ant-table-tbody > tr:hover > td {
+    background: var(--bg-hover) !important;
+  }
+  
+  .ant-table-empty .ant-table-tbody > tr > td {
+    border-bottom: none !important;
+  }
+}
+
+.ant-table-empty .ant-empty {
+  color: var(--text-muted) !important;
+}
+
+/* 统计数字样式 */
+.ant-statistic {
+  .ant-statistic-title {
+    color: var(--text-secondary) !important;
+    font-size: 13px !important;
+    margin-bottom: 4px !important;
+  }
+  
+  .ant-statistic-content {
+    color: var(--text-primary) !important;
+    font-family: var(--font-mono);
+    
+    .ant-statistic-content-value {
+      font-weight: 600;
+    }
+  }
+}
+
+/* Tag 样式 */
+.ant-tag {
+  border: none !important;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.ant-tag-red {
+  background: var(--color-up-bg) !important;
+  color: var(--color-up) !important;
+}
+
+.ant-tag-green {
+  background: var(--color-down-bg) !important;
+  color: var(--color-down) !important;
+}
+
+.ant-tag-orange, .ant-tag-gold {
+  background: var(--color-warn-bg) !important;
+  color: var(--color-warn) !important;
+}
+
+.ant-tag-blue {
+  background: var(--color-primary-bg) !important;
+  color: var(--color-primary) !important;
+}
+
+/* 日期选择器 */
+.ant-picker {
+  background: var(--bg-tertiary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 6px !important;
+  
+  .ant-picker-input > input {
+    color: var(--text-primary) !important;
+  }
+  
+  .ant-picker-suffix {
+    color: var(--text-secondary) !important;
+  }
+}
+
+/* Tabs 样式 */
+.ant-tabs {
+  color: var(--text-primary) !important;
+  
+  .ant-tabs-tab {
+    color: var(--text-secondary) !important;
+    padding: 8px 16px !important;
+    
+    &:hover {
+      color: var(--text-primary) !important;
+    }
+    
+    &.ant-tabs-tab-active {
+      .ant-tabs-tab-btn {
+        color: var(--color-primary) !important;
+      }
+    }
+  }
+  
+  .ant-tabs-ink-bar {
+    background: var(--color-primary) !important;
+  }
+}
+
+/* Spin 加载 */
+.ant-spin-text {
+  color: var(--text-secondary) !important;
+}
+
+/* Dropdown */
+.ant-dropdown-menu {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  
+  .ant-dropdown-menu-item {
+    color: var(--text-primary) !important;
+    
+    &:hover {
+      background: var(--bg-hover) !important;
+    }
+  }
+}
+
+/* 滚动条样式 */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  
+  &:hover {
+    background: var(--border-light);
+  }
+}
+
+/* ========== 自定义组件样式 ========== */
+
+/* Logo */
+.logo h1 {
+  color: var(--text-primary) !important;
+  font-size: 18px !important;
+  font-weight: 600;
+  letter-spacing: -0.5px;
+}
+
+/* 指数卡片 - 发光效果 */
+.index-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  
+  &:hover {
+    border-color: var(--color-primary);
+    box-shadow: var(--glow-primary);
+  }
+  
+  &.up {
+    border-color: var(--color-up);
+    .index-value {
+      color: var(--color-up);
+    }
+    &:hover {
+      box-shadow: var(--glow-up);
+    }
+  }
+  
+  &.down {
+    border-color: var(--color-down);
+    .index-value {
+      color: var(--color-down);
+    }
+    &:hover {
+      box-shadow: var(--glow-down);
+    }
+  }
+}
+
+.index-name {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.index-value {
+  font-size: 24px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.index-change {
+  font-size: 14px;
+  font-family: var(--font-mono);
+  margin-top: 4px;
+  
+  &.up {
+    color: var(--color-up);
+  }
+  
+  &.down {
+    color: var(--color-down);
+  }
+}
+
+.index-amount {
+  color: var(--text-muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* 市场情绪卡片 */
+.sentiment-card {
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--bg-tertiary) 100%);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.sentiment-item {
+  text-align: center;
+  padding: 0 16px;
+  border-right: 1px solid var(--border-color);
+  
+  &:last-child {
+    border-right: none;
+  }
+}
+
+.sentiment-label {
+  color: var(--text-secondary);
+  font-size: 12px;
+  margin-bottom: 4px;
+}
+
+.sentiment-value {
+  font-size: 20px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  
+  &.up {
+    color: var(--color-up);
+  }
+  
+  &.down {
+    color: var(--color-down);
+  }
+  
+  &.warn {
+    color: var(--color-warn);
+  }
+  
+  &.normal {
+    color: var(--text-primary);
+  }
+}
+
+/* 连板天梯卡片 */
+.ladder-level {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  
+  &.level-high {
+    border-color: #FFD700;
+    box-shadow: 0 0 15px rgba(255, 215, 0, 0.2);
+  }
+  
+  &.level-mid {
+    border-color: var(--color-warn);
+  }
+}
+
+.ladder-header {
+  background: var(--bg-tertiary);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ladder-tag {
+  font-size: 14px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 4px;
+  
+  &.high {
+    background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%);
+    color: #1a1a1a;
+  }
+  
+  &.mid {
+    background: var(--color-warn-bg);
+    color: var(--color-warn);
+  }
+  
+  &.normal {
+    background: var(--color-primary-bg);
+    color: var(--color-primary);
+  }
+}
+
+/* 涨停股票行 */
+.stock-row {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+  
+  &:last-child {
+    border-bottom: none;
+  }
+  
+  &:hover {
+    background: var(--bg-hover);
+  }
+}
+
+.stock-code {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  width: 70px;
+}
+
+.stock-name {
+  color: var(--text-primary);
+  width: 80px;
+  margin-left: 12px;
+}
+
+.stock-change {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  
+  &.up {
+    color: var(--color-up);
+  }
+  
+  &.down {
+    color: var(--color-down);
+  }
+}
+
+/* 页面标题 */
+.page-title {
+  color: var(--text-primary);
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+}
+
+/* 空数据提示 */
+.empty-data {
+  text-align: center;
+  padding: 40px;
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+/* 价格闪烁动画 */
+@keyframes flash-up {
+  0%, 100% { background: transparent; }
+  50% { background: var(--color-up-bg); }
+}
+
+@keyframes flash-down {
+  0%, 100% { background: transparent; }
+  50% { background: var(--color-down-bg); }
+}
+
+.flash-up {
+  animation: flash-up 0.5s ease;
+}
+
+.flash-down {
+  animation: flash-down 0.5s ease;
+}
+
+/* 数字滚动动画 */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.count-animate {
+  animation: count-up 0.3s ease-out;
+}
+
+/* 图表容器 */
+.chart-container {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 16px;
+  
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  
+  .chart-tabs {
+    display: flex;
+    gap: 4px;
+    
+    .chart-tab {
+      padding: 6px 12px;
+      border-radius: 4px;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 13px;
+      transition: all 0.2s;
+      
+      &:hover {
+        color: var(--text-primary);
+        background: var(--bg-hover);
+      }
+      
+      &.active {
+        color: var(--color-primary);
+        background: var(--color-primary-bg);
+      }
+    }
+  }
+}
