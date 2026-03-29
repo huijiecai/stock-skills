@@ -1,16 +1,29 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
 import { Layout, Menu } from 'antd';
-import { DashboardOutlined, StockOutlined, AppstoreOutlined, BarChartOutlined, RobotOutlined, FireOutlined, TrophyOutlined, FundOutlined } from '@ant-design/icons';
-import Dashboard from './pages/Dashboard';
-import StockPool from './pages/StockPool';
+import { 
+  DashboardOutlined, 
+  StockOutlined, 
+  AppstoreOutlined, 
+  BarChartOutlined, 
+  RobotOutlined, 
+  FireOutlined, 
+  TrophyOutlined, 
+  FundOutlined,
+  EyeOutlined,
+  WalletOutlined,
+} from '@ant-design/icons';
+
+// 新页面
+import DashboardNew from './pages/DashboardNew';
+import LimitUp from './pages/LimitUp';
+import Ladder from './pages/Ladder';
+import ConceptRank from './pages/ConceptRank';
+import Simulation from './pages/Simulation';
+import Account from './pages/Account';
+
+// 保留页面
 import StockDetail from './pages/StockDetail';
-import ConceptManage from './pages/ConceptManage';
-import Analysis from './pages/Analysis';
-import ChatAnalysis from './pages/ChatAnalysis';
-import HotRank from './pages/HotRank';
-import LimitLadder from './pages/LimitLadder';
-import ConceptBoard from './pages/ConceptBoard';
 import ErrorBoundary from './components/ErrorBoundary';
 import './App.css';
 
@@ -24,39 +37,29 @@ function App() {
       label: <Link to="/">市场总览</Link>,
     },
     {
-      key: '/chat',
-      icon: <RobotOutlined />,
-      label: <Link to="/chat">AI智能分析</Link>,
-    },
-    {
-      key: '/hot-rank',
+      key: '/limit-up',
       icon: <FireOutlined />,
-      label: <Link to="/hot-rank">个股热榜</Link>,
+      label: <Link to="/limit-up">涨跌停监控</Link>,
     },
     {
-      key: '/limit-ladder',
+      key: '/ladder',
       icon: <TrophyOutlined />,
-      label: <Link to="/limit-ladder">连板天梯</Link>,
+      label: <Link to="/ladder">连板天梯</Link>,
     },
     {
-      key: '/concept-board',
+      key: '/concept-rank',
       icon: <FundOutlined />,
-      label: <Link to="/concept-board">概念板块</Link>,
+      label: <Link to="/concept-rank">板块排行</Link>,
     },
     {
-      key: '/stocks',
-      icon: <StockOutlined />,
-      label: <Link to="/stocks">股票池管理</Link>,
+      key: '/simulation',
+      icon: <EyeOutlined />,
+      label: <Link to="/simulation">模拟看盘</Link>,
     },
     {
-      key: '/concepts',
-      icon: <AppstoreOutlined />,
-      label: <Link to="/concepts">概念管理</Link>,
-    },
-    {
-      key: '/analysis',
-      icon: <BarChartOutlined />,
-      label: <Link to="/analysis">龙头分析</Link>,
+      key: '/account',
+      icon: <WalletOutlined />,
+      label: <Link to="/account">我的账户</Link>,
     },
   ];
 
@@ -66,7 +69,7 @@ function App() {
         <Layout style={{ minHeight: '100vh' }}>
           <Header className="header">
             <div className="logo">
-              <h1 style={{ color: '#fff', margin: 0 }}>龙头战法Web平台</h1>
+              <h1 style={{ color: '#fff', margin: 0 }}>龙头战法 Web 平台</h1>
             </div>
           </Header>
           <Layout>
@@ -78,25 +81,22 @@ function App() {
                 items={menuItems}
               />
             </Sider>
-            <Layout style={{ padding: '24px' }}>
+            <Layout style={{ padding: '0' }}>
               <Content
                 style={{
-                  padding: 24,
                   margin: 0,
                   minHeight: 280,
-                  background: '#fff',
+                  background: '#f0f2f5',
                 }}
               >
                 <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/chat" element={<ChatAnalysis />} />
-                  <Route path="/hot-rank" element={<HotRank />} />
-                  <Route path="/limit-ladder" element={<LimitLadder />} />
-                  <Route path="/concept-board" element={<ConceptBoard />} />
-                  <Route path="/stocks" element={<StockPool />} />
-                  <Route path="/stocks/:code" element={<StockDetail />} />
-                  <Route path="/concepts" element={<ConceptManage />} />
-                  <Route path="/analysis" element={<Analysis />} />
+                  <Route path="/" element={<DashboardNew />} />
+                  <Route path="/limit-up" element={<LimitUp />} />
+                  <Route path="/ladder" element={<Ladder />} />
+                  <Route path="/concept-rank" element={<ConceptRank />} />
+                  <Route path="/simulation" element={<Simulation />} />
+                  <Route path="/account" element={<Account />} />
+                  <Route path="/stock/:code" element={<StockDetail />} />
                 </Routes>
               </Content>
             </Layout>
