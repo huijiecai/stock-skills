@@ -507,23 +507,31 @@ class DataCollector:
     # ==================== 涨跌停数据采集 ====================
     
     async def collect_limit_list(self, date: str = None):
-        """采集涨跌停数据"""
+        """采集涨跌停数据 - 参考 fetch_tushare_data.py"""
         if not date:
             date = datetime.now().strftime("%Y-%m-%d")
         
         try:
             import tushare as ts
+            import tushare.pro.client as _client
+            
+            # 设置自定义域名（高积分用户）
+            tushare_domain = getattr(settings, 'TUSHARE_DOMAIN', 'http://tushare.xyz')
+            _client.DataApi._DataApi__http_url = tushare_domain
+            
             ts.set_token(self.tushare_token)
             pro = ts.pro_api()
             
-            # 获取涨停数据
-            df_up = pro.limit_list(trade_date=date.replace("-", ""), limit_type='U')
+            date_compact = date.replace("-", "")
+            
+            # 获取涨停数据 - 使用 limit_list_d
+            df_up = pro.limit_list_d(trade_date=date_compact, limit_type='U')
             if df_up is not None and len(df_up) > 0:
                 await self._save_limit_list(df_up, 'U')
                 logger.info(f"采集涨停数据: {len(df_up)} 条")
             
             # 获取跌停数据
-            df_down = pro.limit_list(trade_date=date.replace("-", ""), limit_type='D')
+            df_down = pro.limit_list_d(trade_date=date_compact, limit_type='D')
             if df_down is not None and len(df_down) > 0:
                 await self._save_limit_list(df_down, 'D')
                 logger.info(f"采集跌停数据: {len(df_down)} 条")
@@ -533,9 +541,30 @@ class DataCollector:
     
     async def _save_limit_list(self, df, limit_type: str):
         """保存涨跌停数据"""
+        from datetime import datetime as dt
         async with AsyncSessionLocal() as session:
             for _, row in df.iterrows():
                 try:
+                    # 转换日期格式 (tushare 返回 20260326 格式)
+                    trade_date_str = str(row.get("trade_date", ""))
+                    if len(trade_date_str) == 8:
+                        trade_date = dt.strptime(trade_date_str, "%Y%m%d").date()
+                    else:
+                        trade_date = trade_date_str
+                    
+                    # 解析 first_time (格式: 09:25:00 或 092500)
+                    first_time = row.get("first_time", None)
+                    if first_time:
+                        ft = str(first_time)
+                        if len(ft) == 6:
+                            first_time = f"{ft[:2]}:{ft[2:4]}:{ft[4:6]}"
+                    
+                    last_time = row.get("last_time", None)
+                    if last_time:
+                        lt = str(last_time)
+                        if len(lt) == 6:
+                            last_time = f"{lt[:2]}:{lt[2:4]}:{lt[4:6]}"
+                    
                     await session.execute(text("""
                         INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
                             close_price, change_pct, first_time, last_time, open_times, limit_times,
@@ -555,14 +584,14 @@ class DataCollector:
                             broken_time = EXCLUDED.broken_time,
                             reseal_time = EXCLUDED.reseal_time
                     """), {
-                        "trade_date": row.get("trade_date", ""),
+                        "trade_date": trade_date,
                         "stock_code": row.get("ts_code", "").split(".")[0],
                         "stock_name": row.get("name", ""),
                         "limit_type": limit_type,
                         "close_price": row.get("close", 0),
                         "change_pct": row.get("pct_chg", 0),
-                        "first_time": row.get("first_time", None),
-                        "last_time": row.get("last_time", None),
+                        "first_time": first_time,
+                        "last_time": last_time,
                         "open_times": row.get("open_times", 0),
                         "limit_times": row.get("limit_times", 1),
                         "limit_amount": row.get("limit_amount", 0),

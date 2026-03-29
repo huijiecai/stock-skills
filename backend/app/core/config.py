@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     
     # Tushare API 配置
     TUSHARE_TOKEN: str = ""
+    TUSHARE_DOMAIN: str = "http://tushare.xyz"
     
     # adata 缓存目录
     ADATA_CACHE_DIR: str = "/data/adata_cache"

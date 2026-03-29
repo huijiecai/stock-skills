@@ -46,8 +46,9 @@ logs/*.pid
 *.db-journal
 *.sqlite
 *.sqlite3
-**/data/*.db
-**/data/*.db-journal
+
+# Data directory (PostgreSQL data, exports, etc.)
+data/
 
 # Environment
 .env
