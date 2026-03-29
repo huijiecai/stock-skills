@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Table, DatePicker, Tabs, Tag, Spin, Typography, Pagination } from 'antd';
+import { Card, Table, DatePicker, Spin, Typography, Pagination } from 'antd';
 import { marketAPI } from '../services/api';
 import dayjs from 'dayjs';
 
@@ -7,9 +7,9 @@ const { Title } = Typography;
 
 const StockRanking = () => {
   const [loading, setLoading] = useState(false);
-  const [date, setDate] = useState(null); // 初始为null
-  const [sortType, setSortType] = useState('change_pct');
-  const [order, setOrder] = useState('desc');
+  const [date, setDate] = useState(null);
+  const [sortField, setSortField] = useState('change_pct');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [page, setPage] = useState(1);
   const [pageSize] = useState(20);
   const [data, setData] = useState([]);
@@ -34,15 +34,15 @@ const StockRanking = () => {
 
   useEffect(() => {
     if (date) loadData();
-  }, [date, sortType, order, page]);
+  }, [date, sortField, sortOrder, page]);
 
   const loadData = async () => {
     setLoading(true);
     try {
       const res = await marketAPI.getStockRanking({
         date,
-        sort: sortType,
-        order,
+        sort: sortField,
+        order: sortOrder,
         page,
         page_size: pageSize,
       });
@@ -57,20 +57,39 @@ const StockRanking = () => {
     }
   };
 
-  const handleTabChange = (key) => {
-    const tabConfig = {
-      up: { sort: 'change_pct', order: 'desc' },
-      down: { sort: 'change_pct', order: 'asc' },
-      amount: { sort: 'amount', order: 'desc' },
-      turnover: { sort: 'turnover_rate', order: 'desc' },
-    };
-    const config = tabConfig[key] || { sort: 'change_pct', order: 'desc' };
-    setSortType(config.sort);
-    setOrder(config.order);
-    setPage(1);
+  // 表格排序变化
+  const handleTableChange = (pagination, filters, sorter) => {
+    console.log('Table sorter:', sorter); // 调试
+    if (sorter && sorter.field) {
+      setSortField(sorter.field);
+      setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
+      setPage(1);
+    } else if (sorter && sorter.length > 0) {
+      // 多列排序情况
+      const first = sorter[0];
+      setSortField(first.field);
+      setSortOrder(first.order === 'ascend' ? 'asc' : 'desc');
+      setPage(1);
+    }
+  };
+
+  // 获取涨跌颜色
+  const getChangeColor = (value) => {
+    if (value > 0) return 'var(--color-up)';    // 涨 - 红色
+    if (value < 0) return 'var(--color-down)';  // 跌 - 绿色
+    return 'var(--text-muted)';                  // 平 - 灰色
   };
 
   const columns = [
+    {
+      title: '排名',
+      width: 60,
+      render: (_, __, idx) => (
+        <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
+          {(page - 1) * pageSize + idx + 1}
+        </span>
+      ),
+    },
     {
       title: '代码',
       dataIndex: 'stock_code',
@@ -92,8 +111,8 @@ const StockRanking = () => {
       dataIndex: 'close',
       width: 80,
       align: 'right',
-      render: (v) => (
-        <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
+      render: (v, r) => (
+        <span style={{ fontFamily: 'var(--font-mono)', color: getChangeColor(r.change_pct) }}>
           {v?.toFixed(2)}
         </span>
       ),
@@ -101,22 +120,23 @@ const StockRanking = () => {
     {
       title: '涨跌幅',
       dataIndex: 'change_pct',
-      width: 90,
+      width: 100,
       align: 'right',
-      render: (v) => {
-        const color = v >= 0 ? 'var(--color-up)' : 'var(--color-down)';
-        return (
-          <span style={{ fontFamily: 'var(--font-mono)', color, fontWeight: 500 }}>
-            {v >= 0 ? '+' : ''}{v?.toFixed(2)}%
-          </span>
-        );
-      },
+      sorter: true,
+      sortOrder: sortField === 'change_pct' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      render: (v) => (
+        <span style={{ fontFamily: 'var(--font-mono)', color: getChangeColor(v), fontWeight: 500 }}>
+          {v > 0 ? '+' : ''}{v?.toFixed(2)}%
+        </span>
+      ),
     },
     {
       title: '成交额',
       dataIndex: 'amount',
       width: 100,
       align: 'right',
+      sorter: true,
+      sortOrder: sortField === 'amount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
       render: (v) => (
         <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
           {(v / 1e8)?.toFixed(2)}亿
@@ -124,35 +144,16 @@ const StockRanking = () => {
       ),
     },
     {
-      title: '换手率',
-      dataIndex: 'turnover_rate',
-      width: 80,
+      title: '成交量',
+      dataIndex: 'volume',
+      width: 90,
       align: 'right',
       render: (v) => (
         <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-          {v?.toFixed(2)}%
+          {(v / 1e4)?.toFixed(0)}万
         </span>
       ),
     },
-    {
-      title: '所属概念',
-      dataIndex: 'concepts',
-      width: 200,
-      render: (concepts) => (
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-          {(concepts || []).slice(0, 3).map((c, idx) => (
-            <Tag key={idx} style={{ margin: 0, fontSize: 11 }}>{c}</Tag>
-          ))}
-        </div>
-      ),
-    },
-  ];
-
-  const tabItems = [
-    { key: 'up', label: '涨幅榜' },
-    { key: 'down', label: '跌幅榜' },
-    { key: 'amount', label: '成交额' },
-    { key: 'turnover', label: '换手率' },
   ];
 
   return (
@@ -161,22 +162,16 @@ const StockRanking = () => {
       <div style={{ marginBottom: 20, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Title level={3} style={{ margin: 0, color: 'var(--text-primary)' }}>个股排行</Title>
         <DatePicker 
-          value={dayjs(date)} 
-          onChange={(d) => setDate(d.format('YYYY-MM-DD'))}
+          value={date ? dayjs(date) : null}
+          onChange={(d) => {
+            setDate(d ? d.format('YYYY-MM-DD') : null);
+            setPage(1);
+          }}
           style={{ width: 160 }}
         />
       </div>
 
-      <Card bodyStyle={{ padding: 16 }}>
-        {/* Tab 切换 */}
-        <Tabs 
-          defaultActiveKey="up" 
-          items={tabItems}
-          onChange={handleTabChange}
-          style={{ marginBottom: 16 }}
-        />
-
-        {/* 表格 */}
+      <Card styles={{ body: { padding: 16 } }}>
         <Spin spinning={loading}>
           <Table
             columns={columns}
@@ -184,6 +179,7 @@ const StockRanking = () => {
             rowKey="stock_code"
             pagination={false}
             size="small"
+            onChange={handleTableChange}
           />
           {data.length === 0 && !loading && (
             <div className="empty-data">暂无数据</div>

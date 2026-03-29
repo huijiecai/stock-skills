@@ -62,6 +62,13 @@ const LimitUp = () => {
     }
   };
 
+  // 获取涨跌颜色
+  const getChangeColor = (value) => {
+    if (value > 0) return 'var(--color-up)';    // 涨 - 红色
+    if (value < 0) return 'var(--color-down)';  // 跌 - 绿色
+    return 'var(--text-muted)';                  // 平 - 灰色
+  };
+
   const getColumns = (type) => [
     {
       title: '代码',
@@ -84,14 +91,11 @@ const LimitUp = () => {
       dataIndex: 'change_pct',
       width: 90,
       align: 'right',
-      render: (v) => {
-        const color = v >= 0 ? 'var(--color-up)' : 'var(--color-down)';
-        return (
-          <span style={{ fontFamily: 'var(--font-mono)', color, fontWeight: 500 }}>
-            {v >= 0 ? '+' : ''}{v?.toFixed(2)}%
-          </span>
-        );
-      },
+      render: (v) => (
+        <span style={{ fontFamily: 'var(--font-mono)', color: getChangeColor(v), fontWeight: 500 }}>
+          {v > 0 ? '+' : ''}{v?.toFixed(2)}%
+        </span>
+      ),
     },
     {
       title: '连板',

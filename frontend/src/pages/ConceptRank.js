@@ -7,25 +7,31 @@ const { Title } = Typography;
 
 const ConceptRank = () => {
   const [loading, setLoading] = useState(true);
-  const [date, setDate] = useState(null); // 初始为null，由后端决定
+  const [date, setDate] = useState(null);
   const [conceptList, setConceptList] = useState([]);
   const [page, setPage] = useState(1);
+  const [sortField, setSortField] = useState('change_pct');
+  const [sortOrder, setSortOrder] = useState('desc');
   const [total, setTotal] = useState(0);
   const pageSize = 50;
 
   useEffect(() => {
     loadData();
-  }, [page]);
+  }, [page, sortField, sortOrder]);
 
   const loadData = async (selectedDate = null) => {
     setLoading(true);
     try {
-      // 如果用户选择了日期则传递，否则让后端自动选择最新日期
-      const res = await conceptAPI.getRank(selectedDate || date, 'change_pct', 'desc', page, pageSize);
+      const res = await conceptAPI.getRank(
+        selectedDate || date, 
+        sortField, 
+        sortOrder, 
+        page, 
+        pageSize
+      );
       if (res.code === 200) {
         setConceptList(res.data.items || []);
         setTotal(res.data.total || 0);
-        // 如果没有传日期，使用后端返回的日期
         if (!selectedDate && res.data.date) {
           setDate(res.data.date);
         }
@@ -37,12 +43,32 @@ const ConceptRank = () => {
     }
   };
 
+  // 表格排序变化
+  const handleTableChange = (pagination, filters, sorter) => {
+    if (sorter && sorter.field) {
+      setSortField(sorter.field);
+      setSortOrder(sorter.order === 'ascend' ? 'asc' : 'desc');
+      setPage(1);
+    } else if (sorter && sorter.length > 0) {
+      const first = sorter[0];
+      setSortField(first.field);
+      setSortOrder(first.order === 'ascend' ? 'asc' : 'desc');
+      setPage(1);
+    }
+  };
+
+  // 获取涨跌颜色
+  const getChangeColor = (value) => {
+    if (value > 0) return 'var(--color-up)';    // 涨 - 红色
+    if (value < 0) return 'var(--color-down)';  // 跌 - 绿色
+    return 'var(--text-muted)';                  // 平 - 灰色
+  };
+
   const columns = [
     {
       title: '排名',
-      dataIndex: 'rank',
       width: 60,
-      render: (v, _, idx) => (
+      render: (_, __, idx) => (
         <span style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)' }}>
           {(page - 1) * pageSize + idx + 1}
         </span>
@@ -66,20 +92,21 @@ const ConceptRank = () => {
       dataIndex: 'change_pct',
       width: 100,
       align: 'right',
-      render: (v) => {
-        const color = v >= 0 ? 'var(--color-up)' : 'var(--color-down)';
-        return (
-          <span style={{ fontFamily: 'var(--font-mono)', color, fontWeight: 500 }}>
-            {v >= 0 ? '+' : ''}{v?.toFixed(2)}%
-          </span>
-        );
-      },
+      sorter: true,
+      sortOrder: sortField === 'change_pct' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
+      render: (v) => (
+        <span style={{ fontFamily: 'var(--font-mono)', color: getChangeColor(v), fontWeight: 500 }}>
+          {v > 0 ? '+' : ''}{v?.toFixed(2)}%
+        </span>
+      ),
     },
     {
       title: '成交额',
       dataIndex: 'amount',
       width: 120,
       align: 'right',
+      sorter: true,
+      sortOrder: sortField === 'amount' ? (sortOrder === 'asc' ? 'ascend' : 'descend') : null,
       render: (v) => (
         <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--text-primary)' }}>
           {v > 100000000 ? `${(v / 100000000).toFixed(2)}亿` : `${(v / 10000).toFixed(0)}万`}
@@ -92,7 +119,7 @@ const ConceptRank = () => {
       width: 100,
       align: 'center',
       render: (v) => (
-        <span style={{ color: v > 0 ? 'var(--color-up)' : 'var(--text-muted)' }}>
+        <span style={{ color: v > 0 ? 'var(--color-up)' : 'var(--text-muted)', fontWeight: v > 0 ? 500 : 400 }}>
           {v || 0}
         </span>
       ),
@@ -114,7 +141,7 @@ const ConceptRank = () => {
         />
       </div>
 
-      <Card bodyStyle={{ padding: 16 }}>
+      <Card styles={{ body: { padding: 16 } }}>
         <Spin spinning={loading}>
           <Table
             columns={columns}
@@ -122,6 +149,7 @@ const ConceptRank = () => {
             rowKey="concept_code"
             pagination={false}
             size="small"
+            onChange={handleTableChange}
           />
           {conceptList.length === 0 && !loading && (
             <div className="empty-data">暂无板块数据</div>

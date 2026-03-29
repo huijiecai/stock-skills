@@ -17,11 +17,11 @@
   --text-secondary: #787B86;
   --text-muted: #5D606B;
   
-  /* 涨跌色 */
-  --color-up: #26A69A;
-  --color-up-bg: rgba(38, 166, 154, 0.15);
-  --color-down: #EF5350;
-  --color-down-bg: rgba(239, 83, 80, 0.15);
+  /* 涨跌色 - 涨红跌绿 */
+  --color-up: #EF5350;       /* 涨 - 红色 */
+  --color-up-bg: rgba(239, 83, 80, 0.15);
+  --color-down: #26A69A;     /* 跌 - 绿色 */
+  --color-down-bg: rgba(38, 166, 154, 0.15);
   --color-warn: #FFA726;
   --color-warn-bg: rgba(255, 167, 38, 0.15);
   
@@ -29,9 +29,9 @@
   --color-primary: #2962FF;
   --color-primary-bg: rgba(41, 98, 255, 0.15);
   
-  /* 发光效果 */
-  --glow-up: 0 0 20px rgba(38, 166, 154, 0.4);
-  --glow-down: 0 0 20px rgba(239, 83, 80, 0.4);
+  /* 发光效果 - 涨红跌绿 */
+  --glow-up: 0 0 20px rgba(239, 83, 80, 0.4);    /* 涨 - 红色发光 */
+  --glow-down: 0 0 20px rgba(38, 166, 154, 0.4);  /* 跌 - 绿色发光 */
   --glow-primary: 0 0 20px rgba(41, 98, 255, 0.4);
   
   /* 字体 */
@@ -158,6 +158,29 @@ body {
   color: var(--text-muted) !important;
 }
 
+/* 表格排序图标 */
+.ant-table-thead > tr > th .ant-table-column-sorter {
+  color: var(--text-muted) !important;
+}
+
+.ant-table-thead > tr > th.ant-table-column-sort {
+  background: var(--bg-tertiary) !important;
+}
+
+.ant-table-thead > tr > th .ant-table-column-sorter-up.active,
+.ant-table-thead > tr > th .ant-table-column-sorter-down.active {
+  color: var(--color-primary) !important;
+}
+
+/* 表格容器 */
+.ant-table-wrapper .ant-table-container {
+  background: transparent !important;
+}
+
+.ant-table-wrapper .ant-table-pagination.ant-pagination {
+  margin: 16px 0 0 !important;
+}
+
 /* 统计数字样式 */
 .ant-statistic {
   .ant-statistic-title {
@@ -246,6 +269,16 @@ body {
 /* Spin 加载 */
 .ant-spin-text {
   color: var(--text-secondary) !important;
+}
+
+.ant-spin-nested-loading > div > .ant-spin {
+  max-height: none !important;
+}
+
+.ant-spin-container.ant-spin-blur {
+  opacity: 0.5;
+  filter: none;
+  pointer-events: none;
 }
 
 /* Dropdown */
