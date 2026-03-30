@@ -2243,3 +2243,1662 @@
 2026-03-29 20:39:44 | INFO     | app.scheduler.jobs | 初始化定时任务...
 2026-03-29 20:39:44 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
 2026-03-29 20:39:44 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-03-30 09:08:29 | WARNING  | apscheduler.executors.default | Run time of job "update_concept_mapping (trigger: cron[day_of_week='mon', hour='9', minute='0'], next run at: 2026-04-06 09:00:00 CST)" was missed by 0:08:29.829523
+2026-03-30 19:30:00 | INFO     | app.scheduler.jobs | 开始采集日线数据...
+2026-03-30 19:30:09 | INFO     | app.services.data_collector | 批量采集股票日线 2026-03-30: 0 条
+2026-03-30 19:30:10 | ERROR    | app.services.data_collector | 采集指数日线失败 000001: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-03-30 19:30:10 | ERROR    | app.services.data_collector | 采集指数日线失败 399001: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-03-30 19:30:10 | ERROR    | app.services.data_collector | 采集指数日线失败 399006: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-03-30 19:30:10 | ERROR    | app.services.data_collector | 采集指数日线失败 000688: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-03-30 19:30:10 | INFO     | app.scheduler.jobs | ✅ 日线数据采集完成
+2026-03-30 19:35:00 | INFO     | app.scheduler.jobs | 开始采集分时数据...
+2026-03-30 19:35:00 | ERROR    | app.scheduler.jobs | ❌ 分时数据采集失败: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: for SELECT DISTINCT, ORDER BY expressions must appear in select list
+[SQL: 
+                SELECT DISTINCT stock_code FROM stock_daily 
+                WHERE trade_date = $1 
+                ORDER BY amount DESC LIMIT 100
+            ]
+[parameters: ('2026-03-30',)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-03-30 19:40:00 | INFO     | app.scheduler.jobs | 开始采集概念板块数据...
+2026-03-30 19:40:03 | INFO     | app.services.data_collector | 采集东方财富概念板块列表: 145 条
+2026-03-30 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK1071 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK0830 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK0637 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK0549 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK1637 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK1059 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK0999 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0707 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0612 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0611 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0610 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK1653 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0477 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:06 | WARNING  | app.services.data_collector | 采集概念 BK0896 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:06 | WARNING  | app.services.data_collector | 采集概念 BK0811 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0683 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0665 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0590 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0825 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0534 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0525 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1639 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1000 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK0499 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1648 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1155 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1090 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK1048 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK1029 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0989 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0951 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0917 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0854 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0960 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0920 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0900 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0891 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0802 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0700 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0588 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0574 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK0493 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK0742 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK0638 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK0536 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK1173 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK1092 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK1052 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:12 | WARNING  | app.services.data_collector | 采集概念 BK0988 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:12 | WARNING  | app.services.data_collector | 采集概念 BK0968 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-03-30 19:40:12 | INFO     | app.services.data_collector | 采集概念板块日线: 0 条
+2026-03-30 19:40:12 | INFO     | app.scheduler.jobs | ✅ 概念板块数据采集完成
+2026-03-30 19:45:00 | INFO     | app.scheduler.jobs | 开始采集涨跌停数据...
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:00:12' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000008', '神州高铁', 'U', 2.97, 10.0, '13:00:12', '13:20:45', 1, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '94036' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000048', '京基智农', 'U', 22.61, 10.02, '94036', '14:19:09', 12, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:05:33' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000592', '平潭发展', 'U', 11.62, 10.04, '10:05:33', '10:49:57', 9, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:42:27' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000753', '漳州发展', 'U', 7.21, 10.08, '13:42:27', '13:42:27', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93427' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000890', '法尔胜', 'U', 14.83, 10.01, '93427', '93445', 1, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:53:06' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '001400', '江顺科技', 'U', 164.1, 10.0, '10:53:06', '10:53:06', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93024' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002038', '双鹭药业', 'U', 7.27, 9.98, '93024', '14:55:42', 9, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '92500' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002160', '常铝股份', 'U', 5.49, 10.02, '92500', '92500', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '11:06:24' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002222', '福晶科技', 'U', 71.94, 10.0, '11:06:24', '11:06:24', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '11:28:21' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002309', '中利集团', 'U', 4.76, 9.93, '11:28:21', '13:48:42', 3, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:29:27' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002361', '神剑股份', 'U', 15.0, 9.97, '10:29:27', '10:29:27', 0, 3, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '95630' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002370', '亚太药业', 'U', 7.18, 9.95, '95630', '10:20:30', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:23:24' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002432', '九安医疗', 'U', 75.5, 9.99, '13:23:24', '14:22:15', 3, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93106' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002501', '利源股份', 'U', 2.04, 10.27, '93106', '94533', 5, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '92500' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002532', '天山铝业', 'U', 17.73, 9.99, '92500', '92500', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '92500' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002578', '闽发铝业', 'U', 4.26, 10.08, '92500', '92500', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:15:12' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002634', '棒杰股份', 'U', 8.13, 10.01, '13:15:12', '13:15:12', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '92500' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002675', '东诚药业', 'U', 14.48, 10.03, '92500', '92500', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93712' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002686', '亿利达', 'U', 7.89, 10.04, '93712', '93712', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '92500' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002810', '山东赫达', 'U', 22.9, 9.99, '92500', '95424', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93245' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002850', '科达利', 'U', 177.32, 10.0, '93245', '93245', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '95930' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '002980', '华盛昌', 'U', 43.78, 10.0, '95930', '95930', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:24:51' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '003036', '泰坦股份', 'U', 27.1, 9.98, '10:24:51', '11:11:12', 4, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93727' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '003042', '中农联合', 'U', 19.77, 10.02, '93727', '93727', 0, 2, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '11:11:57' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '300385', '雪浪环境', 'U', 19.82, 19.98, '11:11:57', '11:11:57', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:53:36' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '300900', '广联航空', 'U', 38.16, 20.0, '13:53:36', '14:31:15', 5, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '92500' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '301008', '宏昌科技', 'U', 35.24, 19.99, '92500', '93124', 1, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93432' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600127', '金健米业', 'U', 7.51, 9.96, '93432', '93432', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:19:28' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600135', '乐凯胶片', 'U', 11.06, 10.05, '13:19:28', '13:19:28', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '14:54:34' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600219', '南山铝业', 'U', 6.49, 10.0, '14:54:34', '14:54:34', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '94114' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600343', '航天动力', 'U', 32.58, 9.99, '94114', '95926', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:00:03' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600345', '长江通信', 'U', 43.23, 10.0, '13:00:03', '13:00:03', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:06:57' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600359', '新农开发', 'U', 7.65, 10.07, '10:06:57', '10:06:57', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '11:24:27' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600487', '亨通光电', 'U', 53.85, 10.01, '11:24:27', '11:24:27', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93103' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600488', '津药药业', 'U', 4.76, 9.93, '93103', '93954', 3, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93021' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600502', '安徽建工', 'U', 5.12, 10.11, '93021', '93021', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93345' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600513', '联环药业', 'U', 28.17, 10.0, '93345', '95803', 6, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:13:13' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600539', '狮头股份', 'U', 15.63, 9.99, '10:13:13', '14:27:01', 28, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:26:37' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600602', '云赛智联', 'U', 23.33, 10.0, '10:26:37', '10:35:31', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:30:27' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600724', '宁波富达', 'U', 6.39, 9.98, '13:30:27', '13:30:27', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:10:14' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600996', '贵广网络', 'U', 11.02, 9.98, '10:10:14', '10:16:50', 1, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93001' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '601068', '中铝国际', 'U', 6.28, 9.98, '93001', '93146', 1, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93004' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '601388', '怡球资源', 'U', 3.94, 10.06, '93004', '11:17:04', 1, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:00:10' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '601869', '长飞光纤', 'U', 301.69, 10.0, '13:00:10', '13:00:10', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:58:23' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603016', '新宏泰', 'U', 45.02, 9.99, '10:58:23', '10:58:23', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:31:01' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603017', '中衡设计', 'U', 15.76, 9.98, '10:31:01', '10:31:01', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '11:21:18' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603061', '金海通', 'U', 284.67, 10.0, '11:21:18', '11:21:18', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:44:00' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603122', '合富中国', 'U', 16.92, 10.01, '13:44:00', '13:44:42', 1, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:04:18' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603239', '浙江仙通', 'U', 23.46, 9.99, '13:04:18', '14:54:12', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '94729' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603256', '宏和科技', 'U', 72.14, 10.0, '94729', '11:12:41', 5, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:34:20' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603272', '联翔股份', 'U', 35.55, 9.99, '13:34:20', '14:46:20', 15, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:52:15' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603358', '华达科技', 'U', 33.33, 10.0, '13:52:15', '13:52:15', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93027' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603538', '美诺华', 'U', 43.1, 10.01, '93027', '93027', 0, 5, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '94003' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603585', '苏利股份', 'U', 22.81, 9.98, '94003', '94003', 0, 2, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '10:44:28' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603601', '再升科技', 'U', 14.5, 10.02, '10:44:28', '13:52:43', 30, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '93432' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603618', '杭电股份', 'U', 26.71, 10.01, '93432', '94947', 3, 2, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:10:10' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603716', '塞力医疗', 'U', 22.75, 10.01, '13:10:10', '13:10:10', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:12:45' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603778', '国晟科技', 'U', 25.3, 10.0, '13:12:45', '13:20:54', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '14:05:34' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '603897', '长城科技', 'U', 32.89, 10.0, '14:05:34', '14:05:34', 0, 1, None, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '13:33:30' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '605222', '起帆电缆', 'U', 22.36, 9.99, '13:33:30', '14:23:06', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '11:10:08' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '688677', '海泰新光', 'U', 47.83, 19.99, '11:10:08', '11:16:44', 1, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $7: '92503' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '688693', '锴威特', 'U', 54.9, 20.0, '92503', '94354', 2, 1, None, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | INFO     | app.services.data_collector | 采集涨停数据: 62 条
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '93451' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000639', '西王食品', 'D', 2.88, -10.0, None, '93451', 5, 1, 711960536.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '14:30:27' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000720', '新能泰山', 'D', 4.96, -9.98, None, '14:30:27', 12, 1, 216555921.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '93903' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000767', '晋控电力', 'D', 4.58, -10.02, None, '93903', 1, 1, 337303260.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '14:20:00' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000862', '银星能源', 'D', 7.14, -9.96, None, '14:20:00', 11, 1, 193923069.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '13:46:21' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '000966', '长源电力', 'D', 4.96, -9.98, None, '13:46:21', 7, 1, 182462083.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '13:03:36' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '001896', '豫能控股', 'D', 14.89, -9.98, None, '13:03:36', 10, 1, 3071065967.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '93835' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600396', '华电辽能', 'D', 8.09, -10.01, None, '93835', 1, 1, 9741192420.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '93950' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600726', '华电能源', 'D', 6.01, -10.03, None, '93950', 0, 1, 249073031.0, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '93918' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600758', '辽宁能源', 'D', 4.98, -9.95, None, '93918', 0, 2, 4708158357.0, False, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | WARNING  | app.services.data_collector | 保存涨跌停数据失败: (sqlalchemy.dialects.postgresql.asyncpg.Error) <class 'asyncpg.exceptions.DataError'>: invalid input for query argument $8: '13:47:20' ('str' object has no attribute 'hour')
+[SQL: 
+                        INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
+                            close_price, change_pct, first_time, last_time, open_times, limit_times,
+                            limit_amount, is_broken, broken_time, reseal_time)
+                        VALUES ($1, $2, $3, $4,
+                            $5, $6, $7, $8, $9, $10,
+                            $11, $12, $13, $14)
+                        ON CONFLICT (trade_date, stock_code, limit_type) DO UPDATE SET
+                            close_price = EXCLUDED.close_price,
+                            change_pct = EXCLUDED.change_pct,
+                            first_time = EXCLUDED.first_time,
+                            last_time = EXCLUDED.last_time,
+                            open_times = EXCLUDED.open_times,
+                            limit_times = EXCLUDED.limit_times,
+                            limit_amount = EXCLUDED.limit_amount,
+                            is_broken = EXCLUDED.is_broken,
+                            broken_time = EXCLUDED.broken_time,
+                            reseal_time = EXCLUDED.reseal_time
+                    ]
+[parameters: (datetime.date(2026, 3, 30), '600982', '宁波能源', 'D', 6.62, -9.93, None, '13:47:20', 17, 1, 313298628.0, True, None, None)]
+(Background on this error at: https://sqlalche.me/e/20/dbapi)
+2026-03-30 19:45:00 | INFO     | app.services.data_collector | 采集跌停数据: 10 条
+2026-03-30 19:45:00 | INFO     | app.scheduler.jobs | ✅ 涨跌停数据采集完成
