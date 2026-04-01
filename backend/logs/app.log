@@ -5164,3 +5164,76 @@
 (Background on this error at: https://sqlalche.me/e/20/dbapi)
 2026-03-31 19:45:01 | INFO     | app.services.data_collector | 采集跌停数据: 1 条
 2026-03-31 19:45:01 | INFO     | app.scheduler.jobs | ✅ 涨跌停数据采集完成
+2026-04-01 19:30:00 | INFO     | app.scheduler.jobs | 开始采集日线数据...
+2026-04-01 19:30:08 | INFO     | app.services.data_collector | 批量采集股票日线 2026-04-01: 0 条
+2026-04-01 19:30:09 | ERROR    | app.services.data_collector | 采集指数日线失败 000001: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-04-01 19:30:09 | ERROR    | app.services.data_collector | 采集指数日线失败 399001: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-04-01 19:30:09 | ERROR    | app.services.data_collector | 采集指数日线失败 399006: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-04-01 19:30:09 | ERROR    | app.services.data_collector | 采集指数日线失败 000688: dlsym(0x983fa830, mr_eval_context): symbol not found
+2026-04-01 19:30:09 | INFO     | app.scheduler.jobs | ✅ 日线数据采集完成
+2026-04-01 19:35:00 | INFO     | app.scheduler.jobs | 开始采集分时数据...
+2026-04-01 19:35:00 | ERROR    | app.scheduler.jobs | ❌ 分时数据采集失败: (sqlalchemy.dialects.postgresql.asyncpg.ProgrammingError) <class 'asyncpg.exceptions.InvalidColumnReferenceError'>: for SELECT DISTINCT, ORDER BY expressions must appear in select list
+[SQL: 
+                SELECT DISTINCT stock_code FROM stock_daily 
+                WHERE trade_date = $1 
+                ORDER BY amount DESC LIMIT 100
+            ]
+[parameters: ('2026-04-01',)]
+(Background on this error at: https://sqlalche.me/e/20/f405)
+2026-04-01 19:40:00 | INFO     | app.scheduler.jobs | 开始采集概念板块数据...
+2026-04-01 19:40:04 | INFO     | app.services.data_collector | 采集东方财富概念板块列表: 144 条
+2026-04-01 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK1071 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK0830 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK0637 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:04 | WARNING  | app.services.data_collector | 采集概念 BK0549 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK1637 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK1059 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0999 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0707 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0612 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0611 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:05 | WARNING  | app.services.data_collector | 采集概念 BK0610 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:06 | WARNING  | app.services.data_collector | 采集概念 BK1653 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:06 | WARNING  | app.services.data_collector | 采集概念 BK0477 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:06 | WARNING  | app.services.data_collector | 采集概念 BK0896 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:06 | WARNING  | app.services.data_collector | 采集概念 BK0811 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:06 | WARNING  | app.services.data_collector | 采集概念 BK0683 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0665 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0590 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0825 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0534 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK0525 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:07 | WARNING  | app.services.data_collector | 采集概念 BK1639 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1000 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK0499 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1648 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK1155 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK0722 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:08 | WARNING  | app.services.data_collector | 采集概念 BK0714 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0666 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0641 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK1629 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK1190 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK1135 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK1111 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:09 | WARNING  | app.services.data_collector | 采集概念 BK0447 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0940 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0800 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0711 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0696 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0634 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:10 | WARNING  | app.services.data_collector | 采集概念 BK0594 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK0524 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK1636 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK1633 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK0992 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:11 | WARNING  | app.services.data_collector | 采集概念 BK0945 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:12 | WARNING  | app.services.data_collector | 采集概念 BK0822 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:12 | WARNING  | app.services.data_collector | 采集概念 BK1146 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:12 | WARNING  | app.services.data_collector | 采集概念 BK1106 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:12 | WARNING  | app.services.data_collector | 采集概念 BK0862 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-01 19:40:12 | INFO     | app.services.data_collector | 采集概念板块日线: 0 条
+2026-04-01 19:40:12 | INFO     | app.scheduler.jobs | ✅ 概念板块数据采集完成
+2026-04-01 19:45:00 | INFO     | app.scheduler.jobs | 开始采集涨跌停数据...
+2026-04-01 19:45:30 | ERROR    | app.services.data_collector | 采集涨跌停数据失败: HTTPConnectionPool(host='tushare.xyz', port=80): Read timed out. (read timeout=30)
+2026-04-01 19:45:30 | INFO     | app.scheduler.jobs | ✅ 涨跌停数据采集完成
