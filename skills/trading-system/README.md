@@ -2,6 +2,7 @@
 
 > 核心：围绕预期做交易。形态只是确认预期的载体。
 > 不是量化公式，是投资者的思维框架。
+> 系统版本：v3.0（2026-04-06 升级）
 
 ---
 
@@ -11,7 +12,7 @@
 trading-system/
 ├── README.md                        ← 本文件
 ├── system/
-│   └── trading-system.md            ← 交易系统规则（v2.2）
+│   └── trading-system.md            ← 交易系统规则（v3.0）
 ├── tools/
 │   ├── fetch_adata_data.py         ← 数据采集工具（adata，免费）
 │   └── fetch_tushare_data.py        ← 数据采集工具（Tushare，历史数据）
