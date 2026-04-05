@@ -34,15 +34,15 @@ trading-system/
 
 ## 数据采集
 
-提供两个数据采集脚本：
+提供四个数据采集脚本：
 
-### 方案一：adata（推荐，免费无需注册）
+### 脚本一：adata（个股/指数/概念基础数据）
 
 `fetch_adata_data.py` 基于 adata，**免费、无需 token、支持当日分时**，适合模拟看盘场景。
 
 ```bash
 # 获取盯盘股今日全量数据（分时+日线+资金流向）
-python tools/fetch_adata_data.py --watch
+python tools/fetch_adata_data.py --watch 002192 000722 600726
 
 # 获取指定股票的分时数据
 python tools/fetch_adata_data.py --code 002192 --intraday
@@ -60,11 +60,11 @@ python tools/fetch_adata_data.py --realtime 002192 600519 000001
 # 获取资金流向
 python tools/fetch_adata_data.py --capital 002192
 
-# 获取今日全量数据（盯盘股+指数）
-python tools/fetch_adata_data.py --all
+# 获取概念板块数据
+python tools/fetch_adata_data.py --concept BK0612 --daily
 ```
 
-### 方案二：Tushare（历史数据）
+### 脚本二：Tushare（涨停/历史分时）
 
 `fetch_tushare_data.py` 基于 Tushare，支持**历史分钟线**和涨停数据，需要积分。
 
@@ -72,18 +72,82 @@ python tools/fetch_adata_data.py --all
 # 设置 Tushare Token（一次性）
 export TUSHARE_TOKEN='your_token'
 
-# 采集融捷股份日线+分钟数据
-python tools/fetch_tushare_data.py --code 002192 --days 30 --intraday
-
-# 指定日期+5分钟频率
-python tools/fetch_tushare_data.py --code 002192 --start 2026-03-01 --end 2026-03-27 --intraday --freq 5min
-
 # 采集涨停数据
-python tools/fetch_tushare_data.py --limit-up --date 2026-03-27
+python tools/fetch_tushare_data.py --limit-up --date 2026-04-03
 
-# 采集指数日线（上证/深成/创业板）
-python tools/fetch_tushare_data.py --code 000001 --days 60 --index
+# 采集跌停数据
+python tools/fetch_tushare_data.py --limit-up --date 2026-04-03 --type D
+
+# 采集历史分钟数据
+python tools/fetch_tushare_data.py --code 002192 --start 2026-03-01 --end 2026-03-27 --intraday
 ```
+
+### 脚本三：市场情绪指标（新增）
+
+`fetch_market_sentiment.py` 基于 Tushare limit_list_d，采集每日市场情绪数据。
+
+```bash
+# 采集指定日期的市场情绪
+python tools/fetch_market_sentiment.py --date 2026-04-03
+
+# 采集最近5天的情绪数据
+python tools/fetch_market_sentiment.py --days 5
+```
+
+**采集内容**:
+- 涨停数/跌停数
+- 首板涨停/连板涨停
+- 最高连板数
+- 连板分布（5板/4板/3板/2板/1板）
+- 涨停股详情（代码、名称、首封时间、炸板次数）
+
+**数据保存**: `data/market_sentiment/YYYY-MM-DD.json` + `summary.json`
+
+### 脚本四：概念板块排行（新增）
+
+`fetch_concept_rank.py` 基于东方财富，采集概念板块涨幅排行。
+
+```bash
+# 获取概念板块涨幅Top50
+python tools/fetch_concept_rank.py --top 50
+
+# 获取概念板块跌幅Bottom50
+python tools/fetch_concept_rank.py --top 50 --order desc
+
+# 保存排行数据
+python tools/fetch_concept_rank.py --top 50 --save
+```
+
+**采集内容**:
+- 概念板块涨幅排行
+- 概念板块跌幅排行
+- 板块成交额
+
+**数据保存**: `data/concept_rank/YYYY-MM-DD_up.json` + `YYYY-MM-DD_down.json`
+
+### 脚本五：盘后一键采集（新增）
+
+`collect_daily_data.py` 整合以上所有功能，每日盘后一键执行。
+
+```bash
+# 采集今天的全量数据
+python tools/collect_daily_data.py
+
+# 采集指定日期
+python tools/collect_daily_data.py --date 2026-04-03
+
+# 只采集市场情绪
+python tools/collect_daily_data.py --sentiment-only
+
+# 只采集概念排行
+python tools/collect_daily_data.py --concept-rank-only
+```
+
+**采集流程**:
+1. 市场情绪指标（涨停/跌停/连板）
+2. 概念板块涨幅/跌幅排行
+3. 盯盘股数据（分时+日线+资金流向）
+4. 指数数据（分时+日线）
 
 ### 环境变量（Tushare）
 

@@ -286,25 +286,44 @@ def fetch_limit_list(date: str, limit_type: str = 'U') -> list:
 
 # ─── 保存 ──────────────────────────────────────────────────────────
 
-def save_data(code: str, data_type: str, data):
-    """保存数据到本地 JSON 文件"""
-    if isinstance(data, list):
-        # 涨停跌停等列表数据，不合并
-        save_dir = DATA_DIR / code
-        save_dir.mkdir(parents=True, exist_ok=True)
-        filepath = save_dir / f"{data_type}.json"
-    else:
-        save_dir = DATA_DIR / code
-        save_dir.mkdir(parents=True, exist_ok=True)
-        filepath = save_dir / f"{data_type}.json"
+def save_data(code: str, data_type: str, data, category: str = None):
+    """保存数据到本地 JSON 文件
+    
+    Args:
+        code: 代码
+        data_type: 数据类型
+        data: 数据内容
+        category: 数据分类（stocks/indices/concepts/limit_list）
+    """
+    # 自动推断分类
+    if category is None:
+        if code.startswith('limit-'):
+            category = 'limit_list'
+            # limit_list 直接保存文件，不建子目录
+            save_dir = DATA_DIR / category
+            save_dir.mkdir(parents=True, exist_ok=True)
+            filepath = save_dir / f"{code}.json"
+            with open(filepath, 'w', encoding='utf-8') as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+            return filepath
+        elif code.startswith(('000', '399', '899')):
+            category = 'indices'
+        elif code.startswith(('BK', '886')):
+            category = 'concepts'
+        else:
+            category = 'stocks'
+    
+    save_dir = DATA_DIR / category / code
+    save_dir.mkdir(parents=True, exist_ok=True)
+    filepath = save_dir / f"{data_type}.json"
 
-        # 日线/分时数据，合并已有文件
-        if filepath.exists():
-            with open(filepath, 'r', encoding='utf-8') as f:
-                existing = json.load(f)
-            if isinstance(existing, dict) and isinstance(data, dict):
-                existing.update(data)
-                data = existing
+    # 日线/分时数据，合并已有文件
+    if isinstance(data, dict) and filepath.exists():
+        with open(filepath, 'r', encoding='utf-8') as f:
+            existing = json.load(f)
+        if isinstance(existing, dict):
+            existing.update(data)
+            data = existing
 
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
@@ -336,7 +355,7 @@ def fetch_all(date: str, watchlist: list, indices: list):
     print(f"\n🔴 涨停数据...")
     up_list = fetch_limit_list(date, 'U')
     if up_list:
-        fp = save_data(f"limit-up-{date.replace('-', '')}", 'limit_up', up_list)
+        fp = save_data(f"{date.replace('-', '')}_up", 'limit_up', up_list, category='limit_list')
         print(f"✅ 涨停 {len(up_list)} 只 → {fp}")
     else:
         print("⚠️ 无涨停数据")
@@ -345,7 +364,7 @@ def fetch_all(date: str, watchlist: list, indices: list):
     print(f"\n🟢 跌停数据...")
     down_list = fetch_limit_list(date, 'D')
     if down_list:
-        fp = save_data(f"limit-down-{date.replace('-', '')}", 'limit_down', down_list)
+        fp = save_data(f"{date.replace('-', '')}_down", 'limit_down', down_list, category='limit_list')
         print(f"✅ 跌停 {len(down_list)} 只 → {fp}")
     else:
         print("⚠️ 无跌停数据")

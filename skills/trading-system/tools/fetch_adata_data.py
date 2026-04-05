@@ -465,9 +465,25 @@ def fetch_concept_intraday(index_code: str) -> dict:
 
 # ─── 保存函数 ───────────────────────────────────────────────────────────
 
-def save_data(code: str, data_type: str, data):
-    """保存数据到本地 JSON 文件"""
-    save_dir = DATA_DIR / code
+def save_data(code: str, data_type: str, data, category: str = None):
+    """保存数据到本地 JSON 文件
+    
+    Args:
+        code: 代码（股票代码/指数代码/概念代码）
+        data_type: 数据类型（daily/intraday_1min等）
+        data: 数据内容
+        category: 数据分类（stocks/indices/concepts），自动推断
+    """
+    # 自动推断分类
+    if category is None:
+        if code.startswith(('000', '399', '899')):
+            category = 'indices'
+        elif code.startswith(('BK', '886')):
+            category = 'concepts'
+        else:
+            category = 'stocks'
+    
+    save_dir = DATA_DIR / category / code
     save_dir.mkdir(parents=True, exist_ok=True)
     filepath = save_dir / f"{data_type}.json"
 
@@ -660,7 +676,7 @@ def main():
             for d in data[:10]:
                 print(f"  {d['stock_code']}: {d['short_name']}")
             # 保存到概念目录
-            fp = save_data(f'concept_{concept_code}', 'constituents', data)
+            fp = save_data(concept_code, 'constituents', data, category='concepts')
             print(f"✅ 已保存 → {fp}")
         else:
             print("  ⚠️ 无数据")
@@ -729,7 +745,7 @@ def main():
         if args.intraday:
             data = fetch_concept_intraday(index_code)
             if data:
-                fp = save_data(f'concept_{index_code}', 'intraday_1min', data)
+                fp = save_data(index_code, 'intraday_1min', data, category='concepts')
                 total = sum(len(v) for v in data.values())
                 date = list(data.keys())[0]
                 print(f"✅ 分时: {total} 条 ({date}) → {fp}")
@@ -739,7 +755,7 @@ def main():
         if args.daily:
             data = fetch_concept_daily(index_code)
             if data:
-                fp = save_data(f'concept_{index_code}', 'daily', data)
+                fp = save_data(index_code, 'daily', data, category='concepts')
                 print(f"✅ 日线: {len(data)} 天 → {fp}")
             else:
                 print("⚠️ 无数据")
@@ -749,12 +765,12 @@ def main():
             intraday = fetch_concept_intraday(index_code)
             daily = fetch_concept_daily(index_code)
             if intraday:
-                fp = save_data(f'concept_{index_code}', 'intraday_1min', intraday)
+                fp = save_data(index_code, 'intraday_1min', intraday, category='concepts')
                 total = sum(len(v) for v in intraday.values())
                 date = list(intraday.keys())[0]
                 print(f"✅ 分时: {total} 条 ({date}) → {fp}")
             if daily:
-                fp = save_data(f'concept_{index_code}', 'daily', daily)
+                fp = save_data(index_code, 'daily', daily, category='concepts')
                 print(f"✅ 日线: {len(daily)} 天 → {fp}")
 
         return
