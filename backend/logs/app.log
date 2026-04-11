@@ -8984,3 +8984,122 @@
 2026-04-12 01:24:02 | INFO     | app.scheduler.jobs | 初始化定时任务...
 2026-04-12 01:24:02 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
 2026-04-12 01:24:02 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:31:12 | INFO     | app.services.data_collector | 批量采集股票日线 2026-04-12: 0 条
+2026-04-12 01:31:12 | ERROR    | app.services.data_collector | 采集指数日线失败 000001: dlsym(0x87c85b70, mr_eval_context): symbol not found
+2026-04-12 01:31:12 | ERROR    | app.services.data_collector | 采集指数日线失败 399001: dlsym(0x87c85b70, mr_eval_context): symbol not found
+2026-04-12 01:31:12 | ERROR    | app.services.data_collector | 采集指数日线失败 399006: dlsym(0x87c85b70, mr_eval_context): symbol not found
+2026-04-12 01:31:12 | ERROR    | app.services.data_collector | 采集指数日线失败 000688: dlsym(0x87c85b70, mr_eval_context): symbol not found
+2026-04-12 01:31:12 | INFO     | app.services.data_collector | 使用最近交易日: 2026-03-27
+2026-04-12 01:33:13 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:33:13 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:33:13 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:33:13 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:33:13 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:33:27 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:33:39 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:33:39 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:33:39 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:33:39 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:34:21 | INFO     | app.services.data_collector | 批量采集股票日线 2026-04-12: 0 条
+2026-04-12 01:34:21 | ERROR    | app.services.data_collector | 采集指数日线失败 000001: dlsym(0x86449b70, mr_eval_context): symbol not found
+2026-04-12 01:34:21 | ERROR    | app.services.data_collector | 采集指数日线失败 399001: dlsym(0x86449b70, mr_eval_context): symbol not found
+2026-04-12 01:34:21 | ERROR    | app.services.data_collector | 采集指数日线失败 399006: dlsym(0x86449b70, mr_eval_context): symbol not found
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集指数日线失败 000688: dlsym(0x86449b70, mr_eval_context): symbol not found
+2026-04-12 01:34:22 | INFO     | app.services.data_collector | 使用最近交易日: 2026-03-27
+2026-04-12 01:34:22 | INFO     | app.services.data_collector | 开始采集 99 只活跃股票的分时数据
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 300750: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 601899: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 002594: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 300014: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600276: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 601318: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600519: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 601138: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 601012: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600111: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 300059: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600703: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600690: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 601857: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600547: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 000333: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600030: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600309: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 601398: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集股票分时失败 600183: 'str' object cannot be interpreted as an integer
+2026-04-12 01:34:22 | ERROR    | app.services.data_collector | 采集指数分时失败: dlsym(0x86449b70, mr_eval_context): symbol not found
+2026-04-12 01:34:22 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:34:23 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:34:23 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:34:23 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:34:23 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:36:52 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:36:52 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:36:52 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:36:52 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:36:52 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:37:21 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:37:21 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:37:21 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:37:21 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:37:21 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:37:32 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:37:45 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:37:45 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:37:45 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:37:45 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:37:53 | INFO     | app.services.data_collector | 使用最近交易日: 2026-03-27
+2026-04-12 01:37:53 | INFO     | app.services.data_collector | 开始采集 99 只活跃股票的分时数据
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 300750: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 601899: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 002594: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 300014: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600276: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 601318: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600519: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 601138: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 601012: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600111: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 300059: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600703: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600690: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 601857: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600547: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 000333: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600030: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600309: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 601398: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集股票分时失败 600183: StockMarket.get_market_min() got an unexpected keyword argument 'code'
+2026-04-12 01:37:53 | ERROR    | app.services.data_collector | 采集指数分时失败: dlsym(0x8188db70, mr_eval_context): symbol not found
+2026-04-12 01:39:28 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:39:28 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:39:28 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:39:28 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:39:28 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:39:38 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:39:51 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:39:51 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:39:51 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:39:51 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:41:34 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:41:34 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:41:34 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:41:34 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:41:34 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:41:42 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:41:56 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:41:56 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:41:56 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:41:56 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:42:03 | INFO     | app.services.data_collector | 开始采集 99 只活跃股票的分时数据
+2026-04-12 01:43:46 | ERROR    | app.services.data_collector | 采集指数分时失败: dlsym(0x85f5db70, mr_eval_context): symbol not found
+2026-04-12 01:59:38 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:59:38 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:59:38 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:59:38 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:59:38 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:59:39 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:59:39 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:59:39 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:59:39 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:59:39 | INFO     | app.main | ✅ 定时任务调度器已启动

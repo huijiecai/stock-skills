@@ -239,30 +239,60 @@ class DataCollector:
         if not latest_date:
             logger.warning("数据库中无交易日数据，无法采集分时")
             return
-            
+        
+        # 确保是字符串格式
         latest_date_str = str(latest_date)
         logger.info(f"使用最近交易日: {latest_date_str}")
         
-        await self.collect_stock_intraday_batch(latest_date_str)
+        # 转换为date对象用于数据库查询
+        from datetime import datetime
+        if isinstance(latest_date, str):
+            latest_date_obj = datetime.strptime(latest_date, "%Y-%m-%d").date()
+        else:
+            latest_date_obj = latest_date
+        
+        await self.collect_stock_intraday_batch(latest_date_obj)
         await self.collect_index_intraday_batch(latest_date_str)
     
-    async def collect_stock_intraday(self, stock_code: str, date: str):
+    async def collect_stock_intraday(self, stock_code: str, date):
         """采集股票分时"""
         try:
             import adata
+            from datetime import date as date_type
+            
+            # 统一转换为字符串
+            if isinstance(date, date_type):
+                date_str = date.strftime("%Y-%m-%d")
+            else:
+                date_str = str(date)
+            
+            # adata需要紧凑格式: 20260327
+            date_compact = date_str.replace("-", "")
+            
             df = adata.stock.market.get_market_min(
-                code=stock_code,
-                start_date=date.replace("-", ""),
-                end_date=date.replace("-", "")
+                stock_code=stock_code,
             )
             if df is not None and len(df) > 0:
-                await self._save_stock_intraday(df)
-                logger.info(f"采集股票分时 {stock_code}: {len(df)} 条")
+                await self._save_stock_intraday(df, date_str)
+                logger.info(f"采集股票分时 {stock_code} {date_str}: {len(df)} 条")
         except Exception as e:
             logger.error(f"采集股票分时失败 {stock_code}: {e}")
     
-    async def collect_stock_intraday_batch(self, date: str):
+    async def collect_stock_intraday_batch(self, date):
         """批量采集股票分时"""
+        from datetime import datetime, date as date_type
+        
+        # 统一转换为date对象用于数据库查询
+        if isinstance(date, str):
+            date_obj = datetime.strptime(date, "%Y-%m-%d").date()
+            date_str = date
+        elif isinstance(date, date_type):
+            date_obj = date
+            date_str = date.strftime("%Y-%m-%d")
+        else:
+            date_obj = date
+            date_str = str(date)
+        
         # 从数据库获取活跃股票列表
         async with AsyncSessionLocal() as session:
             result = await session.execute(text("""
@@ -272,23 +302,26 @@ class DataCollector:
                 GROUP BY stock_code
                 ORDER BY max_amount DESC 
                 LIMIT 100
-            """), {"date": date})
+            """), {"date": date_obj})
             stocks = [row[0] for row in result.fetchall()]
         
         if not stocks:
-            logger.warning(f"日期 {date} 无股票数据")
+            logger.warning(f"日期 {date_str} 无股票数据")
             return
             
         logger.info(f"开始采集 {len(stocks)} 只活跃股票的分时数据")
         
         for stock_code in stocks[:20]:  # 只采集前20只活跃股票
-            await self.collect_stock_intraday(stock_code, date)
+            await self.collect_stock_intraday(stock_code, date_str)
     
-    async def _save_stock_intraday(self, df):
+    async def _save_stock_intraday(self, df, date: str = None):
         """保存股票分时数据"""
         async with AsyncSessionLocal() as session:
             for _, row in df.iterrows():
                 try:
+                    # 使用传入的date或从数据中获取
+                    trade_date = date or row.get("trade_date", "")
+                    
                     await session.execute(text("""
                         INSERT INTO stock_intraday (trade_date, stock_code, trade_time, price, 
                             change_pct, volume, amount, avg_price)
@@ -301,7 +334,7 @@ class DataCollector:
                             amount = EXCLUDED.amount,
                             avg_price = EXCLUDED.avg_price
                     """), {
-                        "trade_date": row.get("trade_date", ""),
+                        "trade_date": trade_date,
                         "stock_code": row.get("stock_code", ""),
                         "trade_time": row.get("trade_time", "00:00:00"),
                         "price": row.get("price", 0),
