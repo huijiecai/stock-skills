@@ -404,6 +404,8 @@ class DataCollector:
     
     async def collect_concept_daily(self, date: str):
         """采集概念板块日线 - 参考 fetch_adata_data.py"""
+        import time
+        
         try:
             import adata
             from datetime import datetime as dt
@@ -419,14 +421,35 @@ class DataCollector:
             
             target_date = dt.strptime(date, "%Y-%m-%d").date()
             total = 0
+            failed = 0
             
-            for concept_code in concepts:
+            for idx, concept_code in enumerate(concepts):
                 try:
-                    # 东方财富概念日线
-                    df = adata.stock.market.get_market_concept_east(
-                        index_code=concept_code,
-                        k_type=1,
-                    )
+                    # 添加请求间隔，避免被限流
+                    if idx > 0:
+                        time.sleep(0.5)
+                    
+                    # 东方财富概念日线 - 添加重试机制
+                    max_retries = 3
+                    df = None
+                    for retry in range(max_retries):
+                        try:
+                            df = adata.stock.market.get_market_concept_east(
+                                index_code=concept_code,
+                                k_type=1,
+                            )
+                            if df is not None and not df.empty:
+                                break
+                            else:
+                                logger.debug(f"概念 {concept_code} 返回空数据，重试 {retry + 1}/{max_retries}")
+                                time.sleep(1)
+                        except Exception as e:
+                            if retry < max_retries - 1:
+                                logger.warning(f"概念 {concept_code} 第 {retry + 1} 次尝试失败: {e}")
+                                time.sleep(2)  # 重试前等待更长时间
+                            else:
+                                raise
+                    
                     if df is None or df.empty:
                         continue
                     
@@ -444,9 +467,10 @@ class DataCollector:
                         await self._save_concept_daily(pd.DataFrame(filtered_rows))
                         total += len(filtered_rows)
                 except Exception as e:
+                    failed += 1
                     logger.warning(f"采集概念 {concept_code} 失败: {e}")
             
-            logger.info(f"采集概念板块日线: {total} 条")
+            logger.info(f"采集概念板块日线: 成功 {total} 条, 失败 {failed} 个")
         except Exception as e:
             logger.error(f"采集概念板块日线失败: {e}")
     

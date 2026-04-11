@@ -117,6 +117,12 @@ export interface ConceptRank extends ConceptInfo {
   leading_stock?: string;
 }
 
+export interface ConceptRankResponse {
+  date: string;
+  items: ConceptRank[];
+  total: number;
+}
+
 // ==================== 市场数据 ====================
 
 export interface MarketSnapshot {

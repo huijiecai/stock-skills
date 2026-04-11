@@ -3,7 +3,7 @@ import { Card, Table, Spin, Pagination, Typography } from 'antd';
 import { conceptAPI } from '../services/api';
 import { DateSelector } from '../components';
 import dayjs from 'dayjs';
-import type { ConceptRank as ConceptRankType } from '../types';
+import type { ConceptRank as ConceptRankType, ConceptRankResponse } from '../types';
 import type { SortOrder } from 'antd/es/table/interface';
 
 const { Title } = Typography;
@@ -26,8 +26,9 @@ const ConceptRank: React.FC = () => {
     const initDate = async () => {
       try {
         const res = await conceptAPI.getRank(undefined, 'change_pct', 'desc', 1, 1);
-        if (res.code === 200 && res.data) {
-          setDate(dayjs().format('YYYY-MM-DD'));
+        if (res.code === 200 && res.data && res.data.date) {
+          // 使用后端返回的实际数据日期
+          setDate(res.data.date);
         } else {
           setDate(dayjs().format('YYYY-MM-DD'));
         }

@@ -12,6 +12,7 @@ import {
   ConceptInfo,
   ConceptDaily,
   ConceptRank,
+  ConceptRankResponse,
   MarketSnapshot,
   LimitUpStock,
   ContinuousBoard,
@@ -100,7 +101,7 @@ export const conceptAPI = {
     order?: string, 
     page?: number, 
     pageSize?: number
-  ): Promise<APIResponse<PaginatedResponse<ConceptRank>>> => 
+  ): Promise<APIResponse<ConceptRankResponse>> => 
     api.get('/concept/rank', {
       params: { date, sort_by: sortBy, order, page, page_size: pageSize }
     }),
