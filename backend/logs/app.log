@@ -8895,3 +8895,92 @@
 2026-04-12 01:03:00 | WARNING  | app.services.data_collector | 概念 BK1636 第 2 次尝试失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
 2026-04-12 01:03:02 | WARNING  | app.services.data_collector | 采集概念 BK1636 失败: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
 2026-04-12 01:03:02 | INFO     | app.services.data_collector | 采集概念板块日线: 成功 0 条, 失败 50 个
+2026-04-12 01:09:55 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0549: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:55 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1662: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:55 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1661: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:55 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1059: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:55 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0999: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:56 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0707: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:56 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0612: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:56 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0610: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:56 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1653: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:57 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0811: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:57 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0683: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:57 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0665: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:57 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0590: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:57 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0825: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:57 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0534: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0525: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1639: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1000: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0499: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1648: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1155: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1665: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:58 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1637: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1633: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1136: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0722: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0714: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0666: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0641: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1629: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:09:59 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1190: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1135: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1111: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0447: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0940: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0800: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0711: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0696: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:00 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0634: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:01 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0594: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:01 | WARNING  | app.services.data_collector | 更新概念映射失败 BK0524: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:01 | WARNING  | app.services.data_collector | 更新概念映射失败 BK1636: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))
+2026-04-12 01:10:01 | INFO     | app.services.data_collector | 概念成分股映射更新完成
+2026-04-12 01:11:59 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:11:59 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:11:59 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:11:59 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:11:59 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:12:13 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:12:30 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:12:30 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:12:30 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:12:30 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:14:22 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:14:23 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:14:23 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:14:23 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:14:23 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:14:50 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:15:03 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:15:03 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:15:03 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:15:03 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:17:07 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:17:08 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:17:08 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:17:08 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:17:08 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:17:17 | INFO     | app.services.data_collector | 使用最近交易日: 2026-03-27
+2026-04-12 01:17:18 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:17:31 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:17:31 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:17:31 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:17:31 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:19:05 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:19:05 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:19:05 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:19:05 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:19:05 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:24:00 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:24:00 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:24:00 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:24:00 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:24:00 | INFO     | app.main | ✅ 定时任务调度器已启动
+2026-04-12 01:24:02 | INFO     | app.main | 👋 龙头战法Web平台已关闭
+2026-04-12 01:24:02 | INFO     | app.main | 🚀 龙头战法Web平台启动中...
+2026-04-12 01:24:02 | INFO     | app.scheduler.jobs | 初始化定时任务...
+2026-04-12 01:24:02 | INFO     | app.scheduler.jobs | ✅ 定时任务初始化完成
+2026-04-12 01:24:02 | INFO     | app.main | ✅ 定时任务调度器已启动

@@ -229,9 +229,22 @@ class DataCollector:
     
     async def collect_all_intraday(self):
         """采集所有分时数据"""
-        today = datetime.now().strftime("%Y-%m-%d")
-        await self.collect_stock_intraday_batch(today)
-        await self.collect_index_intraday_batch(today)
+        # 获取最近交易日（使用stock_daily表中的最新日期）
+        async with AsyncSessionLocal() as session:
+            result = await session.execute(text("""
+                SELECT MAX(trade_date) FROM stock_daily
+            """))
+            latest_date = result.scalar()
+            
+        if not latest_date:
+            logger.warning("数据库中无交易日数据，无法采集分时")
+            return
+            
+        latest_date_str = str(latest_date)
+        logger.info(f"使用最近交易日: {latest_date_str}")
+        
+        await self.collect_stock_intraday_batch(latest_date_str)
+        await self.collect_index_intraday_batch(latest_date_str)
     
     async def collect_stock_intraday(self, stock_code: str, date: str):
         """采集股票分时"""
@@ -253,11 +266,20 @@ class DataCollector:
         # 从数据库获取活跃股票列表
         async with AsyncSessionLocal() as session:
             result = await session.execute(text("""
-                SELECT DISTINCT stock_code FROM stock_daily 
+                SELECT stock_code, MAX(amount) as max_amount
+                FROM stock_daily 
                 WHERE trade_date = :date 
-                ORDER BY amount DESC LIMIT 100
+                GROUP BY stock_code
+                ORDER BY max_amount DESC 
+                LIMIT 100
             """), {"date": date})
             stocks = [row[0] for row in result.fetchall()]
+        
+        if not stocks:
+            logger.warning(f"日期 {date} 无股票数据")
+            return
+            
+        logger.info(f"开始采集 {len(stocks)} 只活跃股票的分时数据")
         
         for stock_code in stocks[:20]:  # 只采集前20只活跃股票
             await self.collect_stock_intraday(stock_code, date)

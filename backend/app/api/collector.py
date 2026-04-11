@@ -35,13 +35,15 @@ async def trigger_intraday_collection(
     date: Optional[str] = Query(None, description="日期"),
 ):
     """触发分时数据采集"""
-    if not date:
-        date = datetime.now().strftime("%Y-%m-%d")
-    
-    background_tasks.add_task(data_collector.collect_stock_intraday_batch, date)
-    background_tasks.add_task(data_collector.collect_index_intraday_batch, date)
-    
-    return success_response(message=f"已触发 {date} 分时数据采集")
+    if date:
+        # 如果指定了日期,直接采集该日期的分时
+        background_tasks.add_task(data_collector.collect_stock_intraday_batch, date)
+        background_tasks.add_task(data_collector.collect_index_intraday_batch, date)
+        return success_response(message=f"已触发 {date} 分时数据采集")
+    else:
+        # 未指定日期,自动使用最近交易日
+        background_tasks.add_task(data_collector.collect_all_intraday)
+        return success_response(message="已触发分时数据采集(使用最近交易日)")
 
 
 @router.post("/trigger/concept")
