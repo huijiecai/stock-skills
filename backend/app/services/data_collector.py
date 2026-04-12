@@ -671,6 +671,19 @@ class DataCollector:
                         if len(lt) == 6:
                             last_time = f"{lt[:2]}:{lt[2:4]}:{lt[4:6]}"
                     
+                    # 解析 broken_time 和 reseal_time
+                    broken_time = row.get("broken_time", None)
+                    if broken_time:
+                        bt = str(broken_time)
+                        if len(bt) == 6:
+                            broken_time = f"{bt[:2]}:{bt[2:4]}:{bt[4:6]}"
+                    
+                    reseal_time = row.get("reseal_time", None)
+                    if reseal_time:
+                        rt = str(reseal_time)
+                        if len(rt) == 6:
+                            reseal_time = f"{rt[:2]}:{rt[2:4]}:{rt[4:6]}"
+                    
                     await session.execute(text("""
                         INSERT INTO limit_list (trade_date, stock_code, stock_name, limit_type,
                             close_price, change_pct, first_time, last_time, open_times, limit_times,
@@ -702,8 +715,8 @@ class DataCollector:
                         "limit_times": row.get("limit_times", 1),
                         "limit_amount": row.get("limit_amount", 0),
                         "is_broken": row.get("open_times", 0) > 0,
-                        "broken_time": None,
-                        "reseal_time": None,
+                        "broken_time": broken_time,
+                        "reseal_time": reseal_time,
                     })
                 except Exception as e:
                     logger.warning(f"保存涨跌停数据失败: {e}")

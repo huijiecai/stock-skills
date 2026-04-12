@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Card, Table, Spin, Pagination, Typography } from 'antd';
-import { conceptAPI } from '../services/api';
+import { useNavigate } from 'react-router-dom';
+import { conceptAPI, marketAPI } from '../services/api';
 import { DateSelector } from '../components';
 import dayjs from 'dayjs';
 import type { ConceptRank as ConceptRankType, ConceptRankResponse } from '../types';
@@ -9,6 +10,7 @@ import type { SortOrder } from 'antd/es/table/interface';
 const { Title } = Typography;
 
 const ConceptRank: React.FC = () => {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [date, setDate] = useState<string>('');
   const [conceptList, setConceptList] = useState<ConceptRankType[]>([]);
@@ -25,9 +27,20 @@ const ConceptRank: React.FC = () => {
   useEffect(() => {
     const initDate = async () => {
       try {
+        // 优先使用最新交易日
+        const tradeDateRes = await marketAPI.getLatestTradeDate();
+        if (tradeDateRes.code === 200 && tradeDateRes.data) {
+          setDate(tradeDateRes.data.date);
+          return;
+        }
+      } catch {
+        console.log('获取最新交易日失败');
+      }
+      
+      try {
+        // 备用: 从概念数据获取
         const res = await conceptAPI.getRank(undefined, 'change_pct', 'desc', 1, 1);
         if (res.code === 200 && res.data && res.data.date) {
-          // 使用后端返回的实际数据日期
           setDate(res.data.date);
         } else {
           setDate(dayjs().format('YYYY-MM-DD'));
@@ -90,8 +103,9 @@ const ConceptRank: React.FC = () => {
       width: 150,
       render: (v: string, r: ConceptRankType) => (
         <a 
-          href={`/concept/${r.concept_code}`} 
-          style={{ color: 'var(--color-primary)' }}
+          onClick={(e) => { e.preventDefault(); navigate(`/concept/${r.concept_code}`); }}
+          href={`/concept/${r.concept_code}`}
+          style={{ color: 'var(--color-primary)', cursor: 'pointer' }}
         >
           {v}
         </a>

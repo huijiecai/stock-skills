@@ -13,6 +13,7 @@ import {
   ConceptDaily,
   ConceptRank,
   ConceptRankResponse,
+  ConceptComponentsResponse,
   MarketSnapshot,
   LimitUpStock,
   ContinuousBoard,
@@ -92,7 +93,7 @@ export const conceptAPI = {
   getIntraday: (code: string, date?: string): Promise<APIResponse<any>> => 
     api.get(`/concept/intraday/${code}`, { params: { date } }),
   
-  getComponents: (code: string): Promise<APIResponse<{ items: any[] }>> => 
+  getComponents: (code: string): Promise<APIResponse<ConceptComponentsResponse>> =>
     api.get(`/concept/components/${code}`),
   
   getRank: (

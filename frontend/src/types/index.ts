@@ -123,6 +123,18 @@ export interface ConceptRankResponse {
   total: number;
 }
 
+export interface ConceptComponentItem {
+  stock_code: string;
+  stock_name: string;
+  is_core: boolean;
+  reason?: string;
+}
+
+export interface ConceptComponentsResponse {
+  concept_code: string;
+  items: ConceptComponentItem[];
+}
+
 // ==================== 市场数据 ====================
 
 export interface MarketSnapshot {

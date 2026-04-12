@@ -14,6 +14,7 @@ import {
 import DashboardNew from './pages/DashboardNew';
 import StockRanking from './pages/StockRanking';
 import ConceptRank from './pages/ConceptRank';
+import ConceptDetail from './pages/ConceptDetail';
 import Ladder from './pages/Ladder';
 import LimitUp from './pages/LimitUp';
 import StockDetail from './pages/StockDetail';
@@ -86,6 +87,7 @@ const AppContent: React.FC = () => {
               <Route path="/" element={<DashboardNew />} />
               <Route path="/stock-ranking" element={<StockRanking />} />
               <Route path="/concept-rank" element={<ConceptRank />} />
+              <Route path="/concept/:code" element={<ConceptDetail />} />
               <Route path="/ladder" element={<Ladder />} />
               <Route path="/limit-up" element={<LimitUp />} />
               <Route path="/stock/:code" element={<StockDetail />} />
