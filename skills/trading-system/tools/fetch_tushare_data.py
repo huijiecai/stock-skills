@@ -284,6 +284,157 @@ def fetch_limit_list(date: str, limit_type: str = 'U') -> list:
     return result
 
 
+# ─── 概念enrichment ──────────────────────────────────────────────
+
+# 噪音概念黑名单：标签型/地域型/过于宽泛的概念，不代表市场真实炒作方向
+CONCEPT_BLACKLIST = {
+    # 政策/结构标签
+    '央国企改革', '一带一路', '乡村振兴', '碳中和', '专精特新',
+    '国企改革', '混改', '举牌', '股权转让', '资产重组',
+    # 地域标签
+    '西部大开发', '深圳特区', '长三角一体化', '粤港澳大湾区',
+    '京津冀一体化', '海南自贸区', '雄安新区', '成渝经济圈',
+    '福建自贸区', '上海自贸区',
+    # 过于宽泛
+    '新材料', '新能源', '节能环保', '大数据', '物联网',
+    '智慧城市', '创投', '知识产权', '高送转', '次新股',
+    '独角兽', '壳资源', '摘帽', 'ST板块', '参股新三板',
+    # 金融属性
+    '融资融券', '沪股通', '深股通', '标普道琼斯A股',
+    'MSCI概念', '富时罗素概念', '转债标的', '参股金融',
+    '参股券商', '参股银行', '参股保险',
+    # 行业过于宽泛（不是具体方向）
+    '军工', '医药',
+}
+
+
+def enrich_limit_concepts(limit_list: list, date: str, limit_type: str = 'U') -> dict:
+    """
+    为涨停/跌停股票补充概念标签，并生成概念聚合统计
+    使用 adata（免费）获取每只股票的东方财富概念
+    
+    Args:
+        limit_list: 涨停/跌停股票列表
+        date: 日期
+        limit_type: 'U'=涨停, 'D'=跌停
+    
+    Returns: {
+        'date': '2026-04-16',
+        'type': 'limit_up',
+        'total': 79,
+        'concept_summary': [
+            {'concept': '算力租赁', 'concept_code': 'BK1234', 'count': 11, 'stocks': [...]},
+            ...
+        ],
+        'enriched_stocks': [原始数据 + concepts字段]
+    }
+    """
+    try:
+        import adata
+    except ImportError:
+        print("  ⚠️ adata 未安装，跳过概念enrichment")
+        return {}
+    
+    label = '涨停' if limit_type == 'U' else '跌停'
+    total = len(limit_list)
+    print(f"\n🏷️  概念enrichment: 为 {total} 只{label}股获取概念标签...")
+    
+    # 概念计数器: {concept_name: {code, stocks: [{code, name}]}}
+    concept_counter = {}
+    enriched = []
+    success = 0
+    
+    for i, stock in enumerate(limit_list):
+        ts_code = stock.get('code', '')
+        # 从 ts_code 提取6位代码: 002192.SZ -> 002192
+        stock_code = ts_code.split('.')[0] if '.' in ts_code else ts_code
+        stock_name = stock.get('name', '')
+        
+        try:
+            # 使用 adata 获取股票所属概念
+            df = adata.stock.info.get_concept_east(stock_code=stock_code)
+            concepts = []
+            if df is not None and not df.empty:
+                for _, row in df.iterrows():
+                    ccode = str(row.get('concept_code', ''))
+                    cname = str(row.get('name', ''))
+                    if ccode and cname:
+                        concepts.append({'code': ccode, 'name': cname})
+                        # 累加到概念计数器
+                        if cname not in concept_counter:
+                            concept_counter[cname] = {
+                                'concept_code': ccode,
+                                'stocks': []
+                            }
+                        concept_counter[cname]['stocks'].append({
+                            'code': ts_code,
+                            'name': stock_name,
+                            'pct_chg': stock.get('pct_chg', 0),
+                        })
+            
+            stock_enriched = dict(stock)
+            stock_enriched['concepts'] = concepts
+            enriched.append(stock_enriched)
+            success += 1
+            
+            # 进度显示（每10只）
+            if (i + 1) % 10 == 0:
+                print(f"  📋 进度: {i+1}/{total} ({success} 成功)")
+            
+            # 控制请求频率，避免被限流
+            if i < total - 1:
+                time.sleep(0.3)
+                
+        except Exception as e:
+            # 失败时保留原始数据，不中断
+            stock_enriched = dict(stock)
+            stock_enriched['concepts'] = []
+            enriched.append(stock_enriched)
+            if 'timed out' not in str(e).lower():
+                print(f"  ⚠️ {stock_code}({stock_name}) 概念获取失败: {e}")
+    
+    print(f"  ✅ 概念获取完成: {success}/{total} 成功")
+    
+    # 生成概念聚合统计（过滤噪音概念，按涨停数降序）
+    concept_summary = []
+    filtered_out = []
+    for cname, info in concept_counter.items():
+        item = {
+            'concept': cname,
+            'concept_code': info['concept_code'],
+            'count': len(info['stocks']),
+            'stocks': info['stocks'],
+        }
+        if cname in CONCEPT_BLACKLIST:
+            filtered_out.append(item)
+        else:
+            concept_summary.append(item)
+    concept_summary.sort(key=lambda x: x['count'], reverse=True)
+    filtered_out.sort(key=lambda x: x['count'], reverse=True)
+    
+    if filtered_out:
+        print(f"  🚫 过滤噪音概念: {len(filtered_out)} 个（{', '.join(f['concept'] for f in filtered_out[:5])}...)") 
+    
+    # 打印TOP概念
+    print(f"\n📊 概念{label}统计 TOP15（已过滤噪音概念）:")
+    for item in concept_summary[:15]:
+        stock_names = [s['name'] for s in item['stocks'][:5]]
+        suffix = f" +{len(item['stocks'])-5}只" if len(item['stocks']) > 5 else ""
+        print(f"  {item['concept']:12s} {item['count']:3d}只  {', '.join(stock_names)}{suffix}")
+    
+    result = {
+        'date': date,
+        'type': 'limit_up' if limit_type == 'U' else 'limit_down',
+        'total': total,
+        'enriched_count': success,
+        'concept_summary': concept_summary,
+        'filtered_concepts': filtered_out,
+        'enriched_stocks': enriched,
+    }
+    
+    return result
+
+
 # ─── 保存 ──────────────────────────────────────────────────────────
 
 def save_data(code: str, data_type: str, data, category: str = None):
@@ -450,6 +601,7 @@ def main():
     parser.add_argument('--watchlist', type=str, nargs='+', help='股票列表（用于 --all）')
     parser.add_argument('--indices', type=str, nargs='+', help='指数列表（用于 --all）')
     parser.add_argument('--is-index', action='store_true', help='指定代码为指数')
+    parser.add_argument('--no-enrich', action='store_true', help='跳过涨停概念enrichment')
 
     args = parser.parse_args()
 
@@ -473,6 +625,17 @@ def main():
             tag = 'limit-up' if args.type == 'U' else 'limit-down'
             filepath = save_data(f"{tag}-{args.date.replace('-', '')}", f'limit_{args.type.lower()}', data)
             print(f"✅ {label} {len(data)} 只 → {filepath}")
+            
+            # 自动进行概念enrichment
+            if not args.no_enrich:
+                enriched = enrich_limit_concepts(data, args.date, args.type)
+                if enriched:
+                    # 保存概念聚合统计
+                    summary_file = f"{tag}-concepts-{args.date.replace('-', '')}"
+                    fp = save_data(summary_file, f'concepts', enriched, category='limit_list')
+                    print(f"✅ 概念统计 → {fp}")
+            else:
+                print("⏭️ 跳过概念enrichment (--no-enrich)")
         else:
             print("⚠️ 无数据")
         return
