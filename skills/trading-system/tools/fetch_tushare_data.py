@@ -284,6 +284,228 @@ def fetch_limit_list(date: str, limit_type: str = 'U') -> list:
     return result
 
 
+# ─── 业绩公告/披露日程 ──────────────────────────────────────────
+
+def fetch_disclosure_schedule(end_date: str, pre_date: str = None, actual_date: str = None) -> list:
+    """
+    获取财报披露日程（谁在哪天披露）
+    
+    Args:
+        end_date: 报告期（如20260331=Q1, 20251231=年报）
+        pre_date: 预计披露日期（如20260428=查4/28预约披露的公司）
+        actual_date: 实际披露日期
+    
+    Returns: [{ts_code, ann_date, end_date, pre_date, actual_date}, ...]
+    """
+    pro = get_pro()
+    
+    params = {'end_date': end_date.replace('-', '')}
+    if pre_date:
+        params['pre_date'] = pre_date.replace('-', '')
+    if actual_date:
+        params['actual_date'] = actual_date.replace('-', '')
+    
+    try:
+        df = pro.disclosure_date(**params)
+        if df is None or df.empty:
+            return []
+        
+        result = []
+        for _, row in df.iterrows():
+            ts_code = row.get('ts_code', '')
+            code = ts_code.split('.')[0] if '.' in ts_code else ts_code
+            result.append({
+                'ts_code': ts_code,
+                'code': code,
+                'ann_date': str(row.get('ann_date', '') or ''),
+                'end_date': str(row.get('end_date', '') or ''),
+                'pre_date': str(row.get('pre_date', '') or ''),
+                'actual_date': str(row.get('actual_date', '') or ''),
+            })
+        return result
+    except Exception as e:
+        print(f"  ❌ 披露日程获取失败: {e}")
+        return []
+
+
+def fetch_express_vip(period: str, ann_date: str = None) -> list:
+    """
+    批量获取业绩快报（需5000积分）
+    
+    Args:
+        period: 报告期（如20260331=2026Q1）
+        ann_date: 公告日期（筛选某日公告的快报）
+    
+    Returns: [{ts_code, code, name, ann_date, revenue, n_income, yoy_sales, yoy_dedu_np, ...}, ...]
+    """
+    pro = get_pro()
+    period_compact = period.replace('-', '')
+    
+    try:
+        params = {
+            'period': period_compact,
+            'fields': 'ts_code,ann_date,end_date,revenue,operate_profit,total_profit,'
+                      'n_income,yoy_sales,yoy_op,yoy_tp,yoy_dedu_np,perf_summary'
+        }
+        df = pro.express_vip(**params)
+        
+        if df is None or df.empty:
+            return []
+        
+        # 如果指定了ann_date，过滤
+        if ann_date:
+            ann_compact = ann_date.replace('-', '')
+            df = df[df['ann_date'] == ann_compact]
+        
+        result = []
+        for _, row in df.iterrows():
+            ts_code = row.get('ts_code', '')
+            code = ts_code.split('.')[0] if '.' in ts_code else ts_code
+            
+            revenue = row.get('revenue')
+            n_income = row.get('n_income')
+            yoy_sales = row.get('yoy_sales')
+            yoy_np = row.get('yoy_dedu_np')
+            
+            result.append({
+                'ts_code': ts_code,
+                'code': code,
+                'ann_date': str(row.get('ann_date', '') or ''),
+                'revenue': float(revenue) / 1e8 if revenue else None,  # 转为亿元
+                'n_income': float(n_income) / 1e8 if n_income else None,  # 转为亿元
+                'yoy_sales': float(yoy_sales) if yoy_sales else None,  # 营收同比%
+                'yoy_dedu_np': float(yoy_np) if yoy_np else None,  # 扣非净利同比%
+                'perf_summary': str(row.get('perf_summary', '') or ''),
+            })
+        
+        # 按净利同比降序排列
+        result.sort(key=lambda x: abs(x.get('yoy_dedu_np') or 0), reverse=True)
+        return result
+    except Exception as e:
+        print(f"  ❌ 业绩快报批量获取失败: {e}")
+        return []
+
+
+def fetch_income_by_period(period: str) -> list:
+    """
+    批量获取利润表数据（income_vip，需5000积分）
+    获取指定报告期所有已披露的利润表
+    
+    Args:
+        period: 报告期（如20260331=2026Q1）
+    
+    Returns: [{ts_code, code, ann_date, revenue, n_income, ...}, ...]
+    """
+    pro = get_pro()
+    period_compact = period.replace('-', '')
+    
+    try:
+        df = pro.income_vip(
+            period=period_compact,
+            fields='ts_code,ann_date,end_date,revenue,n_income,n_income_attr_p'
+        )
+        
+        if df is None or df.empty:
+            return []
+        
+        result = []
+        for _, row in df.iterrows():
+            ts_code = row.get('ts_code', '')
+            code = ts_code.split('.')[0] if '.' in ts_code else ts_code
+            
+            revenue = row.get('revenue')
+            n_income = row.get('n_income_attr_p') or row.get('n_income')
+            
+            result.append({
+                'ts_code': ts_code,
+                'code': code,
+                'ann_date': str(row.get('ann_date', '') or ''),
+                'revenue': float(revenue) / 1e8 if revenue else None,
+                'n_income': float(n_income) / 1e8 if n_income else None,
+            })
+        return result
+    except Exception as e:
+        print(f"  ❌ 利润表批量获取失败: {e}")
+        return []
+
+
+def fetch_earnings_for_premarket(last_trade_date: str, today_date: str, period: str = None) -> dict:
+    """
+    盘前分析专用：一键获取业绩披露全景
+    
+    1. 昨晚实际披露的一季报/年报（actual_date=昨日）
+    2. 今日预约披露的一季报/年报（pre_date=今日）
+    3. 已披露的业绩快报数据（含营收/净利/同比）
+    
+    Args:
+        last_trade_date: 上个交易日（如2026-04-27）
+        today_date: 今日（如2026-04-28）
+        period: 报告期（默认自动推断当前季度，如20260331）
+    
+    Returns: {
+        'disclosed_yesterday': [...],  # 昨晚已披露
+        'scheduled_today': [...],  # 今日将披露
+        'express_data': [...],  # 业绩快报数据
+        'period': '20260331'
+    }
+    """
+    from datetime import datetime as dt
+    
+    if not period:
+        # 自动推断：4-7月查Q1(0331)，7-10月查半年报(0630)，以此类推
+        month = dt.now().month
+        year = dt.now().year
+        if month <= 4:
+            period = f"{year}0331"  # Q1
+        elif month <= 8:
+            period = f"{year}0630"  # 半年报
+        elif month <= 10:
+            period = f"{year}0930"  # 三季报
+        else:
+            period = f"{year}1231"  # 年报
+    
+    result = {
+        'period': period,
+        'disclosed_yesterday': [],
+        'scheduled_today': [],
+        'express_data': [],
+    }
+    
+    # 1. 昨晚实际披露
+    print(f"  📋 查询 {last_trade_date} 实际披露...")
+    yesterday_list = fetch_disclosure_schedule(period, actual_date=last_trade_date)
+    result['disclosed_yesterday'] = yesterday_list
+    print(f"  ✅ 昨日披露 {len(yesterday_list)} 家")
+    
+    time.sleep(0.3)
+    
+    # 2. 今日预约披露
+    print(f"  📋 查询 {today_date} 预约披露...")
+    today_list = fetch_disclosure_schedule(period, pre_date=today_date)
+    result['scheduled_today'] = today_list
+    print(f"  ✅ 今日预约 {len(today_list)} 家")
+    
+    time.sleep(0.3)
+    
+    # 3. 尝试获取业绩快报
+    print(f"  📋 查询 {period} 业绩快报...")
+    express = fetch_express_vip(period)
+    result['express_data'] = express
+    print(f"  ✅ 业绩快报 {len(express)} 家")
+    
+    # 4. 年报也查一下（Q1季报期间年报也在密集披露）
+    year = period[:4]
+    annual_period = f"{int(year)-1}1231"  # 上年年报
+    
+    print(f"  📋 查询 {today_date} 年报预约披露...")
+    annual_today = fetch_disclosure_schedule(annual_period, pre_date=today_date)
+    if annual_today:
+        print(f"  ✅ 今日年报预约 {len(annual_today)} 家")
+        result['annual_scheduled_today'] = annual_today
+    
+    return result
+
+
 # ─── 概念enrichment ──────────────────────────────────────────────
 
 # 噪音概念黑名单：标签型/地域型/过于宽泛的概念，不代表市场真实炒作方向

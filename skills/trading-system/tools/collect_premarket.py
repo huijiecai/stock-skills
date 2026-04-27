@@ -172,6 +172,45 @@ def collect_indices(codes: list) -> bool:
         return False
 
 
+def collect_earnings(date: str, next_date: str) -> bool:
+    """采集业绩公告披露日程 + 业绩快报
+    
+    自动拉取：
+    1. date晚间实际披露的一季报/年报（昨晚已披露）
+    2. next_date预约披露的一季报/年报（今日将披露）
+    3. 已有的业绩快报数据（含营收/净利/同比）
+    
+    数据保存到 data/earnings/ 目录
+    """
+    try:
+        from fetch_tushare_data import fetch_earnings_for_premarket, save_data
+        
+        print(f"  📋 采集业绩披露日程: {date}(昨晚) → {next_date}(今日)...")
+        data = fetch_earnings_for_premarket(date, next_date)
+        
+        if data:
+            tag = f"earnings-{next_date.replace('-', '')}"
+            save_data(tag, 'earnings', data, category='earnings')
+            
+            # 汇总输出
+            yesterday = len(data.get('disclosed_yesterday', []))
+            today = len(data.get('scheduled_today', []))
+            express = len(data.get('express_data', []))
+            print(f"  ✅ 昨晚披露 {yesterday} 家 | 今日预约 {today} 家 | 快报 {express} 家")
+            
+            # 输出今日重点关注的预约披露
+            scheduled = data.get('scheduled_today', [])
+            if scheduled:
+                print(f"  📌 今日将披露({len(scheduled)}家):")
+                for item in scheduled[:20]:  # 最多显示20家
+                    print(f"     {item['code']} | 预约{item['pre_date']}")
+        
+        return True
+    except Exception as e:
+        print(f"  ❌ 业绩公告采集失败: {e}")
+        return False
+
+
 def collect_intraday(codes: list, date: str) -> bool:
     """采集指定个股的1min分时数据（Tushare）"""
     try:
@@ -223,6 +262,10 @@ def main():
     parser.add_argument('--indices', type=str, nargs='+',
                         default=['000001', '399001', '399006'],
                         help='指数列表（默认：上证/深成/创业板）')
+    parser.add_argument('--next-date', type=str, default=None,
+                        help='下一个交易日（用于业绩披露日程，默认自动推算）')
+    parser.add_argument('--no-earnings', action='store_true',
+                        help='跳过业绩公告采集')
     parser.add_argument('--limit-only', action='store_true',
                         help='只采集涨跌停数据（最快）')
     parser.add_argument('--no-enrich', action='store_true',
@@ -249,11 +292,23 @@ def main():
     
     results = {}
     
+    # 推算next_date（如果未指定）
+    if not args.next_date:
+        from datetime import timedelta as td
+        d = datetime.strptime(args.date, '%Y-%m-%d')
+        # 简单推算：周五→下周一，其他→次日
+        if d.weekday() == 4:  # 周五
+            args.next_date = (d + td(days=3)).strftime('%Y-%m-%d')
+        else:
+            args.next_date = (d + td(days=1)).strftime('%Y-%m-%d')
+    
     # 计算总步骤数
     if args.limit_only:
         total_steps = 2
     else:
         total_steps = 2  # 涨停+跌停
+        if not args.no_earnings:
+            total_steps += 1
         if not args.no_sentiment:
             total_steps += 1
         if not args.no_rank:
@@ -280,7 +335,13 @@ def main():
         # 提前结束
         pass
     else:
-        # ─── 3. 市场情绪 ───
+        # ─── 3. 业绩公告披露 ───
+        if not args.no_earnings:
+            current += 1
+            step(current, total_steps, f"业绩公告披露日程 | {args.date} → {args.next_date}")
+            results['业绩'] = collect_earnings(args.date, args.next_date)
+        
+        # ─── 4. 市场情绪 ───
         if not args.no_sentiment:
             current += 1
             step(current, total_steps, f"市场情绪指标 | {args.date}")
