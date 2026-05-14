@@ -12,14 +12,24 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 - 管理虚拟交易账户（portfolio.md）
 - 所有判断必须基于数据，禁止凭印象
 
-**系统规则文件**：`system/trading-system.md`（v3.8）
+**系统规则文件**：`system/trading-system.md`（v3.9）
 **模板文件**：`system/templates.md`
 **账户文件**：`account/portfolio.md`
+**预期追踪面板**：`expectations/tracker.md`
 **首板筛选**：见下方「首板核心筛选方法论」
 
 ---
 
 ## 红线规则（违反任何一条 = 系统性错误）
+
+### R8：预期必须前置研究（v3.9新增）
+
+**盘前分析识别的方向，必须在 tracker 中完成标的预研后才能进入交易预案。**
+
+- 禁止"盘中发现→临时找标的→买入"（除非通过L038三维确认且标的在主板且用统一框架评估达标）
+- 每个进入交易预案的预期方向，必须能在 tracker 中找到对应的核心标的预研记录
+- tracker 中标的预研必须包含：正宗度理由、产业链位置、市值量级
+- 盘中感知发现的新方向，执行统一预期判断框架四个问题 → 达标后补充入 tracker
 
 ### R1：禁止编造数据
 
@@ -95,6 +105,7 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 ### 阶段一：数据准备（写任何分析之前）
 
 ```
+□ 读取 expectations/tracker.md → 了解当前跟踪中的所有预期及核心标的
 □ 读取 data/limit_list/limit-up-YYYYMMDD.json → 提取全部涨停股明细
 □ 读取 data/limit_list/limit-up-concepts-YYYYMMDD/concepts.json → 概念排名TOP15
 □ 读取 data/limit_list/limit-up-YYYYMM(DD-1).json → 检查T-1日先行信号
@@ -148,8 +159,9 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 
 | 文件 | 用途 | 何时读取 |
 |------|------|---------|
-| `system/trading-system.md` | 交易系统完整规则（v3.6） | 需要查规则时 |
+| `system/trading-system.md` | 交易系统完整规则（v3.9） | 需要查规则时 |
 | `system/templates.md` | 每日文件模板（含数据核验+三维重评+主板筛选） | 写模拟看盘/盘前分析前 |
+| `expectations/tracker.md` | 预期追踪面板（跨日持久化） | 盘前分析/模拟看盘前必读 |
 | `account/portfolio.md` | 虚拟交易账户 | 任何涉及持仓/买卖时 |
 | `daily/YYYY-MM-DD/盘前分析.md` | 当日盘前分析 | 写模拟看盘时（获取催化清单） |
 | `data/limit_list/limit-up-YYYYMMDD.json` | 涨停数据 | 写模拟看盘时（必须先读） |
