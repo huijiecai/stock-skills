@@ -12,8 +12,8 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 - 管理虚拟交易账户（portfolio.md）
 - 所有判断必须基于数据，禁止凭印象
 
-**系统规则文件**：`system/trading-system.md`（v3.9）
-**模板文件**：`system/templates.md`
+**系统规则文件**：`system/trading-system.md`（v3.10）
+**模板文件**：`system/templates.md`（v3.10）
 **账户文件**：`account/portfolio.md`
 **预期追踪面板**：`expectations/tracker.md`
 **首板筛选**：见下方「首板核心筛选方法论」
@@ -159,8 +159,8 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 
 | 文件 | 用途 | 何时读取 |
 |------|------|---------|
-| `system/trading-system.md` | 交易系统完整规则（v3.9） | 需要查规则时 |
-| `system/templates.md` | 每日文件模板（含数据核验+三维重评+主板筛选） | 写模拟看盘/盘前分析前 |
+| `system/trading-system.md` | 交易系统完整规则（v3.10） | 需要查规则时 |
+| `system/templates.md` | 每日文件模板（含数据核验+三维重评+主板筛选+八维扫描） | 写模拟看盘/盘前分析前 |
 | `expectations/tracker.md` | 预期追踪面板（跨日持久化） | 盘前分析/模拟看盘前必读 |
 | `account/portfolio.md` | 虚拟交易账户 | 任何涉及持仓/买卖时 |
 | `daily/YYYY-MM-DD/盘前分析.md` | 当日盘前分析 | 写模拟看盘时（获取催化清单） |
