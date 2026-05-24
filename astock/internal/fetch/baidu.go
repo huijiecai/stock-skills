@@ -1,7 +1,6 @@
 package fetch
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -9,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/huijiecai/stock/astock/internal/model"
@@ -32,6 +32,9 @@ func (b *Baidu) doGet(ctx context.Context, urlStr string) ([]byte, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
+	req.Header.Set("Accept", "application/vnd.finance-web.v1+json")
+	req.Header.Set("Origin", "https://gushitong.baidu.com")
+	req.Header.Set("Referer", "https://gushitong.baidu.com/")
 	resp, err := b.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("baidu get: %w", err)
@@ -45,6 +48,7 @@ func (b *Baidu) doGet(ctx context.Context, urlStr string) ([]byte, error) {
 }
 
 // DailyKline fetches daily kline data from Baidu Finance API.
+// Returns ~60 trading days by default, in chronological order.
 func (b *Baidu) DailyKline(ctx context.Context, code string, tp model.DataType, opts ...Option) ([]model.Bar, error) {
 	options := &FetchOptions{}
 	for _, o := range opts {
@@ -52,7 +56,7 @@ func (b *Baidu) DailyKline(ctx context.Context, code string, tp model.DataType, 
 	}
 	limit := options.Limit
 	if limit <= 0 {
-		limit = 30
+		limit = 60
 	}
 
 	params := url.Values{}
@@ -66,10 +70,13 @@ func (b *Baidu) DailyKline(ctx context.Context, code string, tp model.DataType, 
 	params.Set("group", "quotation_kline_ab")
 	params.Set("finClientType", "pc")
 	params.Set("code", code)
-	params.Set("ktype", "1") // 1=daily kline
+	params.Set("ktype", "1")
+	if options.Start != "" {
+		params.Set("start_time", options.Start)
+	}
 
-	urlStr := "https://finance.pae.baidu.com/selfselect/getstockquotation?" + params.Encode()
-	body, err := b.doGet(ctx, urlStr)
+	u := "https://finance.pae.baidu.com/selfselect/getstockquotation?" + params.Encode()
+	body, err := b.doGet(ctx, u)
 	if err != nil {
 		return nil, err
 	}
@@ -79,61 +86,64 @@ func (b *Baidu) DailyKline(ctx context.Context, code string, tp model.DataType, 
 		Result     json.RawMessage `json:"Result"`
 	}
 	if err := json.Unmarshal(body, &resp); err != nil {
-		return nil, fmt.Errorf("baidu parse response: %w", err)
+		return nil, fmt.Errorf("baidu parse: %w", err)
 	}
 	if resp.ResultCode != "0" {
-		return nil, fmt.Errorf("baidu api error code: %s", resp.ResultCode)
+		return nil, fmt.Errorf("baidu error code: %s", resp.ResultCode)
 	}
 
-	// Use decoder with UseNumber to preserve precision for volume/amount
-	rdr := json.NewDecoder(bytes.NewReader(resp.Result))
-	rdr.UseNumber()
-	var baiduResult struct {
+	var inner struct {
 		NewMarketData struct {
-			Keys    []string `json:"keys"`
-			Headers []string `json:"headers"`
-			Rows    [][]any  `json:"rows"`
+			MarketData string `json:"marketData"`
 		} `json:"newMarketData"`
 	}
-	if err := rdr.Decode(&baiduResult); err != nil {
-		return nil, fmt.Errorf("baidu parse result: %w", err)
+	if err := json.Unmarshal(resp.Result, &inner); err != nil {
+		return nil, fmt.Errorf("baidu parse inner: %w", err)
 	}
 
-	if len(baiduResult.NewMarketData.Rows) == 0 {
+	md := strings.TrimSpace(inner.NewMarketData.MarketData)
+	if md == "" {
 		return nil, fmt.Errorf("empty baidu kline data for %s", code)
 	}
 
-	// keys: timestamp, time, open, close, volume, high, low, amount, range, ratio, turnoverratio, preClose, ...
-	// Row values are [timestamp, "2026-05-22", open, close, volume, high, low, amount, ...]
-	bars := make([]model.Bar, 0, len(baiduResult.NewMarketData.Rows))
-	for _, row := range baiduResult.NewMarketData.Rows {
-		if len(row) < 12 {
+	// marketData is semicolon-delimited, each row is comma-separated:
+	// timestamp,date,open,close,volume,high,low,amount,range,ratio,turnoverratio,preClose,...
+	fields := strings.Split(md, ";")
+	// marketData has "--" for MA fields, but the core fields are at fixed positions:
+	// 0:timestamp, 1:date, 2:open, 3:close, 4:volume, 5:high, 6:low, 7:amount, 8:range,
+	// 9:ratio(change%), 10:turnoverratio, 11:preClose
+
+	bars := make([]model.Bar, 0, len(fields))
+	for _, row := range fields {
+		cols := strings.Split(row, ",")
+		if len(cols) < 12 {
 			continue
 		}
-		dateStr, _ := row[1].(string)
-		if dateStr == "" {
+		dateStr := cols[1]
+		if dateStr == "" || dateStr == "--" {
 			continue
 		}
-		bar := model.Bar{
-			Code:      code,
-			Type:      tp,
-			TradeDate: dateStr,
-		}
-		bar.Open = toFloat64(row[2])
-		bar.Close = toFloat64(row[3])
-		bar.Volume = toInt64(row[4])
-		bar.High = toFloat64(row[5])
-		bar.Low = toFloat64(row[6])
-		bar.Amount = toFloat64(row[7])
-		bar.ChangePct = toFloat64(row[9])
-		bar.Turnover = toFloat64(row[10])
-		bar.PreClose = toFloat64(row[11])
 
 		if options.Start != "" && dateStr < options.Start {
 			continue
 		}
 		if options.End != "" && dateStr > options.End {
 			continue
+		}
+
+		bar := model.Bar{
+			Code:      code,
+			Type:      tp,
+			TradeDate: dateStr,
+			Open:      parseFloat(cols[2]),
+			Close:     parseFloat(cols[3]),
+			Volume:    parseInt(cols[4]),
+			High:      parseFloat(cols[5]),
+			Low:       parseFloat(cols[6]),
+			Amount:    parseFloat(cols[7]),
+			ChangePct: parseFloat(cols[9]),
+			Turnover:  parseFloat(cols[10]),
+			PreClose:  parseFloat(cols[11]),
 		}
 		bars = append(bars, bar)
 	}
@@ -142,6 +152,22 @@ func (b *Baidu) DailyKline(ctx context.Context, code string, tp model.DataType, 
 		bars = bars[len(bars)-limit:]
 	}
 	return bars, nil
+}
+
+func parseFloat(s string) float64 {
+	if s == "" || s == "--" {
+		return 0
+	}
+	v, _ := strconv.ParseFloat(s, 64)
+	return v
+}
+
+func parseInt(s string) int64 {
+	if s == "" || s == "--" {
+		return 0
+	}
+	v, _ := strconv.ParseInt(s, 10, 64)
+	return v
 }
 
 // Unimplemented methods — Baidu is daily-kline only.
@@ -169,33 +195,3 @@ func (b *Baidu) RankVolume(ctx context.Context, top int) ([]model.Quote, error) 
 func (b *Baidu) RankLimitUp(ctx context.Context) ([]model.Quote, error) {
 	return nil, fmt.Errorf("Baidu: RankLimitUp not implemented")
 }
-
-func toFloat64(v any) float64 {
-	switch x := v.(type) {
-	case float64:
-		return x
-	case string:
-		f, _ := strconv.ParseFloat(x, 64)
-		return f
-	case json.Number:
-		f, _ := x.Float64()
-		return f
-	}
-	return 0
-}
-
-func toInt64(v any) int64 {
-	switch x := v.(type) {
-	case float64:
-		return int64(x)
-	case string:
-		i, _ := strconv.ParseInt(x, 10, 64)
-		return i
-	case json.Number:
-		i, _ := x.Int64()
-		return i
-	}
-	return 0
-}
-
-// Ensure generic JSON numbers are decoded properly.
