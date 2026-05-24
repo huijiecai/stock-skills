@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/spf13/cobra"
+	"github.com/huijiecai/stock/astock/internal/fetch"
 	"github.com/huijiecai/stock/astock/internal/model"
 )
 
@@ -43,9 +44,19 @@ var syncCmd = &cobra.Command{
 }
 
 func syncCodes(ctx context.Context, codes []string, f *syncFlags) {
+	var opts []fetch.Option
+	if f.start != "" {
+		opts = append(opts, fetch.WithStart(f.start))
+	}
+	if f.end != "" {
+		opts = append(opts, fetch.WithEnd(f.end))
+	}
+	if f.days > 0 {
+		opts = append(opts, fetch.WithLimit(f.days))
+	}
 	for _, code := range codes {
 		fmt.Printf("同步 %s ...\n", code)
-		bars, err := router.DailyKline(ctx, code, model.DataType(f.tp), true)
+		bars, err := router.DailyKline(ctx, code, model.DataType(f.tp), true, opts...)
 		if err != nil {
 			fmt.Printf("  %s: 失败 — %v\n", code, err)
 			continue
@@ -88,6 +99,7 @@ func syncAll(ctx context.Context, f *syncFlags) {
 
 			bars, err := router.DailyKline(ctx, code, model.TypeStock, true)
 			if err != nil {
+				fmt.Printf("  %s 同步失败: %v\n", code, err)
 				return
 			}
 			mu.Lock()
