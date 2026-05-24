@@ -61,19 +61,19 @@ var infoCmd = &cobra.Command{
 }
 
 func printStockTable(stocks []model.Stock) {
-	fmt.Printf("%-8s %-10s %-6s\n", "代码", "名称", "交易所")
+	fmt.Printf("%-8s %s %s\n", "代码", padRight("名称", 10), padRight("交易所", 6))
 	fmt.Println(strings.Repeat("-", 30))
 	for _, s := range stocks {
-		fmt.Printf("%-8s %-10s %-6s\n", s.Code, truncate(s.Name, 8), s.Exchange)
+		fmt.Printf("%-8s %s %s\n", s.Code, padRight(truncate(s.Name, 8), 10), padRight(s.Exchange, 6))
 	}
 	fmt.Printf("\n共 %d 只股票\n", len(stocks))
 }
 
 func printConceptTable(concepts []model.Concept) {
-	fmt.Printf("%-10s %-20s %-8s\n", "代码", "名称", "成分股数")
+	fmt.Printf("%-10s %s %s\n", "代码", padRight("名称", 20), padRight("成分股数", 8))
 	fmt.Println(strings.Repeat("-", 42))
 	for _, c := range concepts {
-		fmt.Printf("%-10s %-20s %-8d\n", c.Code, truncate(c.Name, 16), c.StockCount)
+		fmt.Printf("%-10s %s %d\n", c.Code, padRight(truncate(c.Name, 16), 20), c.StockCount)
 	}
 	fmt.Printf("\n共 %d 个概念\n", len(concepts))
 }

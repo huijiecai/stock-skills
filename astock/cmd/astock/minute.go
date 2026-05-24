@@ -56,14 +56,20 @@ func printMinuteTable(bars []model.Bar) {
 		fmt.Println("无数据")
 		return
 	}
-	fmt.Printf("%-8s %-12s %-10s %-10s %-10s %-10s %-12s\n",
-		"代码", "时间", "开盘", "收盘", "最高", "最低", "成交量")
+	fmt.Printf("%-8s %s %s %s %s %s %s\n",
+		"代码", padRight("时间", 12), padRight("开盘", 10), padRight("收盘", 10),
+		padRight("最高", 10), padRight("最低", 10), padRight("成交量", 12))
 	fmt.Println(strings.Repeat("-", 72))
 
 	for _, bar := range bars {
 		t := bar.Time.Format("15:04")
-		fmt.Printf("%-8s %-12s %-10.2f %-10.2f %-10.2f %-10.2f %-12s\n",
-			bar.Code, t, bar.Open, bar.Close, bar.High, bar.Low, formatVolume(bar.Volume))
+		fmt.Printf("%-8s %s %s %s %s %s %s\n",
+			bar.Code, padRight(t, 12),
+			padRight(fmt.Sprintf("%.2f", bar.Open), 10),
+			padRight(fmt.Sprintf("%.2f", bar.Close), 10),
+			padRight(fmt.Sprintf("%.2f", bar.High), 10),
+			padRight(fmt.Sprintf("%.2f", bar.Low), 10),
+			padRight(formatVolume(bar.Volume), 12))
 	}
 }
 

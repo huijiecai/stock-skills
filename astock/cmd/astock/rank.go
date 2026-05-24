@@ -56,15 +56,15 @@ func printRankTable(quotes []model.Quote, title string) {
 		return
 	}
 	fmt.Printf("=== %s ===\n\n", title)
-	fmt.Printf("%-4s %-8s %-10s %-10s %-8s %-12s\n",
-		"#", "代码", "名称", "最新价", "涨幅%", "成交额")
+	fmt.Printf("%-4s %-8s %s %s %s %s\n",
+		"#", "代码", padRight("名称", 10), padRight("最新价", 10), padRight("涨幅%", 8), padRight("成交额", 12))
 	fmt.Println(strings.Repeat("-", 60))
 
 	for i, q := range quotes {
 		amount := formatAmount(q.Amount)
 		change := fmt.Sprintf("%+.2f%%", q.ChangePct)
-		fmt.Printf("%-4d %-8s %-10s %-10.2f %-8s %-12s\n",
-			i+1, q.Code, truncate(q.Name, 8), q.Price, change, amount)
+		fmt.Printf("%-4d %-8s %s %s %s %s\n",
+			i+1, q.Code, padRight(truncate(q.Name, 8), 10), padRight(fmt.Sprintf("%.2f", q.Price), 10), padRight(change, 8), padRight(amount, 12))
 	}
 }
 
@@ -84,6 +84,33 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return string(runes[:n]) + "…"
+}
+
+// visualWidth calculates the number of columns a string occupies in a terminal.
+// CJK characters are double-width, ASCII is single-width.
+func visualWidth(s string) int {
+	w := 0
+	for _, r := range s {
+		if r >= 0x2E80 && r <= 0x9FFF { // CJK Radicals through CJK Unified
+			w += 2
+		} else if r >= 0xF900 && r <= 0xFAFF { // CJK Compatibility Ideographs
+			w += 2
+		} else if r >= 0xFF01 && r <= 0xFF60 { // Fullwidth forms
+			w += 2
+		} else {
+			w++
+		}
+	}
+	return w
+}
+
+// padRight pads s on the right to occupy width visual columns.
+func padRight(s string, width int) string {
+	vw := visualWidth(s)
+	if vw >= width {
+		return s
+	}
+	return s + strings.Repeat(" ", width-vw)
 }
 
 func init() {

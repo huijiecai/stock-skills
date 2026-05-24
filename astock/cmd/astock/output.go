@@ -28,16 +28,21 @@ func printDailyTable(bars []model.Bar) {
 		fmt.Println("无数据")
 		return
 	}
-	fmt.Printf("%-8s %-12s %-10s %-10s %-10s %-10s %-8s %-12s\n",
-		"代码", "日期", "开盘", "收盘", "最高", "最低", "涨幅%", "成交量")
+	fmt.Printf("%-8s %s %s %s %s %s %s %s\n",
+		"代码", padRight("日期", 12), padRight("开盘", 10), padRight("收盘", 10),
+		padRight("最高", 10), padRight("最低", 10), padRight("涨幅%", 8), padRight("成交量", 12))
 	fmt.Println(strings.Repeat("-", 80))
 
 	for _, bar := range bars {
 		change := fmt.Sprintf("%+.2f%%", bar.ChangePct)
 		vol := formatVolume(bar.Volume)
-		fmt.Printf("%-8s %-12s %-10.2f %-10.2f %-10.2f %-10.2f %-8s %-12s\n",
-			bar.Code, bar.TradeDate, bar.Open, bar.Close,
-			bar.High, bar.Low, change, vol)
+		fmt.Printf("%-8s %s %s %s %s %s %s %s\n",
+			bar.Code, padRight(bar.TradeDate, 12),
+			padRight(fmt.Sprintf("%.2f", bar.Open), 10),
+			padRight(fmt.Sprintf("%.2f", bar.Close), 10),
+			padRight(fmt.Sprintf("%.2f", bar.High), 10),
+			padRight(fmt.Sprintf("%.2f", bar.Low), 10),
+			padRight(change, 8), padRight(vol, 12))
 	}
 }
 
