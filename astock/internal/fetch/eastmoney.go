@@ -412,6 +412,14 @@ func (e *EastMoney) RankLimitUp(ctx context.Context) ([]model.Quote, error) {
 	return quotes, nil
 }
 
+// compile-time interface check
+var _ Fetcher = (*EastMoney)(nil)
+
+// MinuteKline is not supported by EastMoney
+func (e *EastMoney) MinuteKline(ctx context.Context, code string, tp model.DataType, freq model.Freq, opts ...Option) ([]model.Bar, error) {
+    return nil, fmt.Errorf("EastMoney: MinuteKline not implemented, use TDX")
+}
+
 // helpers
 func mustFloat(s string) float64 {
 	v, _ := strconv.ParseFloat(s, 64)
