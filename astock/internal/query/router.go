@@ -69,7 +69,7 @@ func (r *Router) MinuteKline(ctx context.Context, code string, tp model.DataType
     if queryDate == "" {
         queryDate = todayStr()
     }
-    if !force && !isTradingHours() && date != "" && date != todayStr() {
+    if !force && !isTradingHours() {
         bars, err := db.QueryMinuteK(ctx, code, tp, freq, queryDate)
         if err == nil && len(bars) > 0 {
             return bars, nil
@@ -79,7 +79,7 @@ func (r *Router) MinuteKline(ctx context.Context, code string, tp model.DataType
     if err != nil {
         return nil, err
     }
-    if !isTradingHours() && date != "" && date != todayStr() {
+    if !isTradingHours() {
         if err := db.UpsertMinuteK(context.Background(), bars); err != nil {
             log.Printf("[cache] write minute_k %s: %v", code, err)
         }
@@ -119,6 +119,10 @@ func (r *Router) ConceptList(ctx context.Context) ([]model.Concept, error) {
         }
     }()
     return concepts, nil
+}
+
+func (r *Router) RealTimeQuote(ctx context.Context, codes ...string) ([]model.Quote, error) {
+    return r.selector.RealTimeQuote(ctx, codes...)
 }
 
 func (r *Router) RankVolume(ctx context.Context, top int) ([]model.Quote, error) {

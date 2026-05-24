@@ -211,12 +211,19 @@ func (s *Sina) RankVolume(ctx context.Context, top int) ([]model.Quote, error) {
 		top = 200
 	}
 	var all []sinaStock
+	seen := make(map[string]bool)
 	for _, node := range sinaNodes {
 		stocks, err := s.fetchNodeTop(ctx, node, top, "amount")
 		if err != nil {
 			continue
 		}
-		all = append(all, stocks...)
+		for _, st := range stocks {
+			if seen[st.Code] {
+				continue
+			}
+			seen[st.Code] = true
+			all = append(all, st)
+		}
 	}
 	// Sort by amount descending across all nodes
 	quotes := make([]model.Quote, 0, len(all))

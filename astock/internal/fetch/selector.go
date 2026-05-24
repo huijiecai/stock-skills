@@ -103,7 +103,28 @@ func (s *Selector) StockList(ctx context.Context) ([]model.Stock, error) {
 }
 
 func (s *Selector) ConceptList(ctx context.Context) ([]model.Concept, error) {
-	return s.eastMoney.ConceptList(ctx)
+	result, err := tryFetch(ctx, s.fetchers(s.eastMoney),
+		func(f Fetcher) (any, error) { return f.ConceptList(ctx) })
+	if err == nil {
+		return result.([]model.Concept), nil
+	}
+	// Fallback: use internal sector classification as concepts
+	log.Printf("[warn] concept list API failed: %v, using internal sectors", err)
+	return sectorConcepts(), nil
+}
+
+// sectorConcepts generates concept-like entries from the curated sector stock map.
+func sectorConcepts() []model.Concept {
+	concepts := make([]model.Concept, 0, len(TargetSectors))
+	for _, sec := range TargetSectors {
+		codes := SectorStockMap[sec]
+		concepts = append(concepts, model.Concept{
+			Code:       sec,
+			Name:       sec,
+			StockCount: len(codes),
+		})
+	}
+	return concepts
 }
 
 func (s *Selector) ConceptConstituents(ctx context.Context, code string) ([]string, error) {
