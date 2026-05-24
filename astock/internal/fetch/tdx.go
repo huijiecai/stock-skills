@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/injoyai/ios"
@@ -21,18 +22,25 @@ type TDX struct {
 }
 
 func NewTDX() (*TDX, error) {
-	dial := func(addr string) ios.DialFunc {
-		return func(ctx context.Context) (ios.ReadWriteCloser, string, error) {
-			c, err := net.DialTimeout("tcp", addr, tdxDialTimeout)
-			return c, addr, err
+	dialer := &net.Dialer{Timeout: tdxDialTimeout}
+	dial := func(ctx context.Context) (ios.ReadWriteCloser, string, error) {
+		var lastErr error
+		for _, host := range tdx.Hosts {
+			addr := host
+			if !strings.Contains(addr, ":") {
+				addr += ":7709"
+			}
+			c, err := dialer.DialContext(ctx, "tcp", addr)
+			if err == nil {
+				return c, addr, nil
+			}
+			lastErr = err
 		}
+		return nil, "", fmt.Errorf("all %d TDX hosts unreachable: %w", len(tdx.Hosts), lastErr)
 	}
-	c, err := tdx.DialWith(dial("59.175.238.38:7709"))
+	c, err := tdx.DialWith(dial)
 	if err != nil {
-		c, err = tdx.DialWith(dial("61.135.143.79:7709"))
-		if err != nil {
-			return nil, fmt.Errorf("connect tdx: %w", err)
-		}
+		return nil, fmt.Errorf("connect tdx: %w", err)
 	}
 	return &TDX{client: c}, nil
 }
