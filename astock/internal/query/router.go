@@ -44,7 +44,12 @@ func (r *Router) DailyKline(ctx context.Context, code string, tp model.DataType,
             end = todayStr()
         }
         bars, err := db.QueryDailyK(ctx, code, tp, start, end, options.Limit)
-        if err == nil && len(bars) > 0 {
+        if err != nil {
+            log.Printf("[debug] cache check: QueryDailyK error: %v", err)
+        } else if len(bars) == 0 {
+            log.Printf("[debug] cache check: QueryDailyK returned 0 bars for %s %s %s-%s limit=%d", code, tp, start, end, options.Limit)
+        } else {
+            log.Printf("[debug] cache check: QueryDailyK returned %d bars, returning cached", len(bars))
             return bars, nil
         }
     }
@@ -53,11 +58,9 @@ func (r *Router) DailyKline(ctx context.Context, code string, tp model.DataType,
         return nil, err
     }
     if force || !isTradingHours() {
-        go func() {
-            if err := db.UpsertDailyK(context.Background(), bars); err != nil {
-                log.Printf("[cache] write daily_k %s: %v", code, err)
-            }
-        }()
+        if err := db.UpsertDailyK(context.Background(), bars); err != nil {
+            log.Printf("[cache] write daily_k %s: %v", code, err)
+        }
     }
     return bars, nil
 }
@@ -82,11 +85,9 @@ func (r *Router) MinuteKline(ctx context.Context, code string, tp model.DataType
         return nil, err
     }
     if !isTradingHours() && date != "" && date != todayStr() {
-        go func() {
-            if err := db.UpsertMinuteK(context.Background(), bars); err != nil {
-                log.Printf("[cache] write minute_k %s: %v", code, err)
-            }
-        }()
+        if err := db.UpsertMinuteK(context.Background(), bars); err != nil {
+            log.Printf("[cache] write minute_k %s: %v", code, err)
+        }
     }
     return bars, nil
 }

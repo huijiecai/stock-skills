@@ -3,6 +3,15 @@ module github.com/huijiecai/stock/astock
 go 1.25.2
 
 require (
+	github.com/injoyai/ios v1.2.2
+	github.com/injoyai/tdx v0.0.78
+	github.com/jackc/pgx/v5 v5.9.2
+	github.com/jackc/puddle/v2 v2.2.2
+	github.com/joho/godotenv v1.5.1
+	github.com/spf13/cobra v1.10.2
+)
+
+require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/glebarez/go-sqlite v1.22.0 // indirect
@@ -13,14 +22,9 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/injoyai/base v1.2.20 // indirect
 	github.com/injoyai/conv v1.2.5 // indirect
-	github.com/injoyai/ios v1.2.2 // indirect
 	github.com/injoyai/logs v1.0.12 // indirect
-	github.com/injoyai/tdx v0.0.78 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.9.2
-	github.com/jackc/puddle/v2 v2.2.2
-	github.com/joho/godotenv v1.5.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -30,7 +34,6 @@ require (
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	github.com/shopspring/decimal v1.4.0 // indirect
-	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/syndtr/goleveldb v1.0.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
