@@ -73,13 +73,48 @@ func (s *Sina) doGet(ctx context.Context, urlStr string) ([]byte, error) {
 	return body, nil
 }
 
-func (s *Sina) fetchAllStocks(ctx context.Context) ([]sinaStock, error) {
-	urlStr := "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=1&num=5000&sort=symbol&asc=1&node=hs_a"
-	body, err := s.doGet(ctx, urlStr)
-	if err != nil {
-		return nil, err
+var sinaNodes = []string{"sh_a", "sz_a", "hs_a"}
+
+const sinaPageSize = 100
+
+func (s *Sina) fetchNodeStocks(ctx context.Context, node string, sort string, asc int) ([]sinaStock, error) {
+	var all []sinaStock
+	page := 1
+	for {
+		urlStr := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=%d&num=%d&sort=%s&asc=%d&node=%s", page, sinaPageSize, sort, asc, node)
+		body, err := s.doGet(ctx, urlStr)
+		if err != nil {
+			return nil, err
+		}
+		if len(body) == 0 || body[0] != '[' {
+			break // no more data
+		}
+		stocks, err := parseSinaJSON(body)
+		if err != nil {
+			return nil, fmt.Errorf("parse %s: %w", node, err)
+		}
+		if len(stocks) == 0 {
+			break
+		}
+		all = append(all, stocks...)
+		if len(stocks) < sinaPageSize {
+			break
+		}
+		page++
 	}
-	return parseSinaJSON(body)
+	return all, nil
+}
+
+func (s *Sina) fetchAllStocks(ctx context.Context) ([]sinaStock, error) {
+	var all []sinaStock
+	for _, node := range sinaNodes {
+		stocks, err := s.fetchNodeStocks(ctx, node, "symbol", 1)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, stocks...)
+	}
+	return all, nil
 }
 
 func (s *Sina) StockList(ctx context.Context) ([]model.Stock, error) {
@@ -93,7 +128,9 @@ func (s *Sina) StockList(ctx context.Context) ([]model.Stock, error) {
 		exchange := "sz"
 		if strings.HasPrefix(code, "6") || strings.HasPrefix(code, "9") {
 			exchange = "sh"
-		} else if strings.HasPrefix(code, "8") {
+		} else if strings.HasPrefix(code, "8") || strings.HasPrefix(code, "920") {
+			exchange = "bj"
+		} else if strings.HasPrefix(code, "4") {
 			exchange = "bj"
 		}
 		result = append(result, model.Stock{
@@ -105,18 +142,26 @@ func (s *Sina) StockList(ctx context.Context) ([]model.Stock, error) {
 	return result, nil
 }
 
-func (s *Sina) RankLimitUp(ctx context.Context) ([]model.Quote, error) {
-	urlStr := "http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=1&num=200&sort=changepercent&asc=0&node=hs_a"
+func (s *Sina) fetchNodeTop(ctx context.Context, node string, top int, sort string) ([]sinaStock, error) {
+	urlStr := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=1&num=%d&sort=%s&asc=0&node=%s", top, sort, node)
 	body, err := s.doGet(ctx, urlStr)
 	if err != nil {
 		return nil, err
 	}
-	stocks, err := parseSinaJSON(body)
-	if err != nil {
-		return nil, err
+	return parseSinaJSON(body)
+}
+
+func (s *Sina) RankLimitUp(ctx context.Context) ([]model.Quote, error) {
+	var all []sinaStock
+	for _, node := range sinaNodes {
+		stocks, err := s.fetchNodeTop(ctx, node, 200, "changepercent")
+		if err != nil {
+			continue
+		}
+		all = append(all, stocks...)
 	}
-	quotes := make([]model.Quote, 0, len(stocks))
-	for _, st := range stocks {
+	quotes := make([]model.Quote, 0, len(all))
+	for _, st := range all {
 		chgPct := sinaFloat64(st.ChangePercent)
 		if chgPct < 9.5 {
 			continue
@@ -165,17 +210,17 @@ func (s *Sina) RankVolume(ctx context.Context, top int) ([]model.Quote, error) {
 	if top > 200 {
 		top = 200
 	}
-	urlStr := fmt.Sprintf("http://vip.stock.finance.sina.com.cn/quotes_service/api/json_v2.php/Market_Center.getHQNodeData?page=1&num=%d&sort=amount&asc=0&node=hs_a", top)
-	body, err := s.doGet(ctx, urlStr)
-	if err != nil {
-		return nil, err
+	var all []sinaStock
+	for _, node := range sinaNodes {
+		stocks, err := s.fetchNodeTop(ctx, node, top, "amount")
+		if err != nil {
+			continue
+		}
+		all = append(all, stocks...)
 	}
-	stocks, err := parseSinaJSON(body)
-	if err != nil {
-		return nil, err
-	}
-	quotes := make([]model.Quote, 0, len(stocks))
-	for _, st := range stocks {
+	// Sort by amount descending across all nodes
+	quotes := make([]model.Quote, 0, len(all))
+	for _, st := range all {
 		price, _ := strconv.ParseFloat(st.Trade, 64)
 		preClose, _ := strconv.ParseFloat(st.Settlement, 64)
 		quotes = append(quotes, model.Quote{
@@ -187,6 +232,17 @@ func (s *Sina) RankVolume(ctx context.Context, top int) ([]model.Quote, error) {
 			Volume:    st.Volume,
 			Amount:    st.Amount,
 		})
+	}
+	// Simple bubble sort by amount descending
+	for i := 0; i < len(quotes); i++ {
+		for j := i + 1; j < len(quotes); j++ {
+			if quotes[j].Amount > quotes[i].Amount {
+				quotes[i], quotes[j] = quotes[j], quotes[i]
+			}
+		}
+	}
+	if len(quotes) > top {
+		quotes = quotes[:top]
 	}
 	return quotes, nil
 }

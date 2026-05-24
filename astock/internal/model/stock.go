@@ -4,6 +4,7 @@ type Stock struct {
 	Code     string `json:"code"`
 	Name     string `json:"name"`
 	Exchange string `json:"exchange"`
+	Sector   string `json:"sector,omitempty"`
 }
 
 type Concept struct {

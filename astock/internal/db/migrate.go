@@ -11,8 +11,10 @@ func Migrate(ctx context.Context) error {
             code       VARCHAR(10) PRIMARY KEY,
             name       VARCHAR(50) NOT NULL,
             exchange   VARCHAR(4) NOT NULL,
+            sector     VARCHAR(50) DEFAULT '',
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )`,
+        `ALTER TABLE stock_info ADD COLUMN IF NOT EXISTS sector VARCHAR(50) DEFAULT ''`,
         `CREATE TABLE IF NOT EXISTS concept_info (
             code        VARCHAR(10) PRIMARY KEY,
             name        VARCHAR(50) NOT NULL,
