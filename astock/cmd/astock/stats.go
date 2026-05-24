@@ -26,7 +26,10 @@ var statsCmd = &cobra.Command{
 		ctx := context.Background()
 
 		var s dbStats
-		db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM daily_k").Scan(&s.DailyKCount)
+		if err := db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM daily_k").Scan(&s.DailyKCount); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "查询失败: %v\n", err)
+			return
+		}
 		db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM minute_k").Scan(&s.MinuteKCount)
 		db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM stock_info").Scan(&s.StockCount)
 		db.Pool.QueryRow(ctx, "SELECT COUNT(*) FROM concept_info").Scan(&s.ConceptCount)
