@@ -11,16 +11,18 @@ import (
 type Selector struct {
 	eastMoney *EastMoney
 	baidu     *Baidu
+	sina      *Sina
 	tdx       *TDX
 	tdxErr    error
 	tencent   *Tencent
 	ths       *THS
 }
 
-func NewSelector(em *EastMoney, bd *Baidu, tdx *TDX, ten *Tencent, ths *THS) *Selector {
+func NewSelector(em *EastMoney, bd *Baidu, tdx *TDX, ten *Tencent, ths *THS, sina *Sina) *Selector {
 	s := &Selector{
 		eastMoney: em,
 		baidu:     bd,
+		sina:      sina,
 		tencent:   ten,
 		ths:       ths,
 	}
@@ -92,7 +94,12 @@ func (s *Selector) RealTimeQuote(ctx context.Context, codes ...string) ([]model.
 }
 
 func (s *Selector) StockList(ctx context.Context) ([]model.Stock, error) {
-	return s.eastMoney.StockList(ctx)
+	result, err := tryFetch(ctx, s.fetchers(s.eastMoney, s.sina),
+		func(f Fetcher) (any, error) { return f.StockList(ctx) })
+	if err != nil {
+		return nil, err
+	}
+	return result.([]model.Stock), nil
 }
 
 func (s *Selector) ConceptList(ctx context.Context) ([]model.Concept, error) {
@@ -104,11 +111,16 @@ func (s *Selector) ConceptConstituents(ctx context.Context, code string) ([]stri
 }
 
 func (s *Selector) RankVolume(ctx context.Context, top int) ([]model.Quote, error) {
-	return s.eastMoney.RankVolume(ctx, top)
+	result, err := tryFetch(ctx, s.fetchers(s.eastMoney, s.sina),
+		func(f Fetcher) (any, error) { return f.RankVolume(ctx, top) })
+	if err != nil {
+		return nil, err
+	}
+	return result.([]model.Quote), nil
 }
 
 func (s *Selector) RankLimitUp(ctx context.Context) ([]model.Quote, error) {
-	result, err := tryFetch(ctx, s.fetchers(s.eastMoney, s.tdx),
+	result, err := tryFetch(ctx, s.fetchers(s.eastMoney, s.tdx, s.sina),
 		func(f Fetcher) (any, error) { return f.RankLimitUp(ctx) })
 	if err != nil {
 		return nil, err
@@ -139,6 +151,10 @@ func (s *Selector) fetchers(list ...any) []Fetcher {
 				out = append(out, v)
 			}
 		case *THS:
+			if v != nil {
+				out = append(out, v)
+			}
+		case *Sina:
 			if v != nil {
 				out = append(out, v)
 			}

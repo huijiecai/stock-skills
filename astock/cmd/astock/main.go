@@ -55,8 +55,9 @@ func initFetcher() {
 	bd := fetch.NewBaidu()
 	ten := fetch.NewTencent()
 	ths := fetch.NewTHS()
+	sina := fetch.NewSina()
 
-	sel = fetch.NewSelector(em, bd, nil, ten, ths)
+	sel = fetch.NewSelector(em, bd, nil, ten, ths, sina)
 	router = query.NewRouter(sel)
 }
 
