@@ -18,7 +18,9 @@ func isValidType(tp model.DataType) bool {
 func printJSON(v any) {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	enc.Encode(v)
+	if err := enc.Encode(v); err != nil {
+		fmt.Fprintf(os.Stderr, "JSON encode error: %v\n", err)
+	}
 }
 
 func printDailyTable(bars []model.Bar) {
