@@ -3,12 +3,16 @@ package fetch
 import (
 	"context"
 	"fmt"
+	"net"
 	"time"
 
+	"github.com/injoyai/ios"
 	"github.com/injoyai/tdx"
 	"github.com/injoyai/tdx/protocol"
 	"github.com/huijiecai/stock/astock/internal/model"
 )
+
+const tdxDialTimeout = 5 * time.Second
 
 var _ Fetcher = (*TDX)(nil)
 
@@ -17,9 +21,15 @@ type TDX struct {
 }
 
 func NewTDX() (*TDX, error) {
-	c, err := tdx.Dial("59.175.238.38:7709")
+	dial := func(addr string) ios.DialFunc {
+		return func(ctx context.Context) (ios.ReadWriteCloser, string, error) {
+			c, err := net.DialTimeout("tcp", addr, tdxDialTimeout)
+			return c, addr, err
+		}
+	}
+	c, err := tdx.DialWith(dial("59.175.238.38:7709"))
 	if err != nil {
-		c, err = tdx.Dial("61.135.143.79:7709")
+		c, err = tdx.DialWith(dial("61.135.143.79:7709"))
 		if err != nil {
 			return nil, fmt.Errorf("connect tdx: %w", err)
 		}
@@ -37,6 +47,9 @@ func (t *TDX) Close() {
 // For stocks, uses GetKline* methods; for indices, uses GetIndex* methods.
 // Results are in chronological order (oldest first).
 func (t *TDX) MinuteKline(ctx context.Context, code string, tp model.DataType, freq model.Freq, opts ...Option) ([]model.Bar, error) {
+	if t == nil || t.client == nil {
+		return nil, fmt.Errorf("TDX not initialized")
+	}
 	options := &FetchOptions{}
 	for _, o := range opts {
 		o(options)
@@ -131,6 +144,9 @@ func (t *TDX) MinuteKline(ctx context.Context, code string, tp model.DataType, f
 // DailyKline fetches daily kline data for the given code.
 // Uses GetKlineDay for stocks, GetIndexDay for indices.
 func (t *TDX) DailyKline(ctx context.Context, code string, tp model.DataType, opts ...Option) ([]model.Bar, error) {
+	if t == nil || t.client == nil {
+		return nil, fmt.Errorf("TDX not initialized")
+	}
 	options := &FetchOptions{}
 	for _, o := range opts {
 		o(options)

@@ -16,34 +16,44 @@ type Selector struct {
 }
 
 func NewSelector(em *EastMoney, tdx *TDX, ten *Tencent, ths *THS) *Selector {
-	return &Selector{
+	s := &Selector{
 		eastMoney: em,
-		tdx:       tdx,
 		tencent:   ten,
 		ths:       ths,
 	}
+	if tdx != nil {
+		s.tdx = tdx
+	}
+	return s
 }
 
 func (s *Selector) DailyKline(ctx context.Context, code string, tp model.DataType, opts ...Option) ([]model.Bar, error) {
+	var fns []Fetcher
 	switch tp {
 	case model.TypeConcept:
-		return tryFetch(ctx, []Fetcher{s.tdx, s.ths},
-			func(f Fetcher) (any, error) { return f.DailyKline(ctx, code, tp, opts...) })
+		fns = s.fetchers(s.tdx, s.ths)
 	case model.TypeIndex:
-		return tryFetch(ctx, []Fetcher{s.tdx, s.eastMoney},
-			func(f Fetcher) (any, error) { return f.DailyKline(ctx, code, tp, opts...) })
+		fns = s.fetchers(s.tdx, s.eastMoney)
 	default:
-		return tryFetch(ctx, []Fetcher{s.eastMoney, s.tdx},
-			func(f Fetcher) (any, error) { return f.DailyKline(ctx, code, tp, opts...) })
+		fns = s.fetchers(s.eastMoney, s.tdx)
 	}
+	result, err := tryFetch(ctx, fns,
+		func(f Fetcher) (any, error) { return f.DailyKline(ctx, code, tp, opts...) })
+	if err != nil {
+		return nil, err
+	}
+	return result.([]model.Bar), nil
 }
 
 func (s *Selector) MinuteKline(ctx context.Context, code string, tp model.DataType, freq model.Freq, opts ...Option) ([]model.Bar, error) {
+	if s.tdx == nil {
+		return nil, fmt.Errorf("TDX unavailable")
+	}
 	return s.tdx.MinuteKline(ctx, code, tp, freq, opts...)
 }
 
 func (s *Selector) TodayMinute(ctx context.Context, code string, tp model.DataType) ([]model.Tick, error) {
-	result, err := tryFetch(ctx, []Fetcher{s.eastMoney, s.tdx},
+	result, err := tryFetch(ctx, s.fetchers(s.eastMoney, s.tdx),
 		func(f Fetcher) (any, error) { return f.TodayMinute(ctx, code, tp) })
 	if err != nil {
 		return nil, err
@@ -52,7 +62,7 @@ func (s *Selector) TodayMinute(ctx context.Context, code string, tp model.DataTy
 }
 
 func (s *Selector) RealTimeQuote(ctx context.Context, codes ...string) ([]model.Quote, error) {
-	result, err := tryFetch(ctx, []Fetcher{s.eastMoney, s.tencent},
+	result, err := tryFetch(ctx, s.fetchers(s.eastMoney, s.tencent),
 		func(f Fetcher) (any, error) { return f.RealTimeQuote(ctx, codes...) })
 	if err != nil {
 		return nil, err
@@ -77,12 +87,39 @@ func (s *Selector) RankVolume(ctx context.Context, top int) ([]model.Quote, erro
 }
 
 func (s *Selector) RankLimitUp(ctx context.Context) ([]model.Quote, error) {
-	result, err := tryFetch(ctx, []Fetcher{s.eastMoney, s.tdx},
+	result, err := tryFetch(ctx, s.fetchers(s.eastMoney, s.tdx),
 		func(f Fetcher) (any, error) { return f.RankLimitUp(ctx) })
 	if err != nil {
 		return nil, err
 	}
 	return result.([]model.Quote), nil
+}
+
+// fetchers builds a non-nil fetcher list from concrete pointers,
+// avoiding Go's nil interface pitfall (nil *T → non-nil interface).
+func (s *Selector) fetchers(list ...any) []Fetcher {
+	out := make([]Fetcher, 0, len(list))
+	for _, f := range list {
+		switch v := f.(type) {
+		case *TDX:
+			if v != nil {
+				out = append(out, v)
+			}
+		case *EastMoney:
+			if v != nil {
+				out = append(out, v)
+			}
+		case *Tencent:
+			if v != nil {
+				out = append(out, v)
+			}
+		case *THS:
+			if v != nil {
+				out = append(out, v)
+			}
+		}
+	}
+	return out
 }
 
 func tryFetch(ctx context.Context, sources []Fetcher, fn func(Fetcher) (any, error)) (any, error) {
