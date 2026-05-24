@@ -31,8 +31,10 @@ func (e *EastMoney) doGet(ctx context.Context, urlStr string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36")
 	req.Header.Set("Referer", "https://quote.eastmoney.com/")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8")
 	resp, err := e.client.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("eastmoney get: %w", err)
@@ -80,7 +82,7 @@ func (e *EastMoney) DailyKline(ctx context.Context, code string, tp model.DataTy
 	if options.End != "" {
 		params.Set("end", options.End)
 	}
-	urlStr := "https://push2his.eastmoney.com/api/qt/stock/kline/get?" + params.Encode()
+	urlStr := e.baseURL + "/kline/get?" + params.Encode()
 	body, err := e.doGet(ctx, urlStr)
 	if err != nil {
 		return nil, err

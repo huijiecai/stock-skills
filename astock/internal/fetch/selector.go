@@ -10,14 +10,16 @@ import (
 
 type Selector struct {
 	eastMoney *EastMoney
+	baidu     *Baidu
 	tdx       *TDX
 	tencent   *Tencent
 	ths       *THS
 }
 
-func NewSelector(em *EastMoney, tdx *TDX, ten *Tencent, ths *THS) *Selector {
+func NewSelector(em *EastMoney, bd *Baidu, tdx *TDX, ten *Tencent, ths *THS) *Selector {
 	s := &Selector{
 		eastMoney: em,
+		baidu:     bd,
 		tencent:   ten,
 		ths:       ths,
 	}
@@ -33,9 +35,9 @@ func (s *Selector) DailyKline(ctx context.Context, code string, tp model.DataTyp
 	case model.TypeConcept:
 		fns = s.fetchers(s.tdx, s.ths)
 	case model.TypeIndex:
-		fns = s.fetchers(s.tdx, s.eastMoney)
+		fns = s.fetchers(s.tdx, s.baidu, s.eastMoney)
 	default:
-		fns = s.fetchers(s.eastMoney, s.tdx)
+		fns = s.fetchers(s.eastMoney, s.baidu, s.tdx)
 	}
 	result, err := tryFetch(ctx, fns,
 		func(f Fetcher) (any, error) { return f.DailyKline(ctx, code, tp, opts...) })
@@ -106,6 +108,10 @@ func (s *Selector) fetchers(list ...any) []Fetcher {
 				out = append(out, v)
 			}
 		case *EastMoney:
+			if v != nil {
+				out = append(out, v)
+			}
+		case *Baidu:
 			if v != nil {
 				out = append(out, v)
 			}
