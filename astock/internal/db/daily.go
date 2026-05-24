@@ -40,7 +40,7 @@ func QueryDailyK(ctx context.Context, code string, tp model.DataType, start, end
 	if limit <= 0 {
 		limit = 30
 	}
-	sql := `SELECT code, trade_date, type, open, high, low, close,
+	sql := `SELECT code, trade_date::text, type, open, high, low, close,
                    COALESCE(pre_close,0), COALESCE(change_pct,0),
                    COALESCE(volume,0), COALESCE(amount,0), COALESCE(turnover,0)
             FROM daily_k

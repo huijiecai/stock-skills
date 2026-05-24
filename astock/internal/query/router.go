@@ -44,12 +44,7 @@ func (r *Router) DailyKline(ctx context.Context, code string, tp model.DataType,
             end = todayStr()
         }
         bars, err := db.QueryDailyK(ctx, code, tp, start, end, options.Limit)
-        if err != nil {
-            log.Printf("[debug] cache check: QueryDailyK error: %v", err)
-        } else if len(bars) == 0 {
-            log.Printf("[debug] cache check: QueryDailyK returned 0 bars for %s %s %s-%s limit=%d", code, tp, start, end, options.Limit)
-        } else {
-            log.Printf("[debug] cache check: QueryDailyK returned %d bars, returning cached", len(bars))
+        if err == nil && len(bars) > 0 {
             return bars, nil
         }
     }
