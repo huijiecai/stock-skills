@@ -10,15 +10,6 @@ import (
 	"github.com/huijiecai/stock/astock/internal/model"
 )
 
-type dailyFlags struct {
-	tp    string
-	start string
-	end   string
-	limit int
-	force bool
-	json  bool
-}
-
 var dailyCmd = &cobra.Command{
 	Use:   "daily <code>",
 	Short: "查询日K线",
