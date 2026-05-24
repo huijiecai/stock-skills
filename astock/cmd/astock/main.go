@@ -53,15 +53,10 @@ func initDB() {
 func initFetcher() {
 	em := fetch.NewEastMoney()
 	bd := fetch.NewBaidu()
-	tdx, err := fetch.NewTDX()
-	if err != nil {
-		log.Printf("[warn] TDX init: %v (minute kline unavailable)", err)
-		tdx = nil
-	}
 	ten := fetch.NewTencent()
 	ths := fetch.NewTHS()
 
-	sel = fetch.NewSelector(em, bd, tdx, ten, ths)
+	sel = fetch.NewSelector(em, bd, nil, ten, ths)
 	router = query.NewRouter(sel)
 }
 

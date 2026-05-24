@@ -12,6 +12,7 @@ type Selector struct {
 	eastMoney *EastMoney
 	baidu     *Baidu
 	tdx       *TDX
+	tdxErr    error
 	tencent   *Tencent
 	ths       *THS
 }
@@ -48,10 +49,28 @@ func (s *Selector) DailyKline(ctx context.Context, code string, tp model.DataTyp
 }
 
 func (s *Selector) MinuteKline(ctx context.Context, code string, tp model.DataType, freq model.Freq, opts ...Option) ([]model.Bar, error) {
-	if s.tdx == nil {
-		return nil, fmt.Errorf("TDX unavailable")
+	if err := s.ensureTDX(); err != nil {
+		return nil, err
 	}
 	return s.tdx.MinuteKline(ctx, code, tp, freq, opts...)
+}
+
+// ensureTDX lazily initializes the TDX connection on first use.
+// Subsequent calls reuse the result (success or failure).
+func (s *Selector) ensureTDX() error {
+	if s.tdx != nil {
+		return nil
+	}
+	if s.tdxErr != nil {
+		return s.tdxErr
+	}
+	tdx, err := NewTDX()
+	if err != nil {
+		s.tdxErr = fmt.Errorf("TDX unavailable: %w", err)
+		return s.tdxErr
+	}
+	s.tdx = tdx
+	return nil
 }
 
 func (s *Selector) TodayMinute(ctx context.Context, code string, tp model.DataType) ([]model.Tick, error) {
