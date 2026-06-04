@@ -190,7 +190,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 □ 制定交易预案（if-then+买点+仓位+止损止盈线）
 □ 盘中感知准备（什么条件下关注新方向+监控方向承接力观察点）
 □ 周五持仓评估（仅对高位持仓评估周末风险，不影响新买入决策）
-□ 输出文件：daily/YYYY-MM-DD/盘前分析.md（按templates.md模板格式）
+□ 输出文件：daily/YYYY-MM/DD/盘前分析.md（按templates.md模板格式）
 ```
 
 ### 任务B：模拟看盘（盘后15:00后完成）
@@ -202,7 +202,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 □ 读取 data/limit_list/limit-up-YYYYMMDD.json → 全部涨停股明细
 □ 读取 data/limit_list/limit-up-concepts-YYYYMMDD/concepts.json → 概念排名TOP15
 □ 读取 data/limit_list/limit-up-YYYYMM(DD-1).json → T-1先行信号
-□ 读取 daily/YYYY-MM-DD/盘前分析.md → 催化清单(C1/C2/...)
+□ 读取 daily/YYYY-MM/DD/盘前分析.md → 催化清单(C1/C2/...)
 □ 将概念排名与催化清单交叉核对
 ```
 
@@ -293,7 +293,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
   □ 更新锚点数据
 □ 更新portfolio.md：交易记录+持仓+盈亏
 □ 信号记录.md：按templates.md模板填写
-□ 输出文件：daily/YYYY-MM-DD/盘后复盘.md + 信号记录.md
+□ 输出文件：daily/YYYY-MM/DD/盘后复盘.md + 信号记录.md
 ```
 
 ---
@@ -406,7 +406,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 | `system/templates.md` | 文件模板+八维扫描+数据核验 | 写任何每日文件前 |
 | `expectations/tracker.md` | 预期追踪面板 | 盘前/模拟看盘前必读 |
 | `account/portfolio.md` | 虚拟交易账户 | 涉及持仓/买卖时 |
-| `daily/YYYY-MM-DD/盘前分析.md` | 当日盘前分析 | 写模拟看盘时 |
+| `daily/YYYY-MM/DD/盘前分析.md` | 当日盘前分析 | 写模拟看盘时 |
 | `data/limit_list/limit-up-YYYYMMDD.json` | 涨停数据 | 写模拟看盘时 |
 | `data/limit_list/limit-up-concepts-YYYYMMDD/` | 概念聚合 | 写模拟看盘时 |
 | `lessons/learned.md` | 经验教训库 | 复盘时更新 |
