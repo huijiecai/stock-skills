@@ -57,6 +57,11 @@ func IndexCode(code string) string {
 	case "899":
 		return "bj" + code
 	}
+	// 通达信板块指数：880xxx 概念、881xxx 行业、884xxx 风格、885xxx 地域 → sh 市场
+	switch code[:2] {
+	case "88":
+		return "sh" + code
+	}
 	return code
 }
 
@@ -72,6 +77,10 @@ func MarketOfIndex(code string) string {
 		return "sz"
 	case "899":
 		return "bj"
+	}
+	// 通达信板块指数统一作为 sh 市场识别
+	if code[:2] == "88" {
+		return "sh"
 	}
 	return ""
 }

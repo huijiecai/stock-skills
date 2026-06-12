@@ -403,7 +403,7 @@ astock
 │   └── all     --code a,b,c [--days 30] [--skip-info] [--skip-finance]
 │                                      对每只执行 info+daily+minute(1m,5m)+xdxr+finance
 │
-├── query                             本地仓库查询
+├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
 │   ├── daily   <code> [--from] [--to] [--limit 30] [--adjust qfq|none]
 │   ├── minute  <code> [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD] [--limit 240]
 │   ├── count   <table>                              查表行数
@@ -435,7 +435,10 @@ astock sync all --days 1                    # 每日增量（cron 用，含 info
 astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务（每日不必更新）
 astock sync info --code 600519              # 单独同步 F10 公司信息
 
-astock query info 600519                    # 标的详情（F10 行业/板块/省份/经营范围）
+astock query info 600036                    # 未同步过会自动拉 F10 后输出详情
+astock query daily 600036                   # 未同步过会自动 sync daily 后返回 K 线
+astock query daily 600036 --no-sync         # 仅查本地，不进不联网
+astock query daily 880930                   # 板块指数（汽车电子）同样支持
 
 astock query daily 600519 --limit 30        # 默认 table 输出
 astock query daily 600519 --adjust qfq      # 前复权日K（查询时实时计算）

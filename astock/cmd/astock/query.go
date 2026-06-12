@@ -11,10 +11,42 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/huijiecai/stock/astock/internal/dwh"
+	"github.com/huijiecai/stock/astock/internal/model"
+	ssync "github.com/huijiecai/stock/astock/internal/sync"
+	"github.com/huijiecai/stock/astock/internal/tdx"
 )
 
 func init() {
 	rootCmd.AddCommand(newQueryCmd())
+}
+
+// autoSyncOnEmpty 本地查不到数据时自动触发 TDX 同步。
+// kind: daily/minute/info/finance/xdxr。返回 true 表示调用方需重查。
+func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code, freq string) bool {
+	fmt.Printf("⚠ 本地无 %s 数据，自动 sync %s %s...\n", kind, kind, code)
+	tc := tdx.New()
+	defer tc.Close()
+	var err error
+	switch kind {
+	case "daily":
+		_, err = ssync.Daily(ctx, ch, tc, code, false, 800)
+	case "minute":
+		_, err = ssync.Minute(ctx, ch, tc, code, model.Freq(freq), 800)
+	case "info":
+		_, err = ssync.Info(ctx, ch, tc, code, false, nil)
+	case "finance":
+		_, err = ssync.Finance(ctx, ch, tc, code, false)
+	case "xdxr":
+		_, err = ssync.XDXR(ctx, ch, tc, code, false)
+	default:
+		return false
+	}
+	if err != nil {
+		fmt.Printf("✗ sync 失败: %v\n", err)
+		return false
+	}
+	fmt.Printf("✓ sync 完成，重新查询...\n\n")
+	return true
 }
 
 func newQueryCmd() *cobra.Command {
@@ -34,6 +66,7 @@ func newQueryCmd() *cobra.Command {
 			to, _ := cmd.Flags().GetString("to")
 			adjust, _ := cmd.Flags().GetString("adjust")
 			limit, _ := cmd.Flags().GetInt("limit")
+			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -49,8 +82,18 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(bars) == 0 {
-				fmt.Println("无数据")
-				return nil
+				if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, "") {
+					fmt.Println("无数据")
+					return nil
+				}
+				bars, err = queryDaily(ctx, ch, code, from, to, limit)
+				if err != nil {
+					return err
+				}
+				if len(bars) == 0 {
+					fmt.Println("无数据")
+					return nil
+				}
 			}
 
 			// 前复权
@@ -91,6 +134,7 @@ func newQueryCmd() *cobra.Command {
 	dailyCmd.Flags().String("to", "", "结束日期 YYYYMMDD")
 	dailyCmd.Flags().String("adjust", "qfq", "复权: qfq(前复权)/none(不复权)")
 	dailyCmd.Flags().Int("limit", 30, "返回行数")
+	dailyCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
 	queryCmd.AddCommand(dailyCmd)
 
 	// --- query minute ---
@@ -103,6 +147,7 @@ func newQueryCmd() *cobra.Command {
 			freq, _ := cmd.Flags().GetString("freq")
 			date, _ := cmd.Flags().GetString("date")
 			limit, _ := cmd.Flags().GetInt("limit")
+			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -113,22 +158,6 @@ func newQueryCmd() *cobra.Command {
 			}
 			defer ch.Close()
 
-			where := fmt.Sprintf("code = '%s' AND freq = '%s'", code, freq)
-			if date != "" {
-				d, _ := time.Parse("20060102", date)
-				where += fmt.Sprintf(" AND dt >= '%s' AND dt < '%s'",
-					d.Format("2006-01-02"), d.AddDate(0, 0, 1).Format("2006-01-02"))
-			}
-
-			q := fmt.Sprintf(`SELECT dt, open, high, low, close, volume, amount
-				FROM %s.kline_minute FINAL WHERE %s ORDER BY dt DESC LIMIT %d`, ch.DB(), where, limit)
-
-			rows, err := ch.Conn().Query(ctx, q)
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
-
 			type minuteBar struct {
 				Time   string  `json:"time"`
 				Open   float64 `json:"open"`
@@ -138,24 +167,54 @@ func newQueryCmd() *cobra.Command {
 				Volume uint64  `json:"volume"`
 				Amount float64 `json:"amount"`
 			}
-			var bars []*minuteBar
-			for rows.Next() {
-				var b minuteBar
-				var dt time.Time
-				if err := rows.Scan(&dt, &b.Open, &b.High, &b.Low, &b.Close, &b.Volume, &b.Amount); err != nil {
-					return err
+			doQuery := func() ([]*minuteBar, error) {
+				where := fmt.Sprintf("code = '%s' AND freq = '%s'", code, freq)
+				if date != "" {
+					d, _ := time.Parse("20060102", date)
+					where += fmt.Sprintf(" AND dt >= '%s' AND dt < '%s'",
+						d.Format("2006-01-02"), d.AddDate(0, 0, 1).Format("2006-01-02"))
 				}
-				b.Time = dt.Format("01-02 15:04")
-				bars = append(bars, &b)
-			}
-			// 翻转为时间正序
-			for i, j := 0, len(bars)-1; i < j; i, j = i+1, j-1 {
-				bars[i], bars[j] = bars[j], bars[i]
+				q := fmt.Sprintf(`SELECT dt, open, high, low, close, volume, amount
+					FROM %s.kline_minute FINAL WHERE %s ORDER BY dt DESC LIMIT %d`, ch.DB(), where, limit)
+				rows, err := ch.Conn().Query(ctx, q)
+				if err != nil {
+					return nil, err
+				}
+				defer rows.Close()
+				var bars []*minuteBar
+				for rows.Next() {
+					var b minuteBar
+					var dt time.Time
+					if err := rows.Scan(&dt, &b.Open, &b.High, &b.Low, &b.Close, &b.Volume, &b.Amount); err != nil {
+						return nil, err
+					}
+					b.Time = dt.Format("01-02 15:04")
+					bars = append(bars, &b)
+				}
+				// 翻转为时间正序
+				for i, j := 0, len(bars)-1; i < j; i, j = i+1, j-1 {
+					bars[i], bars[j] = bars[j], bars[i]
+				}
+				return bars, nil
 			}
 
+			bars, err := doQuery()
+			if err != nil {
+				return err
+			}
 			if len(bars) == 0 {
-				fmt.Println("无数据")
-				return nil
+				if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, freq) {
+					fmt.Println("无数据")
+					return nil
+				}
+				bars, err = doQuery()
+				if err != nil {
+					return err
+				}
+				if len(bars) == 0 {
+					fmt.Println("无数据")
+					return nil
+				}
 			}
 
 			if jsonOut {
@@ -181,6 +240,7 @@ func newQueryCmd() *cobra.Command {
 	minuteCmd.Flags().String("freq", "1m", "频率: 1m/5m/15m/30m/60m")
 	minuteCmd.Flags().String("date", "", "指定日期 YYYYMMDD（默认取最新）")
 	minuteCmd.Flags().Int("limit", 240, "返回行数")
+	minuteCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
 	queryCmd.AddCommand(minuteCmd)
 
 	// --- query count ---
@@ -438,25 +498,16 @@ func newQueryCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			code := args[0]
+			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
 			if err != nil {
 				return err
 			}
 			defer ch.Close()
-
-			q := fmt.Sprintf(`SELECT code, report_date, revenue, net_profit, eps, bps, roe,
-				total_share, float_share, total_assets, total_liability
-				FROM %s.finance FINAL WHERE code = '%s' ORDER BY report_date DESC LIMIT 10`, ch.DB(), code)
-
-			rows, err := ch.Conn().Query(ctx, q)
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
 
 			type finRow struct {
 				Code           string  `json:"code"`
@@ -471,20 +522,46 @@ func newQueryCmd() *cobra.Command {
 				TotalAssets    float64 `json:"total_assets"`
 				TotalLiability float64 `json:"total_liability"`
 			}
-			var list []*finRow
-			for rows.Next() {
-				var r finRow
-				var rd time.Time
-				if err := rows.Scan(&r.Code, &rd, &r.Revenue, &r.NetProfit, &r.EPS, &r.BPS, &r.ROE,
-					&r.TotalShare, &r.FloatShare, &r.TotalAssets, &r.TotalLiability); err != nil {
-					return err
+			doQuery := func() ([]*finRow, error) {
+				q := fmt.Sprintf(`SELECT code, report_date, revenue, net_profit, eps, bps, roe,
+					total_share, float_share, total_assets, total_liability
+					FROM %s.finance FINAL WHERE code = '%s' ORDER BY report_date DESC LIMIT 10`, ch.DB(), code)
+				rows, err := ch.Conn().Query(ctx, q)
+				if err != nil {
+					return nil, err
 				}
-				r.ReportDate = rd.Format("2006-01-02")
-				list = append(list, &r)
+				defer rows.Close()
+				var list []*finRow
+				for rows.Next() {
+					var r finRow
+					var rd time.Time
+					if err := rows.Scan(&r.Code, &rd, &r.Revenue, &r.NetProfit, &r.EPS, &r.BPS, &r.ROE,
+						&r.TotalShare, &r.FloatShare, &r.TotalAssets, &r.TotalLiability); err != nil {
+						return nil, err
+					}
+					r.ReportDate = rd.Format("2006-01-02")
+					list = append(list, &r)
+				}
+				return list, nil
+			}
+
+			list, err := doQuery()
+			if err != nil {
+				return err
 			}
 			if len(list) == 0 {
-				fmt.Println("无财务数据，请先执行 sync finance --code", code)
-				return nil
+				if noSync || !autoSyncOnEmpty(ctx, ch, "finance", code, "") {
+					fmt.Println("无财务数据")
+					return nil
+				}
+				list, err = doQuery()
+				if err != nil {
+					return err
+				}
+				if len(list) == 0 {
+					fmt.Println("无财务数据")
+					return nil
+				}
 			}
 
 			if jsonOut {
@@ -506,6 +583,7 @@ func newQueryCmd() *cobra.Command {
 			return nil
 		},
 	}
+	financeCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
 	queryCmd.AddCommand(financeCmd)
 
 	// --- query xdxr ---
@@ -515,24 +593,16 @@ func newQueryCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			code := args[0]
+			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
 			if err != nil {
 				return err
 			}
 			defer ch.Close()
-
-			q := fmt.Sprintf(`SELECT code, ex_date, type, bonus, transfer, dividend, rights_price, rights_ratio
-				FROM %s.xdxr FINAL WHERE code = '%s' ORDER BY ex_date DESC`, ch.DB(), code)
-
-			rows, err := ch.Conn().Query(ctx, q)
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
 
 			type xRow struct {
 				Code        string  `json:"code"`
@@ -544,19 +614,44 @@ func newQueryCmd() *cobra.Command {
 				RightsPrice float32 `json:"rights_price"`
 				RightsRatio float32 `json:"rights_ratio"`
 			}
-			var list []*xRow
-			for rows.Next() {
-				var r xRow
-				var ed time.Time
-				if err := rows.Scan(&r.Code, &ed, &r.Type, &r.Bonus, &r.Transfer, &r.Dividend, &r.RightsPrice, &r.RightsRatio); err != nil {
-					return err
+			doQuery := func() ([]*xRow, error) {
+				q := fmt.Sprintf(`SELECT code, ex_date, type, bonus, transfer, dividend, rights_price, rights_ratio
+					FROM %s.xdxr FINAL WHERE code = '%s' ORDER BY ex_date DESC`, ch.DB(), code)
+				rows, err := ch.Conn().Query(ctx, q)
+				if err != nil {
+					return nil, err
 				}
-				r.ExDate = ed.Format("2006-01-02")
-				list = append(list, &r)
+				defer rows.Close()
+				var list []*xRow
+				for rows.Next() {
+					var r xRow
+					var ed time.Time
+					if err := rows.Scan(&r.Code, &ed, &r.Type, &r.Bonus, &r.Transfer, &r.Dividend, &r.RightsPrice, &r.RightsRatio); err != nil {
+						return nil, err
+					}
+					r.ExDate = ed.Format("2006-01-02")
+					list = append(list, &r)
+				}
+				return list, nil
+			}
+
+			list, err := doQuery()
+			if err != nil {
+				return err
 			}
 			if len(list) == 0 {
-				fmt.Println("无除权除息记录，请先执行 sync xdxr --code", code)
-				return nil
+				if noSync || !autoSyncOnEmpty(ctx, ch, "xdxr", code, "") {
+					fmt.Println("无除权除息记录")
+					return nil
+				}
+				list, err = doQuery()
+				if err != nil {
+					return err
+				}
+				if len(list) == 0 {
+					fmt.Println("无除权除息记录")
+					return nil
+				}
 			}
 
 			if jsonOut {
@@ -578,6 +673,7 @@ func newQueryCmd() *cobra.Command {
 			return nil
 		},
 	}
+	xdxrCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
 	queryCmd.AddCommand(xdxrCmd)
 
 	// --- query info ---
@@ -587,32 +683,16 @@ func newQueryCmd() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			code := args[0]
+			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
 			if err != nil {
 				return err
 			}
 			defer ch.Close()
-
-			q := fmt.Sprintf(`SELECT code, name, market, type, list_date, delist_date,
-				industry, sector, province, business, updated_at
-				FROM %s.securities FINAL WHERE code = '%s' AND type = 'stock' LIMIT 1`, ch.DB(), code)
-
-			row := ch.Conn().QueryRow(ctx, q)
-			var (
-				c, name, market, typ, industry, sector, province, business string
-				listDate                                                    time.Time
-				delistDate                                                  *time.Time
-				updatedAt                                                   time.Time
-			)
-			if err := row.Scan(&c, &name, &market, &typ, &listDate, &delistDate,
-				&industry, &sector, &province, &business, &updatedAt); err != nil {
-				fmt.Printf("未找到 %s（请先 sync meta）\n", code)
-				return nil
-			}
 
 			type infoRow struct {
 				Code      string `json:"code"`
@@ -626,14 +706,46 @@ func newQueryCmd() *cobra.Command {
 				Business  string `json:"business"`
 				UpdatedAt string `json:"updated_at"`
 			}
-			r := infoRow{
-				Code: c, Name: name, Market: market, Type: typ,
-				ListDate:  listDate.Format("2006-01-02"),
-				Industry:  industry,
-				Sector:    sector,
-				Province:  province,
-				Business:  business,
-				UpdatedAt: updatedAt.Format("2006-01-02 15:04"),
+			doQuery := func() (*infoRow, bool, error) {
+				q := fmt.Sprintf(`SELECT code, name, market, type, list_date, delist_date,
+					industry, sector, province, business, updated_at
+					FROM %s.securities FINAL WHERE code = '%s' AND type = 'stock' LIMIT 1`, ch.DB(), code)
+				row := ch.Conn().QueryRow(ctx, q)
+				var (
+					c, name, market, typ, industry, sector, province, business string
+					listDate                                                    time.Time
+					delistDate                                                  *time.Time
+					updatedAt                                                   time.Time
+				)
+				if err := row.Scan(&c, &name, &market, &typ, &listDate, &delistDate,
+					&industry, &sector, &province, &business, &updatedAt); err != nil {
+					return nil, false, nil // 未找到标的本身
+				}
+				r := &infoRow{
+					Code: c, Name: name, Market: market, Type: typ,
+					ListDate:  listDate.Format("2006-01-02"),
+					Industry:  industry, Sector: sector, Province: province, Business: business,
+					UpdatedAt: updatedAt.Format("2006-01-02 15:04"),
+				}
+				hasF10 := industry != "" || sector != "" || province != ""
+				return r, hasF10, nil
+			}
+
+			r, hasF10, err := doQuery()
+			if err != nil {
+				return err
+			}
+			if r == nil {
+				fmt.Printf("未找到 %s（请先 sync meta）\n", code)
+				return nil
+			}
+			if !hasF10 && !noSync {
+				if autoSyncOnEmpty(ctx, ch, "info", code, "") {
+					r, _, err = doQuery()
+					if err != nil {
+						return err
+					}
+				}
 			}
 
 			if jsonOut {
@@ -654,6 +766,7 @@ func newQueryCmd() *cobra.Command {
 			return nil
 		},
 	}
+	infoCmd.Flags().Bool("no-sync", false, "F10 为空时不自动触发 sync info")
 	queryCmd.AddCommand(infoCmd)
 
 	return queryCmd
