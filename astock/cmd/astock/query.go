@@ -20,9 +20,97 @@ func init() {
 	rootCmd.AddCommand(newQueryCmd())
 }
 
-// autoSyncOnEmpty 本地查不到数据时自动触发 TDX 同步。
-// kind: daily/minute/info/finance/xdxr。返回 true 表示调用方需重查。
-func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code, freq string) bool {
+// canAutoSync 判断给定查询场景是否值得触发 TDX sync。返回 (允许, 拒绝原因)。
+//
+// TDX 协议本质是"近端语义"——只能拉最近 N 根，无法按日期回溯。
+// 因此当查询历史日期落到 TDX 拉取窗口之外时，sync 必然无效，应直接拒绝以免浪费请求。
+func canAutoSync(kind, freq, date, from string) (bool, string) {
+	today := time.Now()
+	parse := func(s string) (time.Time, bool) {
+		if s == "" {
+			return time.Time{}, false
+		}
+		t, err := time.Parse("20060102", s)
+		return t, err == nil
+	}
+	isWeekend := func(t time.Time) bool {
+		wd := t.Weekday()
+		return wd == time.Saturday || wd == time.Sunday
+	}
+
+	switch kind {
+	case "minute":
+		d, ok := parse(date)
+		if !ok {
+			return true, ""
+		}
+		if isWeekend(d) {
+			return false, fmt.Sprintf("%s 是非交易日（周末）", d.Format("2006-01-02"))
+		}
+		// 800 根分钟线对应交易日数 = 800 / (240/freq分钟数)
+		barsPerDay := 240
+		switch freq {
+		case "5m":
+			barsPerDay = 48
+		case "15m":
+			barsPerDay = 16
+		case "30m":
+			barsPerDay = 8
+		case "60m":
+			barsPerDay = 4
+		}
+		coverDays := 800 / barsPerDay
+		// 日历日 ≈ 交易日 * 1.5（含周末粗略估算）
+		window := today.AddDate(0, 0, -int(float64(coverDays)*1.5))
+		if d.Before(window) {
+			return false, fmt.Sprintf(
+				"%s 在 %s 频率窗口外（TDX 仅支持最近 ~%d 个交易日，可改用更大频率扩大覆盖）",
+				d.Format("2006-01-02"), freq, coverDays)
+		}
+	case "daily":
+		d, ok := parse(from)
+		if !ok {
+			return true, ""
+		}
+		// 日 K 800 根 ≈ 3.3 年；早于 4 年前几乎拉不到
+		window := today.AddDate(-4, 0, 0)
+		if d.Before(window) {
+			return false, fmt.Sprintf(
+				"from=%s 早于 TDX 可拉取窗口（约 %s 起，最近 ~800 个交易日）",
+				d.Format("2006-01-02"), window.Format("2006-01-02"))
+		}
+	}
+	return true, ""
+}
+
+// isBlockOrPureIndex 判断代码是否为板块/纯指数（无 F10/财务/除权除息）。
+//
+//	880xxx/881xxx/884xxx/885xxx → 通达信板块
+//	399xxx/899xxx               → 深证/北证指数
+//
+// 注意：000001 同时是上证综指与深圳平安银行（股票），保守不归入此类。
+func isBlockOrPureIndex(code string) bool {
+	if len(code) != 6 {
+		return false
+	}
+	if code[:2] == "88" {
+		return true
+	}
+	if code[:3] == "399" || code[:3] == "899" {
+		return true
+	}
+	return false
+}
+
+// autoSyncOnEmpty 本地查不到数据时按 kind 自动触发 TDX 同步。
+// 返回 true 表示调用方可重查；false 表示场景不适合 sync（已给出提示）。
+//
+// freq/date/from 仅用于历史日期窗口判定（见 canAutoSync）。
+func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code, freq, date, from string) bool {
+	if ok, reason := canAutoSync(kind, freq, date, from); !ok {
+		fmt.Printf("无数据（%s）\n", reason)
+		return false
+	}
 	fmt.Printf("⚠ 本地无 %s 数据，自动 sync %s %s...\n", kind, kind, code)
 	tc := tdx.New()
 	defer tc.Close()
@@ -82,7 +170,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(bars) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, "") {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, "", "", from) {
 					fmt.Println("无数据")
 					return nil
 				}
@@ -203,7 +291,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(bars) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, freq) {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, freq, date, "") {
 					fmt.Println("无数据")
 					return nil
 				}
@@ -501,6 +589,11 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
+			if isBlockOrPureIndex(code) {
+				fmt.Printf("%s 是板块/指数代码，无财务数据\n", code)
+				return nil
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
@@ -550,7 +643,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "finance", code, "") {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "finance", code, "", "", "") {
 					fmt.Println("无财务数据")
 					return nil
 				}
@@ -596,6 +689,11 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
+			if isBlockOrPureIndex(code) {
+				fmt.Printf("%s 是板块/指数代码，无除权除息记录\n", code)
+				return nil
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
@@ -640,7 +738,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "xdxr", code, "") {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "xdxr", code, "", "", "") {
 					fmt.Println("无除权除息记录")
 					return nil
 				}
@@ -686,6 +784,11 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
+			if isBlockOrPureIndex(code) {
+				fmt.Printf("%s 是板块/指数代码，无 F10 详情\n", code)
+				return nil
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
@@ -706,7 +809,7 @@ func newQueryCmd() *cobra.Command {
 				Business  string `json:"business"`
 				UpdatedAt string `json:"updated_at"`
 			}
-			doQuery := func() (*infoRow, bool, error) {
+			doQuery := func() (*infoRow, bool, bool, error) {
 				q := fmt.Sprintf(`SELECT code, name, market, type, list_date, delist_date,
 					industry, sector, province, business, updated_at
 					FROM %s.securities FINAL WHERE code = '%s' AND type = 'stock' LIMIT 1`, ch.DB(), code)
@@ -719,7 +822,7 @@ func newQueryCmd() *cobra.Command {
 				)
 				if err := row.Scan(&c, &name, &market, &typ, &listDate, &delistDate,
 					&industry, &sector, &province, &business, &updatedAt); err != nil {
-					return nil, false, nil // 未找到标的本身
+					return nil, false, false, nil // 未找到标的本身
 				}
 				r := &infoRow{
 					Code: c, Name: name, Market: market, Type: typ,
@@ -728,10 +831,12 @@ func newQueryCmd() *cobra.Command {
 					UpdatedAt: updatedAt.Format("2006-01-02 15:04"),
 				}
 				hasF10 := industry != "" || sector != "" || province != ""
-				return r, hasF10, nil
+				// 防抖：1 小时内已 sync 过（即使 F10 仍为空也不重复拉，避免死循环）
+				recentSynced := !updatedAt.IsZero() && time.Since(updatedAt) < time.Hour
+				return r, hasF10, recentSynced, nil
 			}
 
-			r, hasF10, err := doQuery()
+			r, hasF10, recentSynced, err := doQuery()
 			if err != nil {
 				return err
 			}
@@ -739,9 +844,9 @@ func newQueryCmd() *cobra.Command {
 				fmt.Printf("未找到 %s（请先 sync meta）\n", code)
 				return nil
 			}
-			if !hasF10 && !noSync {
-				if autoSyncOnEmpty(ctx, ch, "info", code, "") {
-					r, _, err = doQuery()
+			if !hasF10 && !recentSynced && !noSync {
+				if autoSyncOnEmpty(ctx, ch, "info", code, "", "", "") {
+					r, _, _, err = doQuery()
 					if err != nil {
 						return err
 					}
