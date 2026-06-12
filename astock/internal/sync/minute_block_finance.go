@@ -12,9 +12,12 @@ import (
 
 // Minute 同步分钟 K 线到 kline_minute 表。
 // 每次从 TDX 拉最近 count 根（≤800），覆盖写入（ReplacingMergeTree 去重）。
-func Minute(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, freq model.Freq, count uint16) (int, error) {
+// dataType 决定 TDX 路由（stock vs index），由 CLI --type 显式传入。
+func Minute(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dataType model.DataType, freq model.Freq, count uint16) (int, error) {
 	start := time.Now()
-	dataType := dataTypeForCode(code)
+	if dataType == "" {
+		dataType = model.TypeStock
+	}
 
 	bars, err := tc.GetKlineMinute(code, dataType, freq, count)
 	if err != nil {

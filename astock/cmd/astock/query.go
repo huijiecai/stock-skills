@@ -86,8 +86,9 @@ func canAutoSync(kind, freq, date, from string) (bool, string) {
 // autoSyncOnEmpty 本地查不到数据时按 kind 自动触发 TDX 同步。
 // 返回 true 表示调用方可重查；false 表示场景不适合 sync（已给出提示）。
 //
+// dataType 仅对 daily/minute 生效，决定走股票 K 还是指数 K；该参数从 CLI --type 透传。
 // freq/date/from 仅用于历史日期窗口判定（见 canAutoSync）。
-func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code, freq, date, from string) bool {
+func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code string, dataType model.DataType, freq, date, from string) bool {
 	if ok, reason := canAutoSync(kind, freq, date, from); !ok {
 		fmt.Printf("无数据（%s）\n", reason)
 		return false
@@ -98,9 +99,9 @@ func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code, freq, date
 	var err error
 	switch kind {
 	case "daily":
-		_, err = ssync.Daily(ctx, ch, tc, code, false, 800)
+		_, err = ssync.Daily(ctx, ch, tc, code, dataType, false, 800)
 	case "minute":
-		_, err = ssync.Minute(ctx, ch, tc, code, model.Freq(freq), 800)
+		_, err = ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(freq), 800)
 	case "info":
 		_, err = ssync.Info(ctx, ch, tc, code, false, nil)
 	case "finance":
@@ -116,6 +117,29 @@ func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code, freq, date
 	}
 	fmt.Printf("✓ sync 完成，重新查询...\n\n")
 	return true
+}
+
+// parseType 将 --type 参数（stock/index/etf）转换为 model.DataType，默认 stock。
+func parseType(s string) model.DataType {
+	switch s {
+	case "index":
+		return model.TypeIndex
+	case "etf":
+		return model.TypeETF
+	}
+	return model.TypeStock
+}
+
+// ensureSecurityExists 在 securities 表预检代码是否存在（指定 type）。
+// 返回（存在，错误）。不存在时调用方负责提示“不存在”。
+func ensureSecurityExists(ctx context.Context, ch *dwh.Client, code string, typ model.DataType) (bool, error) {
+	q := fmt.Sprintf(`SELECT count() FROM %s.securities FINAL WHERE code = '%s' AND type = '%s'`,
+		ch.DB(), code, string(typ))
+	var n uint64
+	if err := ch.Conn().QueryRow(ctx, q).Scan(&n); err != nil {
+		return false, err
+	}
+	return n > 0, nil
 }
 
 func newQueryCmd() *cobra.Command {
@@ -136,6 +160,8 @@ func newQueryCmd() *cobra.Command {
 			adjust, _ := cmd.Flags().GetString("adjust")
 			limit, _ := cmd.Flags().GetInt("limit")
 			noSync, _ := cmd.Flags().GetBool("no-sync")
+			typeStr, _ := cmd.Flags().GetString("type")
+			dataType := parseType(typeStr)
 			jsonOut := isJSON(cmd)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -146,16 +172,16 @@ func newQueryCmd() *cobra.Command {
 			}
 			defer ch.Close()
 
-			bars, err := queryDaily(ctx, ch, code, from, to, limit)
+			bars, err := queryDaily(ctx, ch, code, dataType, from, to, limit)
 			if err != nil {
 				return err
 			}
 			if len(bars) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, "", "", from) {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, dataType, "", "", from) {
 					fmt.Println("无数据")
 					return nil
 				}
-				bars, err = queryDaily(ctx, ch, code, from, to, limit)
+				bars, err = queryDaily(ctx, ch, code, dataType, from, to, limit)
 				if err != nil {
 					return err
 				}
@@ -204,6 +230,7 @@ func newQueryCmd() *cobra.Command {
 	dailyCmd.Flags().String("adjust", "qfq", "复权: qfq(前复权)/none(不复权)")
 	dailyCmd.Flags().Int("limit", 30, "返回行数")
 	dailyCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
+	dailyCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
 	queryCmd.AddCommand(dailyCmd)
 
 	// --- query minute ---
@@ -217,6 +244,8 @@ func newQueryCmd() *cobra.Command {
 			date, _ := cmd.Flags().GetString("date")
 			limit, _ := cmd.Flags().GetInt("limit")
 			noSync, _ := cmd.Flags().GetBool("no-sync")
+			typeStr, _ := cmd.Flags().GetString("type")
+			dataType := parseType(typeStr)
 			jsonOut := isJSON(cmd)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -237,7 +266,7 @@ func newQueryCmd() *cobra.Command {
 				Amount float64 `json:"amount"`
 			}
 			doQuery := func() ([]*minuteBar, error) {
-				where := fmt.Sprintf("code = '%s' AND freq = '%s'", code, freq)
+				where := fmt.Sprintf("code = '%s' AND type = '%s' AND freq = '%s'", code, string(dataType), freq)
 				if date != "" {
 					d, _ := time.Parse("20060102", date)
 					where += fmt.Sprintf(" AND dt >= '%s' AND dt < '%s'",
@@ -272,7 +301,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(bars) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, freq, date, "") {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, dataType, freq, date, "") {
 					fmt.Println("无数据")
 					return nil
 				}
@@ -310,6 +339,7 @@ func newQueryCmd() *cobra.Command {
 	minuteCmd.Flags().String("date", "", "指定日期 YYYYMMDD（默认取最新）")
 	minuteCmd.Flags().Int("limit", 240, "返回行数")
 	minuteCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
+	minuteCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
 	queryCmd.AddCommand(minuteCmd)
 
 	// --- query count ---
@@ -570,11 +600,6 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			if tdx.IsBlockOrPureIndex(code) {
-				fmt.Printf("%s 是板块/指数代码，无财务数据\n", code)
-				return nil
-			}
-
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
@@ -582,6 +607,14 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			defer ch.Close()
+
+			// 预检标的是否为已入库股票：finance 仅适用 type=stock。
+			if ok, err := ensureSecurityExists(ctx, ch, code, model.TypeStock); err != nil {
+				return err
+			} else if !ok {
+				fmt.Printf("代码 %s 不存在（securities 表无 type=stock 记录；如查指数/板块请用 query daily --type index 或 query block）\n", code)
+				return nil
+			}
 
 			type finRow struct {
 				Code           string  `json:"code"`
@@ -624,7 +657,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "finance", code, "", "", "") {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "finance", code, "", "", "", "") {
 					fmt.Println("无财务数据")
 					return nil
 				}
@@ -670,11 +703,6 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			if tdx.IsBlockOrPureIndex(code) {
-				fmt.Printf("%s 是板块/指数代码，无除权除息记录\n", code)
-				return nil
-			}
-
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
@@ -682,6 +710,13 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			defer ch.Close()
+
+			if ok, err := ensureSecurityExists(ctx, ch, code, model.TypeStock); err != nil {
+				return err
+			} else if !ok {
+				fmt.Printf("代码 %s 不存在（securities 表无 type=stock 记录）\n", code)
+				return nil
+			}
 
 			type xRow struct {
 				Code        string  `json:"code"`
@@ -719,7 +754,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(list) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "xdxr", code, "", "", "") {
+				if noSync || !autoSyncOnEmpty(ctx, ch, "xdxr", code, "", "", "", "") {
 					fmt.Println("无除权除息记录")
 					return nil
 				}
@@ -764,11 +799,6 @@ func newQueryCmd() *cobra.Command {
 			code := args[0]
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
-
-			if tdx.IsBlockOrPureIndex(code) {
-				fmt.Printf("%s 是板块/指数代码，无 F10 详情\n", code)
-				return nil
-			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
@@ -822,11 +852,11 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if r == nil {
-				fmt.Printf("未找到 %s（请先 sync meta）\n", code)
+				fmt.Printf("代码 %s 不存在（securities 表无 type=stock 记录；如查指数请用 query stock --type index --keyword %s）\n", code, code)
 				return nil
 			}
 			if !hasF10 && !recentSynced && !noSync {
-				if autoSyncOnEmpty(ctx, ch, "info", code, "", "", "") {
+				if autoSyncOnEmpty(ctx, ch, "info", code, "", "", "", "") {
 					r, _, _, err = doQuery()
 					if err != nil {
 						return err
@@ -879,8 +909,8 @@ type xdxrRow struct {
 	Peigujia float32 // 配股价
 }
 
-func queryDaily(ctx context.Context, ch *dwh.Client, code, from, to string, limit int) ([]*dailyBar, error) {
-	where := fmt.Sprintf("code = '%s'", code)
+func queryDaily(ctx context.Context, ch *dwh.Client, code string, dataType model.DataType, from, to string, limit int) ([]*dailyBar, error) {
+	where := fmt.Sprintf("code = '%s' AND type = '%s'", code, string(dataType))
 	if from != "" {
 		d, _ := time.Parse("20060102", from)
 		where += fmt.Sprintf(" AND trade_date >= '%s'", d.Format("2006-01-02"))

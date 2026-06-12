@@ -81,10 +81,6 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
-				if tdx.IsBlockOrPureIndex(code) {
-					fmt.Printf("⛠ 跳过 %s：板块/指数代码无 F10 信息\n", code)
-					continue
-				}
 				fmt.Printf("→ sync info %s...\n", code)
 				n, err := ssync.Info(ctx, ch, tc, code, false, nil)
 				if err != nil {
@@ -108,6 +104,8 @@ func newSyncCmd() *cobra.Command {
 			codeStr, _ := cmd.Flags().GetString("code")
 			all, _ := cmd.Flags().GetBool("all")
 			count, _ := cmd.Flags().GetUint16("count")
+			typeStr, _ := cmd.Flags().GetString("type")
+			dataType := parseType(typeStr)
 			if codeStr == "" && !all {
 				return fmt.Errorf("需指定 --code 或 --all")
 			}
@@ -121,7 +119,7 @@ func newSyncCmd() *cobra.Command {
 
 			if all {
 				fmt.Printf("→ sync daily (all count=%d)...\n", count)
-				n, err := ssync.Daily(ctx, ch, tc, "", true, count)
+				n, err := ssync.Daily(ctx, ch, tc, "", "", true, count)
 				if err != nil {
 					return err
 				}
@@ -131,8 +129,8 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
-				fmt.Printf("→ sync daily %s (count=%d)...\n", code, count)
-				n, err := ssync.Daily(ctx, ch, tc, code, false, count)
+				fmt.Printf("→ sync daily %s (type=%s count=%d)...\n", code, dataType, count)
+				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, count)
 				if err != nil {
 					fmt.Printf("✗ %s: %v\n", code, err)
 					continue
@@ -145,6 +143,7 @@ func newSyncCmd() *cobra.Command {
 	dailyCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔")
 	dailyCmd.Flags().Bool("all", false, "遍历全部已入库标的")
 	dailyCmd.Flags().Uint16("count", 800, "每只拉最近 N 根")
+	dailyCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
 	syncCmd.AddCommand(dailyCmd)
 
 	// --- sync xdxr ---
@@ -177,10 +176,6 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
-				if tdx.IsBlockOrPureIndex(code) {
-					fmt.Printf("⛠ 跳过 %s：板块/指数代码无除权除息记录\n", code)
-					continue
-				}
 				fmt.Printf("→ sync xdxr %s...\n", code)
 				n, err := ssync.XDXR(ctx, ch, tc, code, false)
 				if err != nil {
@@ -204,6 +199,8 @@ func newSyncCmd() *cobra.Command {
 			codeStr, _ := cmd.Flags().GetString("code")
 			freq, _ := cmd.Flags().GetString("freq")
 			count, _ := cmd.Flags().GetUint16("count")
+			typeStr, _ := cmd.Flags().GetString("type")
+			dataType := parseType(typeStr)
 			if codeStr == "" {
 				return fmt.Errorf("需指定 --code")
 			}
@@ -217,8 +214,8 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
-				fmt.Printf("→ sync minute %s (freq=%s count=%d)...\n", code, freq, count)
-				n, err := ssync.Minute(ctx, ch, tc, code, model.Freq(freq), count)
+				fmt.Printf("→ sync minute %s (type=%s freq=%s count=%d)...\n", code, dataType, freq, count)
+				n, err := ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(freq), count)
 				if err != nil {
 					fmt.Printf("✗ %s: %v\n", code, err)
 					continue
@@ -231,6 +228,7 @@ func newSyncCmd() *cobra.Command {
 	minuteCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔")
 	minuteCmd.Flags().String("freq", "5m", "频率: 1m/5m/15m/30m/60m")
 	minuteCmd.Flags().Uint16("count", 800, "拉取根数")
+	minuteCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
 	syncCmd.AddCommand(minuteCmd)
 
 	// --- sync block ---
@@ -286,10 +284,6 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
-				if tdx.IsBlockOrPureIndex(code) {
-					fmt.Printf("⛠ 跳过 %s：板块/指数代码无财务数据\n", code)
-					continue
-				}
 				fmt.Printf("→ sync finance %s...\n", code)
 				n, err := ssync.Finance(ctx, ch, tc, code, false)
 				if err != nil {
@@ -308,12 +302,14 @@ func newSyncCmd() *cobra.Command {
 	// --- sync all ---
 	allCmd := &cobra.Command{
 		Use:   "all",
-		Short: "批量同步：对每个 code 执行 info + daily + minute(1m,5m) + xdxr + finance",
+		Short: "批量同步：按 --type 分发（stock=全套；index/etf=仅 daily/minute）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			codeStr, _ := cmd.Flags().GetString("code")
 			days, _ := cmd.Flags().GetUint16("days")
 			skipInfo, _ := cmd.Flags().GetBool("skip-info")
 			skipFin, _ := cmd.Flags().GetBool("skip-finance")
+			typeStr, _ := cmd.Flags().GetString("type")
+			dataType := parseType(typeStr)
 			if codeStr == "" {
 				return fmt.Errorf("需指定 --code（逗号分隔多只）")
 			}
@@ -324,19 +320,21 @@ func newSyncCmd() *cobra.Command {
 				return err
 			}
 			defer close()
-
+	
+			// stock 走全套；info/xdxr/finance 仅适用 stock。
+			isStock := dataType == model.TypeStock
+	
 			// 按天数换算各频率的 count
 			dailyCount := days
 			min1Count := days * 240 // 1m: 每天 240 根
 			min5Count := days * 48  // 5m: 每天 48 根
-
+	
 			codes := parseCodes(codeStr)
 			for i, code := range codes {
-				fmt.Printf("\n━━ [%d/%d] %s ━━\n", i+1, len(codes), code)
-				isBlock := tdx.IsBlockOrPureIndex(code)
-
-				// info (F10 公司信息)——板块/指数跳过
-				if !skipInfo && !isBlock {
+				fmt.Printf("\n━━ [%d/%d] %s (type=%s) ━━\n", i+1, len(codes), code, dataType)
+	
+				// info (F10 公司信息)——仅 stock
+				if isStock && !skipInfo {
 					fmt.Printf("  → info...\n")
 					n, err := ssync.Info(ctx, ch, tc, code, false, nil)
 					if err != nil {
@@ -344,19 +342,17 @@ func newSyncCmd() *cobra.Command {
 					} else {
 						fmt.Printf("  ✓ info %d 条\n", n)
 					}
-				} else if isBlock && !skipInfo {
-					fmt.Printf("  ⛠ 跳过 info（板块/指数无 F10）\n")
 				}
-
+	
 				// daily
 				fmt.Printf("  → daily (%d天)...\n", days)
-				n, err := ssync.Daily(ctx, ch, tc, code, false, dailyCount)
+				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, dailyCount)
 				if err != nil {
 					fmt.Printf("  ✗ daily: %v\n", err)
 				} else {
 					fmt.Printf("  ✓ daily %d 行\n", n)
 				}
-
+	
 				// minute: 1m + 5m
 				freqCounts := []struct {
 					freq  string
@@ -367,16 +363,16 @@ func newSyncCmd() *cobra.Command {
 				}
 				for _, fc := range freqCounts {
 					fmt.Printf("  → minute %s (%d天=%d根)...\n", fc.freq, days, fc.count)
-					n, err = ssync.Minute(ctx, ch, tc, code, model.Freq(fc.freq), fc.count)
+					n, err = ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(fc.freq), fc.count)
 					if err != nil {
 						fmt.Printf("  ✗ minute(%s): %v\n", fc.freq, err)
 					} else {
 						fmt.Printf("  ✓ minute(%s) %d 行\n", fc.freq, n)
 					}
 				}
-
-				// xdxr——板块/指数跳过
-				if !isBlock {
+	
+				// xdxr——仅 stock
+				if isStock {
 					fmt.Printf("  → xdxr...\n")
 					n, err = ssync.XDXR(ctx, ch, tc, code, false)
 					if err != nil {
@@ -385,9 +381,9 @@ func newSyncCmd() *cobra.Command {
 						fmt.Printf("  ✓ xdxr %d 行\n", n)
 					}
 				}
-
-				// finance——板块/指数跳过
-				if !skipFin && !isBlock {
+	
+				// finance——仅 stock
+				if isStock && !skipFin {
 					fmt.Printf("  → finance...\n")
 					n, err = ssync.Finance(ctx, ch, tc, code, false)
 					if err != nil {
@@ -397,14 +393,15 @@ func newSyncCmd() *cobra.Command {
 					}
 				}
 			}
-			fmt.Printf("\n━━ 全部完成（%d 只, %d天）━━\n", len(codes), days)
+			fmt.Printf("\n━━ 全部完成（%d 只, type=%s, %d天）━━\n", len(codes), dataType, days)
 			return nil
 		},
 	}
 	allCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔（必填）")
 	allCmd.Flags().Uint16("days", 30, "同步最近 N 个交易日")
-	allCmd.Flags().Bool("skip-info", false, "跳过 F10 公司信息同步")
-	allCmd.Flags().Bool("skip-finance", false, "跳过财务数据同步")
+	allCmd.Flags().Bool("skip-info", false, "跳过 F10 公司信息同步（仅 stock 生效）")
+	allCmd.Flags().Bool("skip-finance", false, "跳过财务数据同步（仅 stock 生效）")
+	allCmd.Flags().String("type", "stock", "标的类型: stock(默认全套)/index/etf(仅 daily/minute)")
 	syncCmd.AddCommand(allCmd)
 
 	return syncCmd

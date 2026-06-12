@@ -395,34 +395,40 @@ astock
 ├── sync                              数据同步（TDX → CH）
 │   ├── meta                          股票/指数/板块列表 + 交易日历
 │   ├── info                          F10 公司信息（行业/主营）→ securities 扩展字段
-│   ├── daily   --code a,b,c|--all [--count 800]
-│   ├── minute  --code a,b,c [--freq 5m] [--count 800]
+│   ├── daily   --code a,b,c|--all [--type stock|index|etf] [--count 800]
+│   ├── minute  --code a,b,c       [--type stock|index|etf] [--freq 5m] [--count 800]
 │   ├── block                         板块成分股
-│   ├── xdxr    --code a,b,c|--all    除权除息（复权基础）
-│   ├── finance --code a,b,c|--all    财务数据（每季跑一次）
-│   └── all     --code a,b,c [--days 30] [--skip-info] [--skip-finance]
-│                                      对每只执行 info+daily+minute(1m,5m)+xdxr+finance
+│   ├── xdxr    --code a,b,c|--all    除权除息（仅 stock）
+│   ├── finance --code a,b,c|--all    财务数据（仅 stock，每季跑一次）
+│   └── all     --code a,b,c [--type stock|index|etf] [--days 30] [--skip-info] [--skip-finance]
+│                                      stock→全套；index/etf→仅 daily/minute
 │
 ├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
-│   ├── daily   <code> [--from] [--to] [--limit 30] [--adjust qfq|none]
-│   ├── minute  <code> [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD] [--limit 240]
+│   ├── daily   <code> [--type stock|index|etf] [--from] [--to] [--limit 30] [--adjust qfq|none]
+│   ├── minute  <code> [--type stock|index|etf] [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD]
 │   ├── count   <table>                              查表行数
 │   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
 │   ├── block   list [--keyword 光通信]               列出概念/行业板块
 │   │           members <block_code>                  查某板块成分股
-│   ├── info    <code>                                查询标的详情（F10 行业/省份/经营范围）
-│   ├── finance <code>                                查询财务数据
-│   └── xdxr    <code>                                查询除权除息记录
+│   ├── info    <code>                                F10 详情（仅 stock）
+│   ├── finance <code>                                财务数据（仅 stock）
+│   └── xdxr    <code>                                除权除息（仅 stock）
+│
+│   # code 参数语义（方案 A：--type 默认 stock，显式指定跳出 stock 语义）：
+│   #   • query daily/minute/sync daily/minute/sync all 默认 --type=stock，
+│   #     查指数须 --type index，查 ETF 须 --type etf。
+│   #   • info/finance/xdxr 仅适用 stock；输入代码未在 securities(type=stock) 出现
+│   #     → 提示“代码不存在”（不再靠代码段前缀判定）。
+│   #   • 真重命：000xxx （上证指数 vs 深市股票）——--type 是唯一区分手段。
 │
 │   # autoSync 拒绝规则（TDX 近端语义对齐）：
 │   #   • minute --date 是周末/超出频率窗口（1m≈3天 / 5m≈16天 / 15m≈50天）→ 不触发 sync。
 │   #   • daily --from 早于 4 年前 → 不触发（800 根 ≈ 3.3 年拉不到）。
-│   #   • 88xxxx/399xxx/899xxx 板块或纯指数代码调 info/finance/xdxr → 直接拒绝。
 │   #   • query info 防抖：1 小时内已 sync 过不重复 sync，避免 F10 持续为空时死循环。
 │
 ├── live                              实时直连 TDX（不落库）
-│   ├── quote   <code...>                              实时报价 + 五档盘口（拒绝 88xxxx/399xxx）
-│   ├── tick    <code> [--date YYYYMMDD]               分笔成交（拒绝 88xxxx/399xxx）
+│   ├── quote   <code...>                              实时报价 + 五档盘口（拒绝 88xxxx/399xxx/899xxx）
+│   ├── tick    <code> [--date YYYYMMDD]               分笔成交（拒绝 88xxxx/399xxx/899xxx）
 │   └── minute  <code> [--freq 1m]                     今日 N 分钟（股票/指数/板块均可）
 │
 ├── stats                             仓库统计（行数/磁盘/最新日期）
@@ -436,25 +442,27 @@ astock
 astock init                                 # 一次性
 astock sync meta                            # 同步全市场元数据
 astock sync daily --all --from 20200101     # 全市场日K回填
-astock sync daily --code 600519 --from 20100101  # 单只全历史
-astock sync all --days 1                    # 每日增量（cron 用，含 info/daily/minute/xdxr/finance）
-astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务（每日不必更新）
-astock sync info --code 600519              # 单独同步 F10 公司信息
+astock sync daily --code 600519 --from 20100101  # 单只全历史（默认 type=stock）
+astock sync daily --code 000001 --type index     # 上证综指
+astock sync all --days 1                    # 每日增量（cron 用，stock 全套）
+astock sync all --code 000001 --type index --days 30  # 仅同步上证指日/分钟 K
+astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务
+astock sync info --code 600519              # 单独同步 F10
 
-astock query info 600036                    # 未同步过会自动拉 F10 后输出详情
-astock query daily 600036                   # 未同步过会自动 sync daily 后返回 K 线
-astock query daily 600036 --no-sync         # 仅查本地，不进不联网
-astock query daily 880930                   # 板块指数（汽车电子）同样支持
-astock query minute 002971 --date 20260524  # 拒绝：非交易日（周末），不触发 sync
-astock query minute 002971 --date 20260521  # 拒绝：1m 频率窗口外（可改 --freq 5m 扩大覆盖）
-astock query info 880904                    # 拒绝：板块/指数代码无 F10 详情
+astock query info 600036                    # F10 详情
+astock query daily 600036                   # 默认 type=stock
+astock query daily 000001                   # 默认 stock＝平安银行
+astock query daily 000001 --type index      # 上证综指
+astock query minute 002971 --date 20260524  # 拒绝：非交易日（周末）不触发 sync
+astock query minute 002971 --date 20260521  # 拒绝：1m 频率窗口外（可改 --freq 5m）
+astock query info 880904                    # 提示代码不存在（板块不在 stock 表）
 
 astock query daily 600519 --limit 30        # 默认 table 输出
-astock query daily 600519 --adjust qfq      # 前复权日K（查询时实时计算）
+astock query daily 600519 --adjust qfq      # 前复权日K
 astock query daily 600519 --json            # AI 友好
 astock query stock --industry 白酒          # 按行业筛选
-astock live quote 600519 000001 399001      # 多个标的实时报价（含五档盘口）
-astock live tick 600519 --date 20240320     # 历史某日分笔（直连 TDX 不落库）
+astock live quote 600519 600036             # 多个股票实时报价
+astock live tick 600519                     # 今日分笔
 ```
 
 ---

@@ -11,12 +11,17 @@ import (
 )
 
 // Daily 同步日 K 线到 kline_daily 表。
-func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all bool, count uint16) (int, error) {
+// dataType 决定 TDX 路由（stock vs index），仅在单 code 模式下使用；
+// all 模式下按 securities 表实际 type 字段分发，dataType 参数被忽略。
+func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dataType model.DataType, all bool, count uint16) (int, error) {
 	start := time.Now()
 	var total int
 
 	if code != "" {
-		n, err := syncDailyOne(ctx, ch, tc, code, dataTypeForCode(code), count)
+		if dataType == "" {
+			dataType = model.TypeStock
+		}
+		n, err := syncDailyOne(ctx, ch, tc, code, dataType, count)
 		if err != nil {
 			return 0, err
 		}
@@ -145,9 +150,5 @@ func listStockCodes(ctx context.Context, ch *dwh.Client) ([]stockInfo, error) {
 	return out, nil
 }
 
-func dataTypeForCode(code string) model.DataType {
-	if m := tdx.MarketOfIndex(code); m != "" {
-		return model.TypeIndex
-	}
-	return model.TypeStock
-}
+// dataTypeForCode 已删除：默认 stock 由 CLI 层 --type 参数显式控制，避免
+// 000001（平安银行 vs 上证综指）等代码段歧义被自动推断到错误通道。

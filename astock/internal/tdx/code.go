@@ -91,6 +91,10 @@ func MarketOfIndex(code string) string {
 //	399xxx/899xxx               → 深证/北证指数
 //
 // 注意：000001 同时是上证综指与深圳平安银行（股票），保守不归入此类。
+//
+// 调用范围（方案 A 后趋于收敛）：
+//   - 仅 live 命令使用（直连 TDX 不依赖 CH，无法做 securities 预检）。
+//   - query/sync 路径已改为 securities.type 过滤＋--type 显式参数。
 func IsBlockOrPureIndex(code string) bool {
 	if len(code) != 6 {
 		return false
