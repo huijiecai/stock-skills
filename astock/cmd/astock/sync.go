@@ -1,122 +1,215 @@
-// astock/cmd/astock/sync.go
 package main
 
 import (
 	"context"
 	"fmt"
-	"sync"
+	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/huijiecai/stock/astock/internal/fetch"
+
+	"github.com/huijiecai/stock/astock/internal/dwh"
 	"github.com/huijiecai/stock/astock/internal/model"
+	ssync "github.com/huijiecai/stock/astock/internal/sync"
+	"github.com/huijiecai/stock/astock/internal/tdx"
 )
 
-type syncFlags struct {
-	tp    string
-	days  int
-	start string
-	end   string
-	today bool
-	json  bool
-}
-
-var syncCmd = &cobra.Command{
-	Use:   "sync [code...]",
-	Short: "批量同步历史数据到本地 PG",
-	Args:  cobra.ArbitraryArgs,
-	Run: func(cmd *cobra.Command, args []string) {
-		tp, _ := cmd.Flags().GetString("type")
-		days, _ := cmd.Flags().GetInt("days")
-		start, _ := cmd.Flags().GetString("start")
-		end, _ := cmd.Flags().GetString("end")
-		today, _ := cmd.Flags().GetBool("today")
-		jsonFmt, _ := cmd.Flags().GetBool("json")
-
-		f := &syncFlags{tp: tp, days: days, start: start, end: end, today: today, json: jsonFmt}
-		ctx := context.Background()
-
-		if len(args) > 0 {
-			syncCodes(ctx, args, f)
-		} else {
-			syncAll(ctx, f)
-		}
-	},
-}
-
-func syncCodes(ctx context.Context, codes []string, f *syncFlags) {
-	var opts []fetch.Option
-	if f.start != "" {
-		opts = append(opts, fetch.WithStart(f.start))
-	}
-	if f.end != "" {
-		opts = append(opts, fetch.WithEnd(f.end))
-	}
-	if f.days > 0 {
-		opts = append(opts, fetch.WithLimit(f.days))
-	}
-	for _, code := range codes {
-		fmt.Printf("同步 %s ...\n", code)
-		bars, err := router.DailyKline(ctx, code, model.DataType(f.tp), true, opts...)
-		if err != nil {
-			fmt.Printf("  %s: 失败 — %v\n", code, err)
-			continue
-		}
-		fmt.Printf("  %s: %d 条日K\n", code, len(bars))
-	}
-}
-
-func syncAll(ctx context.Context, f *syncFlags) {
-	// 全量同步股票列表
-	fmt.Println("同步股票列表...")
-	stocks, err := sel.StockList(ctx)
-	if err != nil {
-		fmt.Printf("股票列表获取失败: %v\n", err)
-		return
-	}
-	fmt.Printf("股票列表: %d 条\n", len(stocks))
-
-	// 全量同步概念列表
-	fmt.Println("同步概念列表...")
-	concepts, err := sel.ConceptList(ctx)
-	if err != nil {
-		fmt.Printf("概念列表获取失败: %v\n", err)
-		return
-	}
-	fmt.Printf("概念列表: %d 条\n", len(concepts))
-
-	// 同步日K（并发，goroutine 池限制 10）
-	sem := make(chan struct{}, 10)
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-	var total int
-
-	for _, s := range stocks {
-		wg.Add(1)
-		sem <- struct{}{}
-		go func(code string) {
-			defer wg.Done()
-			defer func() { <-sem }()
-
-			bars, err := router.DailyKline(ctx, code, model.TypeStock, true)
-			if err != nil {
-				fmt.Printf("  %s 同步失败: %v\n", code, err)
-				return
-			}
-			mu.Lock()
-			total += len(bars)
-			mu.Unlock()
-		}(s.Code)
-	}
-	wg.Wait()
-	fmt.Printf("日K同步完成: %d 条\n", total)
-}
-
 func init() {
-	rootCmd.AddCommand(syncCmd)
-	syncCmd.Flags().String("type", "all", "stock / index / concept / all")
-	syncCmd.Flags().Int("days", 30, "近N天")
-	syncCmd.Flags().String("start", "", "开始日期")
-	syncCmd.Flags().String("end", "", "结束日期")
-	syncCmd.Flags().Bool("today", false, "仅今天")
-	syncCmd.Flags().Bool("json", false, "JSON 输出")
+	rootCmd.AddCommand(newSyncCmd())
+}
+
+func newSyncCmd() *cobra.Command {
+	syncCmd := &cobra.Command{
+		Use:   "sync",
+		Short: "从 TDX 拉数据写入 ClickHouse",
+	}
+
+	// --- sync meta ---
+	syncCmd.AddCommand(&cobra.Command{
+		Use:   "meta",
+		Short: "同步全市场标的列表（stock/index/etf）→ securities",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			ch, tc, close, err := openBoth(ctx)
+			if err != nil {
+				return err
+			}
+			defer close()
+
+			fmt.Println("→ 拉取全市场标的列表...")
+			n, err := ssync.Meta(ctx, ch, tc)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("✓ 写入 securities %d 行\n", n)
+			return nil
+		},
+	})
+
+	// --- sync daily ---
+	dailyCmd := &cobra.Command{
+		Use:   "daily",
+		Short: "同步日 K 线 → kline_daily",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			code, _ := cmd.Flags().GetString("code")
+			all, _ := cmd.Flags().GetBool("all")
+			count, _ := cmd.Flags().GetUint16("count")
+			if code == "" && !all {
+				return fmt.Errorf("需指定 --code 或 --all")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer cancel()
+			ch, tc, close, err := openBoth(ctx)
+			if err != nil {
+				return err
+			}
+			defer close()
+
+			fmt.Printf("→ sync daily (code=%s all=%v count=%d)...\n", code, all, count)
+			n, err := ssync.Daily(ctx, ch, tc, code, all, count)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("✓ 写入 kline_daily %d 行\n", n)
+			return nil
+		},
+	}
+	dailyCmd.Flags().String("code", "", "6 位代码（单只）")
+	dailyCmd.Flags().Bool("all", false, "遍历全部已入库标的")
+	dailyCmd.Flags().Uint16("count", 800, "每只拉最近 N 根（0 = 全量）")
+	syncCmd.AddCommand(dailyCmd)
+
+	// --- sync xdxr ---
+	xdxrCmd := &cobra.Command{
+		Use:   "xdxr",
+		Short: "同步除权除息 → xdxr",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			code, _ := cmd.Flags().GetString("code")
+			all, _ := cmd.Flags().GetBool("all")
+			if code == "" && !all {
+				return fmt.Errorf("需指定 --code 或 --all")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer cancel()
+			ch, tc, close, err := openBoth(ctx)
+			if err != nil {
+				return err
+			}
+			defer close()
+
+			fmt.Printf("→ sync xdxr (code=%s all=%v)...\n", code, all)
+			n, err := ssync.XDXR(ctx, ch, tc, code, all)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("✓ 写入 xdxr %d 行\n", n)
+			return nil
+		},
+	}
+	xdxrCmd.Flags().String("code", "", "6 位代码（单只）")
+	xdxrCmd.Flags().Bool("all", false, "遍历全部已入库 stock")
+	syncCmd.AddCommand(xdxrCmd)
+
+	// --- sync minute ---
+	minuteCmd := &cobra.Command{
+		Use:   "minute",
+		Short: "同步分钟 K 线 → kline_minute",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			code, _ := cmd.Flags().GetString("code")
+			freq, _ := cmd.Flags().GetString("freq")
+			count, _ := cmd.Flags().GetUint16("count")
+			if code == "" {
+				return fmt.Errorf("需指定 --code")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			ch, tc, close, err := openBoth(ctx)
+			if err != nil {
+				return err
+			}
+			defer close()
+
+			fmt.Printf("→ sync minute %s (freq=%s count=%d)...\n", code, freq, count)
+			n, err := ssync.Minute(ctx, ch, tc, code, model.Freq(freq), count)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("✓ 写入 kline_minute %d 行\n", n)
+			return nil
+		},
+	}
+	minuteCmd.Flags().String("code", "", "6 位代码")
+	minuteCmd.Flags().String("freq", "5m", "频率: 1m/5m/15m/30m/60m")
+	minuteCmd.Flags().Uint16("count", 800, "拉取根数")
+	syncCmd.AddCommand(minuteCmd)
+
+	// --- sync block ---
+	syncCmd.AddCommand(&cobra.Command{
+		Use:   "block",
+		Short: "同步板块 + 成分股 → blocks / block_constituents",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+			defer cancel()
+			ch, tc, close, err := openBoth(ctx)
+			if err != nil {
+				return err
+			}
+			defer close()
+
+			fmt.Println("→ sync block...")
+			n, err := ssync.Block(ctx, ch, tc)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("✓ 写入 blocks + block_constituents %d 行\n", n)
+			return nil
+		},
+	})
+
+	// --- sync finance ---
+	finCmd := &cobra.Command{
+		Use:   "finance",
+		Short: "同步财务数据 → finance",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			code, _ := cmd.Flags().GetString("code")
+			all, _ := cmd.Flags().GetBool("all")
+			if code == "" && !all {
+				return fmt.Errorf("需指定 --code 或 --all")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+			defer cancel()
+			ch, tc, close, err := openBoth(ctx)
+			if err != nil {
+				return err
+			}
+			defer close()
+
+			fmt.Printf("→ sync finance (code=%s all=%v)...\n", code, all)
+			n, err := ssync.Finance(ctx, ch, tc, code, all)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("✓ 写入 finance %d 行\n", n)
+			return nil
+		},
+	}
+	finCmd.Flags().String("code", "", "6 位代码（单只）")
+	finCmd.Flags().Bool("all", false, "遍历全部")
+	syncCmd.AddCommand(finCmd)
+
+	return syncCmd
+}
+
+// openBoth 打开 CH 连接 + TDX 连接，返回统一 close。
+func openBoth(ctx context.Context) (*dwh.Client, *tdx.Client, func(), error) {
+	ch, err := dwh.New(ctx, cfg)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("connect CH: %w", err)
+	}
+	tc := tdx.New()
+	close := func() {
+		tc.Close()
+		ch.Close()
+	}
+	return ch, tc, close, nil
 }
