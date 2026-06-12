@@ -395,20 +395,22 @@ astock
 ├── sync                              数据同步（TDX → CH）
 │   ├── meta                          股票/指数/板块列表 + 交易日历
 │   ├── info                          F10 公司信息（行业/主营）→ securities 扩展字段
-│   ├── daily   [--code|--all] [--from YYYYMMDD] [--to YYYYMMDD]
-│   ├── minute  [--code|--all] [--freq 1m] [--days 30]
+│   ├── daily   --code a,b,c|--all [--count 800]
+│   ├── minute  --code a,b,c [--freq 5m] [--count 800]
 │   ├── block                         板块成分股
-│   ├── xdxr    [--code|--all]        除权除息（复权基础）
-│   ├── finance [--code|--all]        财务数据（每季跑一次）
-│   └── all     [--days 30]           执行 meta + daily + minute + block + xdxr
+│   ├── xdxr    --code a,b,c|--all    除权除息（复权基础）
+│   ├── finance --code a,b,c|--all    财务数据（每季跑一次）
+│   └── all     --code a,b,c [--count 800] [--freq 5m]   对每只执行 daily+minute+xdxr
 │
 ├── query                             本地仓库查询
-│   ├── daily   <code> [--type stock|index|block] [--from] [--to] [--limit 30] [--adjust qfq|hfq|raw]
-│   ├── minute  <code> [--freq 1m] [--date YYYYMMDD]    # --date 指定则查历史分时
-│   ├── stock   [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
-│   ├── block   [list|constituents <block_code>]
-│   ├── finance <code>                                 查询财务数据
-│   └── xdxr    <code>                                 查询除权除息记录
+│   ├── daily   <code> [--from] [--to] [--limit 30] [--adjust qfq|none]
+│   ├── minute  <code> [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD] [--limit 240]
+│   ├── count   <table>                              查表行数
+│   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
+│   ├── block   list [--keyword 光通信]               列出概念/行业板块
+│   │           members <block_code>                  查某板块成分股
+│   ├── finance <code>                                查询财务数据
+│   └── xdxr    <code>                                查询除权除息记录
 │
 ├── live                              实时直连 TDX（不落库）
 │   ├── quote   <code...>                              实时报价 + 五档盘口

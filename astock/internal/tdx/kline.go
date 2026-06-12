@@ -59,7 +59,6 @@ func (c *Client) GetKlineMinute(code string, dataType model.DataType, freq model
 	}
 
 	var (
-		resp *protocol.KlineResp
 		fn   func(string, uint16, uint16) (*protocol.KlineResp, error)
 		fnIx func(string, uint16, uint16) (*protocol.KlineResp, error)
 	)
@@ -83,15 +82,39 @@ func (c *Client) GetKlineMinute(code string, dataType model.DataType, freq model
 		return nil, fmt.Errorf("unsupported freq: %s", freq)
 	}
 
-	if dataType == model.TypeIndex {
-		resp, err = fnIx(IndexCode(code), 0, count)
-	} else {
-		resp, err = fn(code, 0, count)
+	// 分页拉取，TDX 单次上限 800 根
+	const maxPerReq uint16 = 800
+	var all []*model.Bar
+	remaining := count
+	offset := uint16(0)
+
+	for remaining > 0 {
+		batch := remaining
+		if batch > maxPerReq {
+			batch = maxPerReq
+		}
+
+		var resp *protocol.KlineResp
+		if dataType == model.TypeIndex {
+			resp, err = fnIx(IndexCode(code), offset, batch)
+		} else {
+			resp, err = fn(code, offset, batch)
+		}
+		if err != nil {
+			return nil, fmt.Errorf("get kline %s minute %s (offset=%d): %w", freq, code, offset, err)
+		}
+		bars := klineToBars(code, dataType, freq, resp)
+		if len(bars) == 0 {
+			break // 没有更多数据
+		}
+		all = append(all, bars...)
+		offset += uint16(len(bars))
+		remaining -= uint16(len(bars))
+		if uint16(len(bars)) < batch {
+			break // 返回不足请求数，说明到底了
+		}
 	}
-	if err != nil {
-		return nil, fmt.Errorf("get kline %s minute %s: %w", freq, code, err)
-	}
-	return klineToBars(code, dataType, freq, resp), nil
+	return all, nil
 }
 
 // klineToBars 把 injoyai 的 KlineResp 转为 model.Bar 切片。

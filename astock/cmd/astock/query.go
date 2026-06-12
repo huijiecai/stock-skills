@@ -208,6 +208,229 @@ func newQueryCmd() *cobra.Command {
 		},
 	})
 
+	// --- query stock ---
+	stockCmd := &cobra.Command{
+		Use:   "stock",
+		Short: "查询标的列表（股票/指数/ETF）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			typ, _ := cmd.Flags().GetString("type")
+			market, _ := cmd.Flags().GetString("market")
+			industry, _ := cmd.Flags().GetString("industry")
+			keyword, _ := cmd.Flags().GetString("keyword")
+			limit, _ := cmd.Flags().GetInt("limit")
+			jsonOut := isJSON(cmd)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			where := "1=1"
+			if typ != "" {
+				where += fmt.Sprintf(" AND type = '%s'", typ)
+			}
+			if market != "" {
+				where += fmt.Sprintf(" AND market = '%s'", market)
+			}
+			if industry != "" {
+				where += fmt.Sprintf(" AND industry LIKE '%%%s%%'", industry)
+			}
+			if keyword != "" {
+				where += fmt.Sprintf(" AND (name LIKE '%%%s%%' OR code LIKE '%%%s%%')", keyword, keyword)
+			}
+
+			q := fmt.Sprintf(`SELECT code, name, market, type, industry
+				FROM %s.securities FINAL WHERE %s ORDER BY code LIMIT %d`, ch.DB(), where, limit)
+
+			rows, err := ch.Conn().Query(ctx, q)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			type secRow struct {
+				Code     string `json:"code"`
+				Name     string `json:"name"`
+				Market   string `json:"market"`
+				Type     string `json:"type"`
+				Industry string `json:"industry"`
+			}
+			var list []*secRow
+			for rows.Next() {
+				var r secRow
+				if err := rows.Scan(&r.Code, &r.Name, &r.Market, &r.Type, &r.Industry); err != nil {
+					return err
+				}
+				list = append(list, &r)
+			}
+			if len(list) == 0 {
+				fmt.Println("无匹配结果")
+				return nil
+			}
+
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(list)
+			}
+
+			t := newTable("代码", 8, "名称", 12, "市场", 4, "类型", 6, "行业", 12)
+			for _, r := range list {
+				t.Row(r.Code, r.Name, r.Market, r.Type, r.Industry)
+			}
+			t.Print()
+			fmt.Printf("\n共 %d 条\n", len(list))
+			return nil
+		},
+	}
+	stockCmd.Flags().String("type", "stock", "标的类型: stock/index/etf")
+	stockCmd.Flags().String("market", "", "市场: sh/sz/bj")
+	stockCmd.Flags().String("industry", "", "行业关键字（模糊匹配）")
+	stockCmd.Flags().String("keyword", "", "名称或代码关键字")
+	stockCmd.Flags().Int("limit", 50, "返回条数")
+	queryCmd.AddCommand(stockCmd)
+
+	// --- query block ---
+	blockCmd := &cobra.Command{
+		Use:   "block",
+		Short: "查询板块列表及成分股",
+	}
+
+	blockListCmd := &cobra.Command{
+		Use:   "list",
+		Short: "列出概念/行业板块",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			keyword, _ := cmd.Flags().GetString("keyword")
+			limit, _ := cmd.Flags().GetInt("limit")
+			jsonOut := isJSON(cmd)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			where := "1=1"
+			if keyword != "" {
+				where += fmt.Sprintf(" AND (name LIKE '%%%s%%' OR code LIKE '%%%s%%')", keyword, keyword)
+			}
+
+			q := fmt.Sprintf(`SELECT code, name, type, stock_count
+				FROM %s.blocks FINAL WHERE %s ORDER BY stock_count DESC LIMIT %d`, ch.DB(), where, limit)
+
+			rows, err := ch.Conn().Query(ctx, q)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			type blockRow struct {
+				Code       string `json:"code"`
+				Name       string `json:"name"`
+				Type       string `json:"type"`
+				StockCount uint32 `json:"stock_count"`
+			}
+			var list []*blockRow
+			for rows.Next() {
+				var r blockRow
+				if err := rows.Scan(&r.Code, &r.Name, &r.Type, &r.StockCount); err != nil {
+					return err
+				}
+				list = append(list, &r)
+			}
+			if len(list) == 0 {
+				fmt.Println("无匹配结果")
+				return nil
+			}
+
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(list)
+			}
+
+			t := newTable("代码", 8, "名称", 14, "类型", 8, "成分股数", 8)
+			for _, r := range list {
+				t.Row(r.Code, r.Name, r.Type, fmt.Sprintf("%d", r.StockCount))
+			}
+			t.Print()
+			fmt.Printf("\n共 %d 个板块\n", len(list))
+			return nil
+		},
+	}
+	blockListCmd.Flags().String("keyword", "", "板块名称关键字")
+	blockListCmd.Flags().Int("limit", 50, "返回条数")
+	blockCmd.AddCommand(blockListCmd)
+
+	blockMembersCmd := &cobra.Command{
+		Use:   "members <block_code>",
+		Short: "查询板块成分股",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			blockCode := args[0]
+			jsonOut := isJSON(cmd)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			q := fmt.Sprintf(`SELECT bc.stock_code, s.name, s.industry
+				FROM %s.block_constituents AS bc
+				LEFT JOIN %s.securities AS s ON bc.stock_code = s.code AND s.type = 'stock'
+				WHERE bc.block_code = '%s'
+				ORDER BY bc.stock_code`, ch.DB(), ch.DB(), blockCode)
+
+			rows, err := ch.Conn().Query(ctx, q)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			type memberRow struct {
+				Code     string `json:"code"`
+				Name     string `json:"name"`
+				Industry string `json:"industry"`
+			}
+			var list []*memberRow
+			for rows.Next() {
+				var r memberRow
+				if err := rows.Scan(&r.Code, &r.Name, &r.Industry); err != nil {
+					return err
+				}
+				list = append(list, &r)
+			}
+			if len(list) == 0 {
+				fmt.Println("无成分股或板块代码不存在")
+				return nil
+			}
+
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(list)
+			}
+
+			t := newTable("代码", 8, "名称", 12, "行业", 14)
+			for _, r := range list {
+				t.Row(r.Code, r.Name, r.Industry)
+			}
+			t.Print()
+			fmt.Printf("\n共 %d 只成分股\n", len(list))
+			return nil
+		},
+	}
+	blockCmd.AddCommand(blockMembersCmd)
+	queryCmd.AddCommand(blockCmd)
+
 	return queryCmd
 }
 
