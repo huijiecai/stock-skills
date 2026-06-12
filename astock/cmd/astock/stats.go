@@ -14,6 +14,7 @@ import (
 
 func init() {
 	rootCmd.AddCommand(newStatsCmd())
+	rootCmd.AddCommand(newStatusCmd())
 }
 
 func newStatsCmd() *cobra.Command {
@@ -89,6 +90,65 @@ func newStatsCmd() *cobra.Command {
 			for _, e := range logs {
 				fmt.Printf("  %s  %-12s  %-10s  %d行  %s\n", e.StartAt[5:16], e.Task, e.Target, e.Rows, e.Status)
 			}
+			return nil
+		},
+	}
+}
+
+func newStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "最近同步任务状态",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			type logEntry struct {
+				Task    string `json:"task"`
+				Target  string `json:"target"`
+				Rows    uint64 `json:"rows"`
+				Status  string `json:"status"`
+				StartAt string `json:"start_at"`
+			}
+
+			rows, err := ch.Conn().Query(ctx,
+				fmt.Sprintf(`SELECT task, target, rows, status, start_at FROM %s.sync_log ORDER BY start_at DESC LIMIT 20`, ch.DB()))
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			var logs []logEntry
+			for rows.Next() {
+				var e logEntry
+				var startAt time.Time
+				if err := rows.Scan(&e.Task, &e.Target, &e.Rows, &e.Status, &startAt); err != nil {
+					return err
+				}
+				e.StartAt = startAt.Format("2006-01-02 15:04:05")
+				logs = append(logs, e)
+			}
+			if len(logs) == 0 {
+				fmt.Println("无同步记录")
+				return nil
+			}
+
+			if isJSON(cmd) {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(logs)
+			}
+
+			t := newTable("时间", 16, "任务", 12, "目标", 10, "行数", 8, "状态", 6)
+			for _, e := range logs {
+				t.Row(e.StartAt[5:16], e.Task, e.Target, fmt.Sprintf("%d", e.Rows), e.Status)
+			}
+			t.Print()
 			return nil
 		},
 	}

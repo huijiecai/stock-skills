@@ -400,7 +400,8 @@ astock
 │   ├── block                         板块成分股
 │   ├── xdxr    --code a,b,c|--all    除权除息（复权基础）
 │   ├── finance --code a,b,c|--all    财务数据（每季跑一次）
-│   └── all     --code a,b,c [--count 800] [--freq 5m]   对每只执行 daily+minute+xdxr
+│   └── all     --code a,b,c [--days 30] [--skip-info] [--skip-finance]
+│                                      对每只执行 info+daily+minute(1m,5m)+xdxr+finance
 │
 ├── query                             本地仓库查询
 │   ├── daily   <code> [--from] [--to] [--limit 30] [--adjust qfq|none]
@@ -409,6 +410,7 @@ astock
 │   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
 │   ├── block   list [--keyword 光通信]               列出概念/行业板块
 │   │           members <block_code>                  查某板块成分股
+│   ├── info    <code>                                查询标的详情（F10 行业/省份/经营范围）
 │   ├── finance <code>                                查询财务数据
 │   └── xdxr    <code>                                查询除权除息记录
 │
@@ -429,7 +431,11 @@ astock init                                 # 一次性
 astock sync meta                            # 同步全市场元数据
 astock sync daily --all --from 20200101     # 全市场日K回填
 astock sync daily --code 600519 --from 20100101  # 单只全历史
-astock sync all --days 1                    # 每日增量（cron 用）
+astock sync all --days 1                    # 每日增量（cron 用，含 info/daily/minute/xdxr/finance）
+astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务（每日不必更新）
+astock sync info --code 600519              # 单独同步 F10 公司信息
+
+astock query info 600519                    # 标的详情（F10 行业/板块/省份/经营范围）
 
 astock query daily 600519 --limit 30        # 默认 table 输出
 astock query daily 600519 --adjust qfq      # 前复权日K（查询时实时计算）

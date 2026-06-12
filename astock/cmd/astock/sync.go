@@ -47,6 +47,55 @@ func newSyncCmd() *cobra.Command {
 		},
 	})
 
+	// --- sync info ---
+	infoCmd := &cobra.Command{
+		Use:   "info",
+		Short: "同步 F10 公司信息（行业/地域/经营范围）→ securities 扩展字段",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			codeStr, _ := cmd.Flags().GetString("code")
+			all, _ := cmd.Flags().GetBool("all")
+			if codeStr == "" && !all {
+				return fmt.Errorf("需指定 --code 或 --all")
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
+			defer cancel()
+			ch, tc, close, err := openBoth(ctx)
+			if err != nil {
+				return err
+			}
+			defer close()
+
+			if all {
+				fmt.Println("→ sync info (all)...")
+				n, err := ssync.Info(ctx, ch, tc, "", true, func(i, total int, code string) {
+					if i%100 == 0 {
+						fmt.Printf("  [%d/%d] %s...\n", i, total, code)
+					}
+				})
+				if err != nil {
+					return err
+				}
+				fmt.Printf("✓ 更新 securities %d 只\n", n)
+				return nil
+			}
+
+			codes := parseCodes(codeStr)
+			for _, code := range codes {
+				fmt.Printf("→ sync info %s...\n", code)
+				n, err := ssync.Info(ctx, ch, tc, code, false, nil)
+				if err != nil {
+					fmt.Printf("✗ %s: %v\n", code, err)
+					continue
+				}
+				fmt.Printf("✓ %s 更新 %d 条\n", code, n)
+			}
+			return nil
+		},
+	}
+	infoCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔")
+	infoCmd.Flags().Bool("all", false, "遍历全部已入库 stock")
+	syncCmd.AddCommand(infoCmd)
+
 	// --- sync daily ---
 	dailyCmd := &cobra.Command{
 		Use:   "daily",
@@ -247,10 +296,12 @@ func newSyncCmd() *cobra.Command {
 	// --- sync all ---
 	allCmd := &cobra.Command{
 		Use:   "all",
-		Short: "批量同步：对每个 code 执行 daily + minute(1m,5m) + xdxr",
+		Short: "批量同步：对每个 code 执行 info + daily + minute(1m,5m) + xdxr + finance",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			codeStr, _ := cmd.Flags().GetString("code")
 			days, _ := cmd.Flags().GetUint16("days")
+			skipInfo, _ := cmd.Flags().GetBool("skip-info")
+			skipFin, _ := cmd.Flags().GetBool("skip-finance")
 			if codeStr == "" {
 				return fmt.Errorf("需指定 --code（逗号分隔多只）")
 			}
@@ -270,6 +321,17 @@ func newSyncCmd() *cobra.Command {
 			codes := parseCodes(codeStr)
 			for i, code := range codes {
 				fmt.Printf("\n━━ [%d/%d] %s ━━\n", i+1, len(codes), code)
+
+				// info (F10 公司信息)
+				if !skipInfo {
+					fmt.Printf("  → info...\n")
+					n, err := ssync.Info(ctx, ch, tc, code, false, nil)
+					if err != nil {
+						fmt.Printf("  ✗ info: %v\n", err)
+					} else {
+						fmt.Printf("  ✓ info %d 条\n", n)
+					}
+				}
 
 				// daily
 				fmt.Printf("  → daily (%d天)...\n", days)
@@ -306,6 +368,17 @@ func newSyncCmd() *cobra.Command {
 				} else {
 					fmt.Printf("  ✓ xdxr %d 行\n", n)
 				}
+
+				// finance
+				if !skipFin {
+					fmt.Printf("  → finance...\n")
+					n, err = ssync.Finance(ctx, ch, tc, code, false)
+					if err != nil {
+						fmt.Printf("  ✗ finance: %v\n", err)
+					} else {
+						fmt.Printf("  ✓ finance %d 行\n", n)
+					}
+				}
 			}
 			fmt.Printf("\n━━ 全部完成（%d 只, %d天）━━\n", len(codes), days)
 			return nil
@@ -313,6 +386,8 @@ func newSyncCmd() *cobra.Command {
 	}
 	allCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔（必填）")
 	allCmd.Flags().Uint16("days", 30, "同步最近 N 个交易日")
+	allCmd.Flags().Bool("skip-info", false, "跳过 F10 公司信息同步")
+	allCmd.Flags().Bool("skip-finance", false, "跳过财务数据同步")
 	syncCmd.AddCommand(allCmd)
 
 	return syncCmd

@@ -431,6 +431,231 @@ func newQueryCmd() *cobra.Command {
 	blockCmd.AddCommand(blockMembersCmd)
 	queryCmd.AddCommand(blockCmd)
 
+	// --- query finance ---
+	financeCmd := &cobra.Command{
+		Use:   "finance <code>",
+		Short: "查询财务数据",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			code := args[0]
+			jsonOut := isJSON(cmd)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			q := fmt.Sprintf(`SELECT code, report_date, revenue, net_profit, eps, bps, roe,
+				total_share, float_share, total_assets, total_liability
+				FROM %s.finance FINAL WHERE code = '%s' ORDER BY report_date DESC LIMIT 10`, ch.DB(), code)
+
+			rows, err := ch.Conn().Query(ctx, q)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			type finRow struct {
+				Code           string  `json:"code"`
+				ReportDate     string  `json:"report_date"`
+				Revenue        float64 `json:"revenue"`
+				NetProfit      float64 `json:"net_profit"`
+				EPS            float32 `json:"eps"`
+				BPS            float32 `json:"bps"`
+				ROE            float32 `json:"roe"`
+				TotalShare     uint64  `json:"total_share"`
+				FloatShare     uint64  `json:"float_share"`
+				TotalAssets    float64 `json:"total_assets"`
+				TotalLiability float64 `json:"total_liability"`
+			}
+			var list []*finRow
+			for rows.Next() {
+				var r finRow
+				var rd time.Time
+				if err := rows.Scan(&r.Code, &rd, &r.Revenue, &r.NetProfit, &r.EPS, &r.BPS, &r.ROE,
+					&r.TotalShare, &r.FloatShare, &r.TotalAssets, &r.TotalLiability); err != nil {
+					return err
+				}
+				r.ReportDate = rd.Format("2006-01-02")
+				list = append(list, &r)
+			}
+			if len(list) == 0 {
+				fmt.Println("无财务数据，请先执行 sync finance --code", code)
+				return nil
+			}
+
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(list)
+			}
+
+			t := newTable("报告期", 12, "营收(万)", 12, "净利润(万)", 12, "总股本(万)", 10, "流通股(万)", 10, "总资产(万)", 12)
+			for _, r := range list {
+				t.Row(r.ReportDate,
+					fmt.Sprintf("%.0f", r.Revenue/10000),
+					fmt.Sprintf("%.0f", r.NetProfit/10000),
+					fmt.Sprintf("%d", r.TotalShare/10000),
+					fmt.Sprintf("%d", r.FloatShare/10000),
+					fmt.Sprintf("%.0f", r.TotalAssets/10000))
+			}
+			t.Print()
+			return nil
+		},
+	}
+	queryCmd.AddCommand(financeCmd)
+
+	// --- query xdxr ---
+	xdxrCmd := &cobra.Command{
+		Use:   "xdxr <code>",
+		Short: "查询除权除息记录",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			code := args[0]
+			jsonOut := isJSON(cmd)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			q := fmt.Sprintf(`SELECT code, ex_date, type, bonus, transfer, dividend, rights_price, rights_ratio
+				FROM %s.xdxr FINAL WHERE code = '%s' ORDER BY ex_date DESC`, ch.DB(), code)
+
+			rows, err := ch.Conn().Query(ctx, q)
+			if err != nil {
+				return err
+			}
+			defer rows.Close()
+
+			type xRow struct {
+				Code        string  `json:"code"`
+				ExDate      string  `json:"ex_date"`
+				Type        string  `json:"type"`
+				Bonus       float32 `json:"bonus"`
+				Transfer    float32 `json:"transfer"`
+				Dividend    float32 `json:"dividend"`
+				RightsPrice float32 `json:"rights_price"`
+				RightsRatio float32 `json:"rights_ratio"`
+			}
+			var list []*xRow
+			for rows.Next() {
+				var r xRow
+				var ed time.Time
+				if err := rows.Scan(&r.Code, &ed, &r.Type, &r.Bonus, &r.Transfer, &r.Dividend, &r.RightsPrice, &r.RightsRatio); err != nil {
+					return err
+				}
+				r.ExDate = ed.Format("2006-01-02")
+				list = append(list, &r)
+			}
+			if len(list) == 0 {
+				fmt.Println("无除权除息记录，请先执行 sync xdxr --code", code)
+				return nil
+			}
+
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(list)
+			}
+
+			t := newTable("除权日", 12, "类型", 10, "送股", 6, "转增", 6, "派息", 6, "配股价", 7, "配股比", 7)
+			for _, r := range list {
+				t.Row(r.ExDate, r.Type,
+					fmt.Sprintf("%.1f", r.Bonus),
+					fmt.Sprintf("%.1f", r.Transfer),
+					fmt.Sprintf("%.2f", r.Dividend),
+					fmt.Sprintf("%.2f", r.RightsPrice),
+					fmt.Sprintf("%.2f", r.RightsRatio))
+			}
+			t.Print()
+			return nil
+		},
+	}
+	queryCmd.AddCommand(xdxrCmd)
+
+	// --- query info ---
+	infoCmd := &cobra.Command{
+		Use:   "info <code>",
+		Short: "查询标的详情（F10 行业/省份/经营范围）",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			code := args[0]
+			jsonOut := isJSON(cmd)
+
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			q := fmt.Sprintf(`SELECT code, name, market, type, list_date, delist_date,
+				industry, sector, province, business, updated_at
+				FROM %s.securities FINAL WHERE code = '%s' AND type = 'stock' LIMIT 1`, ch.DB(), code)
+
+			row := ch.Conn().QueryRow(ctx, q)
+			var (
+				c, name, market, typ, industry, sector, province, business string
+				listDate                                                    time.Time
+				delistDate                                                  *time.Time
+				updatedAt                                                   time.Time
+			)
+			if err := row.Scan(&c, &name, &market, &typ, &listDate, &delistDate,
+				&industry, &sector, &province, &business, &updatedAt); err != nil {
+				fmt.Printf("未找到 %s（请先 sync meta）\n", code)
+				return nil
+			}
+
+			type infoRow struct {
+				Code      string `json:"code"`
+				Name      string `json:"name"`
+				Market    string `json:"market"`
+				Type      string `json:"type"`
+				ListDate  string `json:"list_date"`
+				Industry  string `json:"industry"`
+				Sector    string `json:"sector"`
+				Province  string `json:"province"`
+				Business  string `json:"business"`
+				UpdatedAt string `json:"updated_at"`
+			}
+			r := infoRow{
+				Code: c, Name: name, Market: market, Type: typ,
+				ListDate:  listDate.Format("2006-01-02"),
+				Industry:  industry,
+				Sector:    sector,
+				Province:  province,
+				Business:  business,
+				UpdatedAt: updatedAt.Format("2006-01-02 15:04"),
+			}
+
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(r)
+			}
+
+			fmt.Printf("代码     : %s\n", r.Code)
+			fmt.Printf("名称     : %s\n", r.Name)
+			fmt.Printf("市场     : %s / %s\n", r.Market, r.Type)
+			fmt.Printf("上市日   : %s\n", r.ListDate)
+			fmt.Printf("行业     : %s\n", r.Industry)
+			fmt.Printf("板块     : %s\n", r.Sector)
+			fmt.Printf("省份     : %s\n", r.Province)
+			fmt.Printf("经营范围 : %s\n", r.Business)
+			fmt.Printf("更新时间 : %s\n", r.UpdatedAt)
+			return nil
+		},
+	}
+	queryCmd.AddCommand(infoCmd)
+
 	return queryCmd
 }
 
