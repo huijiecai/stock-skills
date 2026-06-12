@@ -26,6 +26,12 @@ func newLiveCmd() *cobra.Command {
 		Short: "实时报价 + 五档盘口",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// 拒绝板块/纯指数代码：GetQuotes 是股票实时报价接口，传入会被 AddPrefix 误判为股票并拉到错误数据。
+			for _, c := range args {
+				if tdx.IsBlockOrPureIndex(c) {
+					return fmt.Errorf("%s 是板块/指数代码，无实时报价（请用 query daily/minute 查 K 线）", c)
+				}
+			}
 			jsonOut := isJSON(cmd)
 			tc := tdx.New()
 			defer tc.Close()
@@ -71,6 +77,9 @@ func newLiveCmd() *cobra.Command {
 		Short: "当日分笔成交（实时拉取，不落库）",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if tdx.IsBlockOrPureIndex(args[0]) {
+				return fmt.Errorf("%s 是板块/指数代码，无分笔成交数据", args[0])
+			}
 			last, _ := cmd.Flags().GetInt("last")
 			jsonOut := isJSON(cmd)
 			tc := tdx.New()

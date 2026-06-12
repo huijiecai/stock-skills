@@ -81,6 +81,10 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
+				if tdx.IsBlockOrPureIndex(code) {
+					fmt.Printf("⛠ 跳过 %s：板块/指数代码无 F10 信息\n", code)
+					continue
+				}
 				fmt.Printf("→ sync info %s...\n", code)
 				n, err := ssync.Info(ctx, ch, tc, code, false, nil)
 				if err != nil {
@@ -173,6 +177,10 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
+				if tdx.IsBlockOrPureIndex(code) {
+					fmt.Printf("⛠ 跳过 %s：板块/指数代码无除权除息记录\n", code)
+					continue
+				}
 				fmt.Printf("→ sync xdxr %s...\n", code)
 				n, err := ssync.XDXR(ctx, ch, tc, code, false)
 				if err != nil {
@@ -278,6 +286,10 @@ func newSyncCmd() *cobra.Command {
 
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
+				if tdx.IsBlockOrPureIndex(code) {
+					fmt.Printf("⛠ 跳过 %s：板块/指数代码无财务数据\n", code)
+					continue
+				}
 				fmt.Printf("→ sync finance %s...\n", code)
 				n, err := ssync.Finance(ctx, ch, tc, code, false)
 				if err != nil {
@@ -321,9 +333,10 @@ func newSyncCmd() *cobra.Command {
 			codes := parseCodes(codeStr)
 			for i, code := range codes {
 				fmt.Printf("\n━━ [%d/%d] %s ━━\n", i+1, len(codes), code)
+				isBlock := tdx.IsBlockOrPureIndex(code)
 
-				// info (F10 公司信息)
-				if !skipInfo {
+				// info (F10 公司信息)——板块/指数跳过
+				if !skipInfo && !isBlock {
 					fmt.Printf("  → info...\n")
 					n, err := ssync.Info(ctx, ch, tc, code, false, nil)
 					if err != nil {
@@ -331,6 +344,8 @@ func newSyncCmd() *cobra.Command {
 					} else {
 						fmt.Printf("  ✓ info %d 条\n", n)
 					}
+				} else if isBlock && !skipInfo {
+					fmt.Printf("  ⛠ 跳过 info（板块/指数无 F10）\n")
 				}
 
 				// daily
@@ -360,17 +375,19 @@ func newSyncCmd() *cobra.Command {
 					}
 				}
 
-				// xdxr
-				fmt.Printf("  → xdxr...\n")
-				n, err = ssync.XDXR(ctx, ch, tc, code, false)
-				if err != nil {
-					fmt.Printf("  ✗ xdxr: %v\n", err)
-				} else {
-					fmt.Printf("  ✓ xdxr %d 行\n", n)
+				// xdxr——板块/指数跳过
+				if !isBlock {
+					fmt.Printf("  → xdxr...\n")
+					n, err = ssync.XDXR(ctx, ch, tc, code, false)
+					if err != nil {
+						fmt.Printf("  ✗ xdxr: %v\n", err)
+					} else {
+						fmt.Printf("  ✓ xdxr %d 行\n", n)
+					}
 				}
 
-				// finance
-				if !skipFin {
+				// finance——板块/指数跳过
+				if !skipFin && !isBlock {
 					fmt.Printf("  → finance...\n")
 					n, err = ssync.Finance(ctx, ch, tc, code, false)
 					if err != nil {

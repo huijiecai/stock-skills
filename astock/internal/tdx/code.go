@@ -84,3 +84,22 @@ func MarketOfIndex(code string) string {
 	}
 	return ""
 }
+
+// IsBlockOrPureIndex 判断代码是否为板块/纯指数（无 F10/财务/除权除息/实时报价/分笔）。
+//
+//	880xxx/881xxx/884xxx/885xxx → 通达信板块
+//	399xxx/899xxx               → 深证/北证指数
+//
+// 注意：000001 同时是上证综指与深圳平安银行（股票），保守不归入此类。
+func IsBlockOrPureIndex(code string) bool {
+	if len(code) != 6 {
+		return false
+	}
+	if code[:2] == "88" {
+		return true
+	}
+	if code[:3] == "399" || code[:3] == "899" {
+		return true
+	}
+	return false
+}

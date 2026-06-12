@@ -83,25 +83,6 @@ func canAutoSync(kind, freq, date, from string) (bool, string) {
 	return true, ""
 }
 
-// isBlockOrPureIndex 判断代码是否为板块/纯指数（无 F10/财务/除权除息）。
-//
-//	880xxx/881xxx/884xxx/885xxx → 通达信板块
-//	399xxx/899xxx               → 深证/北证指数
-//
-// 注意：000001 同时是上证综指与深圳平安银行（股票），保守不归入此类。
-func isBlockOrPureIndex(code string) bool {
-	if len(code) != 6 {
-		return false
-	}
-	if code[:2] == "88" {
-		return true
-	}
-	if code[:3] == "399" || code[:3] == "899" {
-		return true
-	}
-	return false
-}
-
 // autoSyncOnEmpty 本地查不到数据时按 kind 自动触发 TDX 同步。
 // 返回 true 表示调用方可重查；false 表示场景不适合 sync（已给出提示）。
 //
@@ -589,7 +570,7 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			if isBlockOrPureIndex(code) {
+			if tdx.IsBlockOrPureIndex(code) {
 				fmt.Printf("%s 是板块/指数代码，无财务数据\n", code)
 				return nil
 			}
@@ -689,7 +670,7 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			if isBlockOrPureIndex(code) {
+			if tdx.IsBlockOrPureIndex(code) {
 				fmt.Printf("%s 是板块/指数代码，无除权除息记录\n", code)
 				return nil
 			}
@@ -784,7 +765,7 @@ func newQueryCmd() *cobra.Command {
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			jsonOut := isJSON(cmd)
 
-			if isBlockOrPureIndex(code) {
+			if tdx.IsBlockOrPureIndex(code) {
 				fmt.Printf("%s 是板块/指数代码，无 F10 详情\n", code)
 				return nil
 			}

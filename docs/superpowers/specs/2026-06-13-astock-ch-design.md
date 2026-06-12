@@ -414,10 +414,16 @@ astock
 │   ├── finance <code>                                查询财务数据
 │   └── xdxr    <code>                                查询除权除息记录
 │
+│   # autoSync 拒绝规则（TDX 近端语义对齐）：
+│   #   • minute --date 是周末/超出频率窗口（1m≈3天 / 5m≈16天 / 15m≈50天）→ 不触发 sync。
+│   #   • daily --from 早于 4 年前 → 不触发（800 根 ≈ 3.3 年拉不到）。
+│   #   • 88xxxx/399xxx/899xxx 板块或纯指数代码调 info/finance/xdxr → 直接拒绝。
+│   #   • query info 防抖：1 小时内已 sync 过不重复 sync，避免 F10 持续为空时死循环。
+│
 ├── live                              实时直连 TDX（不落库）
-│   ├── quote   <code...>                              实时报价 + 五档盘口
-│   ├── tick    <code> [--date YYYYMMDD]               分笔成交（今日或历史）
-│   └── minute  <code> [--freq 1m]                     今日 N 分钟
+│   ├── quote   <code...>                              实时报价 + 五档盘口（拒绝 88xxxx/399xxx）
+│   ├── tick    <code> [--date YYYYMMDD]               分笔成交（拒绝 88xxxx/399xxx）
+│   └── minute  <code> [--freq 1m]                     今日 N 分钟（股票/指数/板块均可）
 │
 ├── stats                             仓库统计（行数/磁盘/最新日期）
 └── status                            最近同步任务状态
@@ -439,6 +445,9 @@ astock query info 600036                    # 未同步过会自动拉 F10 后�
 astock query daily 600036                   # 未同步过会自动 sync daily 后返回 K 线
 astock query daily 600036 --no-sync         # 仅查本地，不进不联网
 astock query daily 880930                   # 板块指数（汽车电子）同样支持
+astock query minute 002971 --date 20260524  # 拒绝：非交易日（周末），不触发 sync
+astock query minute 002971 --date 20260521  # 拒绝：1m 频率窗口外（可改 --freq 5m 扩大覆盖）
+astock query info 880904                    # 拒绝：板块/指数代码无 F10 详情
 
 astock query daily 600519 --limit 30        # 默认 table 输出
 astock query daily 600519 --adjust qfq      # 前复权日K（查询时实时计算）
