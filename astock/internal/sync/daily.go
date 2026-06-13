@@ -13,7 +13,8 @@ import (
 // Daily 同步日 K 线到 kline_daily 表。
 // dataType 决定 TDX 路由（stock vs index），仅在单 code 模式下使用；
 // all 模式下按 securities 表实际 type 字段分发，dataType 参数被忽略。
-func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dataType model.DataType, all bool, count uint16) (int, error) {
+// progress 可选：--all 路径下每只股处理前回调，供 CLI 层打进度。
+func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dataType model.DataType, all bool, count uint16, progress func(i, total int, code string)) (int, error) {
 	start := time.Now()
 	var total int
 
@@ -31,7 +32,10 @@ func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dat
 		if err != nil {
 			return 0, err
 		}
-		for _, sc := range codes {
+		for i, sc := range codes {
+			if progress != nil {
+				progress(i, len(codes), sc.Code)
+			}
 			n, err := syncDailyOne(ctx, ch, tc, sc.Code, sc.Type, count)
 			if err != nil {
 				fmt.Printf("  ⚠ %s failed: %v\n", sc.Code, err)
@@ -78,7 +82,8 @@ func syncDailyOne(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code stri
 }
 
 // XDXR 同步除权除息到 xdxr 表。
-func XDXR(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all bool) (int, error) {
+// progress 可选：--all 路径下每只股处理前回调，供 CLI 层打进度。
+func XDXR(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all bool, progress func(i, total int, code string)) (int, error) {
 	start := time.Now()
 	var total int
 
@@ -91,7 +96,10 @@ func XDXR(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all 
 		}
 	}
 
-	for _, sc := range codes {
+	for i, sc := range codes {
+		if progress != nil {
+			progress(i, len(codes), sc.Code)
+		}
 		if sc.Type != model.TypeStock {
 			continue
 		}

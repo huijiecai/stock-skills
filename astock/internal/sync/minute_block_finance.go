@@ -91,7 +91,7 @@ func Block(ctx context.Context, ch *dwh.Client, tc *tdx.Client) (int, error) {
 
 // Finance 同步财务数据到 finance 表。
 // all=true → 遍历全部 stock；否则只做 code 一只。
-func Finance(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all bool) (int, error) {
+func Finance(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all bool, progress func(i, total int, code string)) (int, error) {
 	start := time.Now()
 	var total int
 
@@ -104,7 +104,10 @@ func Finance(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, a
 		}
 	}
 
-	for _, sc := range codes {
+	for i, sc := range codes {
+		if progress != nil {
+			progress(i, len(codes), sc.Code)
+		}
 		if sc.Type != model.TypeStock {
 			continue
 		}

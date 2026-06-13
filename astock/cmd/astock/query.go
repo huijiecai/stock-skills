@@ -99,15 +99,15 @@ func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code string, dat
 	var err error
 	switch kind {
 	case "daily":
-		_, err = ssync.Daily(ctx, ch, tc, code, dataType, false, 800)
+		_, err = ssync.Daily(ctx, ch, tc, code, dataType, false, 800, nil)
 	case "minute":
 		_, err = ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(freq), 800)
 	case "info":
 		_, err = ssync.Info(ctx, ch, tc, code, false, nil)
 	case "finance":
-		_, err = ssync.Finance(ctx, ch, tc, code, false)
+		_, err = ssync.Finance(ctx, ch, tc, code, false, nil)
 	case "xdxr":
-		_, err = ssync.XDXR(ctx, ch, tc, code, false)
+		_, err = ssync.XDXR(ctx, ch, tc, code, false, nil)
 	default:
 		return false
 	}
@@ -200,6 +200,15 @@ func newQueryCmd() *cobra.Command {
 				applyQFQ(bars, xdxrs)
 			}
 
+			// 换手率：volume(手) * 100 / float_share * 100% = volume * 10000 / float_share
+			// finance 表无数据时 floatShare=0，turnover 留 0，表格显示 "-"
+			floatShare, _ := queryFloatShare(ctx, ch, code)
+			if floatShare > 0 {
+				for _, b := range bars {
+					b.Turnover = float64(b.Volume) * 10000 / float64(floatShare)
+				}
+			}
+
 			if jsonOut {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -207,11 +216,15 @@ func newQueryCmd() *cobra.Command {
 			}
 
 			// 表格输出
-			t := newTable("日期", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "涨跌%", 8, "成交量", 10)
+			t := newTable("日期", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "涨跌%", 8, "成交量", 10, "成交额", 10, "换手%", 8)
 			for _, b := range bars {
 				pct := 0.0
 				if b.PreClose > 0 {
 					pct = (b.Close - b.PreClose) / b.PreClose * 100
+				}
+				turnoverStr := "-"
+				if b.Turnover > 0 {
+					turnoverStr = fmt.Sprintf("%.2f%%", b.Turnover)
 				}
 				t.Row(b.TradeDate,
 					fmt.Sprintf("%.2f", b.Open),
@@ -219,7 +232,9 @@ func newQueryCmd() *cobra.Command {
 					fmt.Sprintf("%.2f", b.Low),
 					fmt.Sprintf("%.2f", b.Close),
 					fmt.Sprintf("%+.2f%%", pct),
-					fmt.Sprintf("%d", b.Volume))
+					fmt.Sprintf("%d", b.Volume),
+					formatAmount(b.Amount),
+					turnoverStr)
 			}
 			t.Print()
 			return nil
@@ -903,6 +918,7 @@ type dailyBar struct {
 	PreClose  float64 `json:"pre_close"`
 	Volume    uint64  `json:"volume"`
 	Amount    float64 `json:"amount"`
+	Turnover  float64 `json:"turnover"` // 换手率（%）。无 finance 数据时为 0
 }
 
 type xdxrRow struct {
@@ -948,6 +964,25 @@ func queryDaily(ctx context.Context, ch *dwh.Client, code string, dataType model
 		out[i], out[j] = out[j], out[i]
 	}
 	return out, nil
+}
+
+// queryFloatShare 取 finance 表中最近一期的流通股本（股）。
+// finance 表无数据时返回 0，CLI 层按 "-" 展示。
+func queryFloatShare(ctx context.Context, ch *dwh.Client, code string) (uint64, error) {
+	q := fmt.Sprintf(`SELECT float_share FROM %s.finance FINAL WHERE code = '%s' ORDER BY report_date DESC LIMIT 1`, ch.DB(), code)
+	rows, err := ch.Conn().Query(ctx, q)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+	if rows.Next() {
+		var fs uint64
+		if err := rows.Scan(&fs); err != nil {
+			return 0, err
+		}
+		return fs, nil
+	}
+	return 0, nil
 }
 
 func queryXDXR(ctx context.Context, ch *dwh.Client, code string) ([]*xdxrRow, error) {

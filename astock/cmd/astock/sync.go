@@ -119,7 +119,7 @@ func newSyncCmd() *cobra.Command {
 
 			if all {
 				fmt.Printf("→ sync daily (all count=%d)...\n", count)
-				n, err := ssync.Daily(ctx, ch, tc, "", "", true, count)
+				n, err := ssync.Daily(ctx, ch, tc, "", "", true, count, syncProgress)
 				if err != nil {
 					return err
 				}
@@ -130,7 +130,7 @@ func newSyncCmd() *cobra.Command {
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
 				fmt.Printf("→ sync daily %s (type=%s count=%d)...\n", code, dataType, count)
-				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, count)
+				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, count, nil)
 				if err != nil {
 					fmt.Printf("✗ %s: %v\n", code, err)
 					continue
@@ -166,7 +166,7 @@ func newSyncCmd() *cobra.Command {
 
 			if all {
 				fmt.Println("→ sync xdxr (all)...")
-				n, err := ssync.XDXR(ctx, ch, tc, "", true)
+				n, err := ssync.XDXR(ctx, ch, tc, "", true, syncProgress)
 				if err != nil {
 					return err
 				}
@@ -177,7 +177,7 @@ func newSyncCmd() *cobra.Command {
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
 				fmt.Printf("→ sync xdxr %s...\n", code)
-				n, err := ssync.XDXR(ctx, ch, tc, code, false)
+				n, err := ssync.XDXR(ctx, ch, tc, code, false, nil)
 				if err != nil {
 					fmt.Printf("✗ %s: %v\n", code, err)
 					continue
@@ -274,7 +274,7 @@ func newSyncCmd() *cobra.Command {
 
 			if all {
 				fmt.Println("→ sync finance (all)...")
-				n, err := ssync.Finance(ctx, ch, tc, "", true)
+				n, err := ssync.Finance(ctx, ch, tc, "", true, syncProgress)
 				if err != nil {
 					return err
 				}
@@ -285,7 +285,7 @@ func newSyncCmd() *cobra.Command {
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
 				fmt.Printf("→ sync finance %s...\n", code)
-				n, err := ssync.Finance(ctx, ch, tc, code, false)
+				n, err := ssync.Finance(ctx, ch, tc, code, false, nil)
 				if err != nil {
 					fmt.Printf("✗ %s: %v\n", code, err)
 					continue
@@ -368,7 +368,7 @@ func newSyncCmd() *cobra.Command {
 	
 				// daily
 				fmt.Printf("  → daily (%d天)...\n", days)
-				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, dailyCount)
+				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, dailyCount, nil)
 				if err != nil {
 					fmt.Printf("  ✗ daily: %v\n", err)
 				} else {
@@ -398,7 +398,7 @@ func newSyncCmd() *cobra.Command {
 				// xdxr——仅 stock
 				if isStock && !skipXDXR {
 					fmt.Printf("  → xdxr...\n")
-					n, err = ssync.XDXR(ctx, ch, tc, code, false)
+					n, err = ssync.XDXR(ctx, ch, tc, code, false, nil)
 					if err != nil {
 						fmt.Printf("  ✗ xdxr: %v\n", err)
 					} else {
@@ -409,7 +409,7 @@ func newSyncCmd() *cobra.Command {
 				// finance——仅 stock
 				if isStock && !skipFin {
 					fmt.Printf("  → finance...\n")
-					n, err = ssync.Finance(ctx, ch, tc, code, false)
+					n, err = ssync.Finance(ctx, ch, tc, code, false, nil)
 					if err != nil {
 						fmt.Printf("  ✗ finance: %v\n", err)
 					} else {
@@ -446,6 +446,14 @@ func openBoth(ctx context.Context) (*dwh.Client, *tdx.Client, func(), error) {
 		ch.Close()
 	}
 	return ch, tc, close, nil
+}
+
+// syncProgress 供 sync daily/xdxr/finance/info 的 --all 路径使用的进度回调。
+// 每 100 只股打一行进度，避免全市场扫描 30+ 分钟期间静默看如卡死。
+func syncProgress(i, total int, code string) {
+	if i%100 == 0 {
+		fmt.Printf("  [%d/%d] %s...\n", i, total, code)
+	}
 }
 
 // parseCodes 解析逗号分隔的代码列表，去除空白。

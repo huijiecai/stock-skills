@@ -360,6 +360,10 @@ ORDER BY (task, start_at);
 
 注：与元数据表不同，此表用普通 `MergeTree`，要保留全部历史日志，不去重。
 
+**CLI 进度日志（v3+）：** `sync daily/finance/info/xdxr --all` 都会打印「[i/total] code...」每 100 只一行。
+原因：全市场扫描耗时 5–30+ 分钟（finance 为闭源接口，同步全量约 30+ 分钟），进度不可见则看似卡死。
+实现：`internal/sync/{daily,minute_block_finance,info}.go` 中各函数多一个 `progress func(i, total int, code string)` 参数，CLI 层 `syncProgress` 统一 helper。
+
 ---
 
 ### 4.5 设计要点速查
@@ -408,6 +412,8 @@ astock
 │
 ├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
 │   ├── daily   <code> [--type stock|index|etf] [--from] [--to] [--limit 30] [--adjust qfq|none]
+│   │           # 表格列：日期|开盘|最高|最低|收盘|涨跌%|成交量|成交额|换手%
+│   │           # 换手%=volume*10000/float_share（finance表取流通股），finance 无数据时显示 "-"
 │   ├── minute  <code> [--type stock|index|etf] [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD]
 │   ├── count   <table>                              查表行数
 │   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
@@ -478,7 +484,7 @@ astock query minute 002971 --date 20260524  # 拒绝：非交易日（周末）�
 astock query minute 002971 --date 20260521  # 拒绝：1m 频率窗口外（可改 --freq 5m）
 astock query info 880904                    # 提示代码不存在（板块不在 stock 表）
 
-astock query daily 600519 --limit 30        # 默认 table 输出
+astock query daily 600519 --limit 30        # 默认 table 输出（带换手%与成交额）
 astock query daily 600519 --adjust qfq      # 前复权日K
 astock query daily 600519 --json            # AI 友好
 astock query stock --industry 白酒          # 按行业筛选
