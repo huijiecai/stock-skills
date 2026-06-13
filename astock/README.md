@@ -81,6 +81,20 @@ stats [table]
     --skip-info --skip-finance --skip-xdxr
 ```
 
+### 按需补漏原则（minute K）
+
+minute K 不采取全市场每日全量同步（成本不划算：5500+ 只 × 2 频率 ≈ 30min-1.5h，99% 数据不会被复盘访问）。**采用"盘后跑监控股 + 事后按需补拉"策略**：
+
+```bash
+# 复盘时发现某只漏掉了 minute K，随手补一只（几秒钟）
+./astock sync kline --code 603893 --freq 1m --days 1
+
+# 补多天历史 5m K（超 800 根会告警截断，5m 上限 ≈16 天）
+./astock sync kline --code 603893 --freq 5m --days 16
+```
+
+sync 服务一直在跑，不需要提前把所有数据都准备好。
+
 > 💡 如需单频率手动同步（如仅 60m K 有3 个月、或补历史 30m），才走底层：`sync kline --code <code> --freq 60m --days 60`。日常复盘推荐 `sync all` 语义路径。
 
 **注意事项**：
