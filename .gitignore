@@ -50,3 +50,6 @@ venv/
 wheels/
 yarn-debug.log*
 yarn-error.log*
+
+# Go binaries (build artifacts, do not commit)
+astock/astock
