@@ -320,7 +320,7 @@ func queryBlockMembers(ctx context.Context, ch *dwh.Client, blockCode, date stri
 	}
 
 	// 单 SQL：成分股 + securities + kline_daily + 涨停状态判定（round-half-up）+ finance.float_share 算换手率
-	// 换手率口径：volume(手) * 10000 / float_share(股) = volume股 * 100 / float_share（与 query daily 一致）
+	// 换手率口径：volume(手) * 10000 / float_share(股) = volume股 * 100 / float_share（与 query kline 一致）
 	// kline_daily.turnover 字段 TDX 未填（全 0），必须实时计算
 	sql := fmt.Sprintf(`
 WITH

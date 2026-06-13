@@ -29,7 +29,7 @@ func newLiveCmd() *cobra.Command {
 			// 拒绝板块/纯指数代码：GetQuotes 是股票实时报价接口，传入会被 AddPrefix 误判为股票并拉到错误数据。
 			for _, c := range args {
 				if tdx.IsBlockOrPureIndex(c) {
-					return fmt.Errorf("%s 是板块/指数代码，无实时报价（请用 query daily/minute 查 K 线）", c)
+					return fmt.Errorf("%s 是板块/指数代码，无实时报价（请用 query kline --type index/block 查 K 线）", c)
 				}
 			}
 			jsonOut := isJSON(cmd)

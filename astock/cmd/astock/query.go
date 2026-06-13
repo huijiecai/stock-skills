@@ -152,273 +152,282 @@ func newQueryCmd() *cobra.Command {
 		Short: "从 ClickHouse 仓库查询数据",
 	}
 
-	// --- query daily ---
-	dailyCmd := &cobra.Command{
-		Use:   "daily <code>",
-		Short: "查询日 K 线（支持前复权 --adjust qfq）",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			code := args[0]
-			from, _ := cmd.Flags().GetString("from")
-			to, _ := cmd.Flags().GetString("to")
-			adjust, _ := cmd.Flags().GetString("adjust")
-			limit, _ := cmd.Flags().GetInt("limit")
-			noSync, _ := cmd.Flags().GetBool("no-sync")
-			typeStr, _ := cmd.Flags().GetString("type")
-			maStr, _ := cmd.Flags().GetString("ma")
-			dataType := parseType(typeStr)
-			jsonOut := isJSON(cmd)
+	// --- query kline ---
+	// 单一 K 线命令，按 --freq 分发：daily(默认) 走 kline_daily，1m/5m/.../60m 走 kline_minute
+	runKlineDaily := func(cmd *cobra.Command, args []string) error {
+		code := args[0]
+		from, _ := cmd.Flags().GetString("from")
+		to, _ := cmd.Flags().GetString("to")
+		adjust, _ := cmd.Flags().GetString("adjust")
+		limit, _ := cmd.Flags().GetInt("limit")
+		noSync, _ := cmd.Flags().GetBool("no-sync")
+		typeStr, _ := cmd.Flags().GetString("type")
+		maStr, _ := cmd.Flags().GetString("ma")
+		dataType := parseType(typeStr)
+		jsonOut := isJSON(cmd)
 
-			// 解析 --ma 均线参数：逗号分隔的正整数列表（如 "5,10,20"）
-			var maWindows []int
-			maxW := 0
-			if strings.TrimSpace(maStr) != "" {
-				for _, p := range strings.Split(maStr, ",") {
-					w, err := strconv.Atoi(strings.TrimSpace(p))
-					if err != nil || w < 2 {
-						return fmt.Errorf("--ma 参数无效: %q（需要逗号分隔的≥ 2 整数）", maStr)
-					}
-					maWindows = append(maWindows, w)
-					if w > maxW {
-						maxW = w
-					}
+		// 解析 --ma 均线参数：逗号分隔的正整数列表（如 "5,10,20"）
+		var maWindows []int
+		maxW := 0
+		if strings.TrimSpace(maStr) != "" {
+			for _, p := range strings.Split(maStr, ",") {
+				w, err := strconv.Atoi(strings.TrimSpace(p))
+				if err != nil || w < 2 {
+					return fmt.Errorf("--ma 参数无效: %q（需要逗号分隔的≥ 2 整数）", maStr)
+				}
+				maWindows = append(maWindows, w)
+				if w > maxW {
+					maxW = w
 				}
 			}
-			// 为计算均线热身，多拉 maxW-1 根（仅供计算，不展示）
-			fetchLimit := limit
-			if maxW > 0 {
-				fetchLimit = limit + maxW - 1
-			}
+		}
+		// 为计算均线热身，多拉 maxW-1 根（仅供计算，不展示）
+		fetchLimit := limit
+		if maxW > 0 {
+			fetchLimit = limit + maxW - 1
+		}
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			ch, err := dwh.New(ctx, cfg)
-			if err != nil {
-				return err
-			}
-			defer ch.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		ch, err := dwh.New(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		defer ch.Close()
 
-			bars, err := queryDaily(ctx, ch, code, dataType, from, to, fetchLimit)
+		bars, err := queryDaily(ctx, ch, code, dataType, from, to, fetchLimit)
+		if err != nil {
+			return err
+		}
+		if len(bars) == 0 {
+			if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, dataType, "", "", from) {
+				fmt.Println("无数据")
+				return nil
+			}
+			bars, err = queryDaily(ctx, ch, code, dataType, from, to, fetchLimit)
 			if err != nil {
 				return err
 			}
 			if len(bars) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, dataType, "", "", from) {
-					fmt.Println("无数据")
-					return nil
-				}
-				bars, err = queryDaily(ctx, ch, code, dataType, from, to, fetchLimit)
-				if err != nil {
-					return err
-				}
-				if len(bars) == 0 {
-					fmt.Println("无数据")
-					return nil
-				}
+				fmt.Println("无数据")
+				return nil
 			}
+		}
 
-			// 前复权
-			if adjust == "qfq" {
-				xdxrs, err := queryXDXR(ctx, ch, code)
-				if err != nil {
-					return fmt.Errorf("query xdxr: %w", err)
-				}
-				applyQFQ(bars, xdxrs)
-			}
-
-			// 换手率：volume(手) * 100 / float_share * 100% = volume * 10000 / float_share
-			// finance 表无数据时 floatShare=0，turnover 留 0，表格显示 "-"
-			floatShare, _ := queryFloatShare(ctx, ch, code)
-			if floatShare > 0 {
-				for _, b := range bars {
-					b.Turnover = float64(b.Volume) * 10000 / float64(floatShare)
-				}
-			}
-
-			// 计算均线（queryDaily 末尾已翻转为时间 ASC：bars[0]=最旧，bars[len-1]=最新）
-			// 在复权后计算，避免除权日均线虚假跳变
-			if len(maWindows) > 0 {
-				for _, b := range bars {
-					b.MA = make(map[string]float64)
-				}
-				for _, w := range maWindows {
-					for i := w - 1; i < len(bars); i++ {
-						var sum float64
-						for j := i - w + 1; j <= i; j++ {
-							sum += bars[j].Close
-						}
-						bars[i].MA[fmt.Sprintf("MA%d", w)] = sum / float64(w)
-					}
-				}
-				// 裁掉热身多拉的头部，仅保留最新 limit 行
-				if len(bars) > limit {
-					bars = bars[len(bars)-limit:]
-				}
-			}
-
-			if jsonOut {
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(bars)
-			}
-
-			// 表格输出
-			headers := []interface{}{"日期", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "涨跌%", 8, "成交量", 10, "成交额", 10, "换手%", 8}
-			for _, w := range maWindows {
-				headers = append(headers, fmt.Sprintf("MA%d", w), 8)
-			}
-			t := newTable(headers...)
-			for _, b := range bars {
-				pct := 0.0
-				if b.PreClose > 0 {
-					pct = (b.Close - b.PreClose) / b.PreClose * 100
-				}
-				turnoverStr := "-"
-				if b.Turnover > 0 {
-					turnoverStr = fmt.Sprintf("%.2f%%", b.Turnover)
-				}
-				row := []string{
-					b.TradeDate,
-					fmt.Sprintf("%.2f", b.Open),
-					fmt.Sprintf("%.2f", b.High),
-					fmt.Sprintf("%.2f", b.Low),
-					fmt.Sprintf("%.2f", b.Close),
-					fmt.Sprintf("%+.2f%%", pct),
-					fmt.Sprintf("%d", b.Volume),
-					formatAmount(b.Amount),
-					turnoverStr,
-				}
-				for _, w := range maWindows {
-					k := fmt.Sprintf("MA%d", w)
-					if v, ok := b.MA[k]; ok {
-						row = append(row, fmt.Sprintf("%.2f", v))
-					} else {
-						row = append(row, "-")
-					}
-				}
-				t.Row(row...)
-			}
-			t.Print()
-			return nil
-		},
-	}
-	dailyCmd.Flags().String("from", "", "起始日期 YYYYMMDD")
-	dailyCmd.Flags().String("to", "", "结束日期 YYYYMMDD")
-	dailyCmd.Flags().String("adjust", "qfq", "复权: qfq(前复权)/none(不复权)")
-	dailyCmd.Flags().Int("limit", 30, "返回行数")
-	dailyCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
-	dailyCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
-	dailyCmd.Flags().String("ma", "", "均线窗口，逗号分隔（如 5,10,20）；热身不足的行显示 -")
-	queryCmd.AddCommand(dailyCmd)
-
-	// --- query minute ---
-	minuteCmd := &cobra.Command{
-		Use:   "minute <code>",
-		Short: "查询分钟 K 线",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			code := args[0]
-			freq, _ := cmd.Flags().GetString("freq")
-			date, _ := cmd.Flags().GetString("date")
-			limit, _ := cmd.Flags().GetInt("limit")
-			noSync, _ := cmd.Flags().GetBool("no-sync")
-			typeStr, _ := cmd.Flags().GetString("type")
-			dataType := parseType(typeStr)
-			jsonOut := isJSON(cmd)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
-			ch, err := dwh.New(ctx, cfg)
+		// 前复权
+		if adjust == "qfq" {
+			xdxrs, err := queryXDXR(ctx, ch, code)
 			if err != nil {
-				return err
+				return fmt.Errorf("query xdxr: %w", err)
 			}
-			defer ch.Close()
+			applyQFQ(bars, xdxrs)
+		}
 
-			type minuteBar struct {
-				Time   string  `json:"time"`
-				Open   float64 `json:"open"`
-				High   float64 `json:"high"`
-				Low    float64 `json:"low"`
-				Close  float64 `json:"close"`
-				Volume uint64  `json:"volume"`
-				Amount float64 `json:"amount"`
+		// 换手率：volume(手) * 100 / float_share * 100% = volume * 10000 / float_share
+		// finance 表无数据时 floatShare=0，turnover 留 0，表格显示 "-"
+		floatShare, _ := queryFloatShare(ctx, ch, code)
+		if floatShare > 0 {
+			for _, b := range bars {
+				b.Turnover = float64(b.Volume) * 10000 / float64(floatShare)
 			}
-			doQuery := func() ([]*minuteBar, error) {
-				where := fmt.Sprintf("code = '%s' AND type = '%s' AND freq = '%s'", code, string(dataType), freq)
-				if date != "" {
-					d, _ := time.Parse("20060102", date)
-					where += fmt.Sprintf(" AND dt >= '%s' AND dt < '%s'",
-						d.Format("2006-01-02"), d.AddDate(0, 0, 1).Format("2006-01-02"))
+		}
+
+		// 计算均线（queryDaily 末尾已翻转为时间 ASC：bars[0]=最旧，bars[len-1]=最新）
+		// 在复权后计算，避免除权日均线虚假跳变
+		if len(maWindows) > 0 {
+			for _, b := range bars {
+				b.MA = make(map[string]float64)
+			}
+			for _, w := range maWindows {
+				for i := w - 1; i < len(bars); i++ {
+					var sum float64
+					for j := i - w + 1; j <= i; j++ {
+						sum += bars[j].Close
+					}
+					bars[i].MA[fmt.Sprintf("MA%d", w)] = sum / float64(w)
 				}
-				q := fmt.Sprintf(`SELECT dt, open, high, low, close, volume, amount
-					FROM %s.kline_minute FINAL WHERE %s ORDER BY dt DESC LIMIT %d`, ch.DB(), where, limit)
-				rows, err := ch.Conn().Query(ctx, q)
-				if err != nil {
+			}
+			// 裁掉热身多拉的头部，仅保留最新 limit 行
+			if len(bars) > limit {
+				bars = bars[len(bars)-limit:]
+			}
+		}
+
+		if jsonOut {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(bars)
+		}
+
+		// 表格输出
+		headers := []interface{}{"日期", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "涨跌%", 8, "成交量", 10, "成交额", 10, "换手%", 8}
+		for _, w := range maWindows {
+			headers = append(headers, fmt.Sprintf("MA%d", w), 8)
+		}
+		t := newTable(headers...)
+		for _, b := range bars {
+			pct := 0.0
+			if b.PreClose > 0 {
+				pct = (b.Close - b.PreClose) / b.PreClose * 100
+			}
+			turnoverStr := "-"
+			if b.Turnover > 0 {
+				turnoverStr = fmt.Sprintf("%.2f%%", b.Turnover)
+			}
+			row := []string{
+				b.TradeDate,
+				fmt.Sprintf("%.2f", b.Open),
+				fmt.Sprintf("%.2f", b.High),
+				fmt.Sprintf("%.2f", b.Low),
+				fmt.Sprintf("%.2f", b.Close),
+				fmt.Sprintf("%+.2f%%", pct),
+				fmt.Sprintf("%d", b.Volume),
+				formatAmount(b.Amount),
+				turnoverStr,
+			}
+			for _, w := range maWindows {
+				k := fmt.Sprintf("MA%d", w)
+				if v, ok := b.MA[k]; ok {
+					row = append(row, fmt.Sprintf("%.2f", v))
+				} else {
+					row = append(row, "-")
+				}
+			}
+			t.Row(row...)
+		}
+		t.Print()
+		return nil
+	}
+
+	runKlineMinute := func(cmd *cobra.Command, args []string, freq string) error {
+		code := args[0]
+		date, _ := cmd.Flags().GetString("date")
+		limit, _ := cmd.Flags().GetInt("limit")
+		noSync, _ := cmd.Flags().GetBool("no-sync")
+		typeStr, _ := cmd.Flags().GetString("type")
+		dataType := parseType(typeStr)
+		jsonOut := isJSON(cmd)
+
+		// 分钟 K 行数默认更大；用户未显式 --limit 时回退 240
+		if !cmd.Flags().Changed("limit") {
+			limit = 240
+		}
+
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		ch, err := dwh.New(ctx, cfg)
+		if err != nil {
+			return err
+		}
+		defer ch.Close()
+
+		type minuteBar struct {
+			Time   string  `json:"time"`
+			Open   float64 `json:"open"`
+			High   float64 `json:"high"`
+			Low    float64 `json:"low"`
+			Close  float64 `json:"close"`
+			Volume uint64  `json:"volume"`
+			Amount float64 `json:"amount"`
+		}
+		doQuery := func() ([]*minuteBar, error) {
+			where := fmt.Sprintf("code = '%s' AND type = '%s' AND freq = '%s'", code, string(dataType), freq)
+			if date != "" {
+				d, _ := time.Parse("20060102", date)
+				where += fmt.Sprintf(" AND dt >= '%s' AND dt < '%s'",
+					d.Format("2006-01-02"), d.AddDate(0, 0, 1).Format("2006-01-02"))
+			}
+			q := fmt.Sprintf(`SELECT dt, open, high, low, close, volume, amount
+				FROM %s.kline_minute FINAL WHERE %s ORDER BY dt DESC LIMIT %d`, ch.DB(), where, limit)
+			rows, err := ch.Conn().Query(ctx, q)
+			if err != nil {
+				return nil, err
+			}
+			defer rows.Close()
+			var bars []*minuteBar
+			for rows.Next() {
+				var b minuteBar
+				var dt time.Time
+				if err := rows.Scan(&dt, &b.Open, &b.High, &b.Low, &b.Close, &b.Volume, &b.Amount); err != nil {
 					return nil, err
 				}
-				defer rows.Close()
-				var bars []*minuteBar
-				for rows.Next() {
-					var b minuteBar
-					var dt time.Time
-					if err := rows.Scan(&dt, &b.Open, &b.High, &b.Low, &b.Close, &b.Volume, &b.Amount); err != nil {
-						return nil, err
-					}
-					b.Time = dt.Format("01-02 15:04")
-					bars = append(bars, &b)
-				}
-				// 翻转为时间正序
-				for i, j := 0, len(bars)-1; i < j; i, j = i+1, j-1 {
-					bars[i], bars[j] = bars[j], bars[i]
-				}
-				return bars, nil
+				b.Time = dt.Format("01-02 15:04")
+				bars = append(bars, &b)
 			}
+			// 翻转为时间正序
+			for i, j := 0, len(bars)-1; i < j; i, j = i+1, j-1 {
+				bars[i], bars[j] = bars[j], bars[i]
+			}
+			return bars, nil
+		}
 
-			bars, err := doQuery()
+		bars, err := doQuery()
+		if err != nil {
+			return err
+		}
+		if len(bars) == 0 {
+			if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, dataType, freq, date, "") {
+				fmt.Println("无数据")
+				return nil
+			}
+			bars, err = doQuery()
 			if err != nil {
 				return err
 			}
 			if len(bars) == 0 {
-				if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, dataType, freq, date, "") {
-					fmt.Println("无数据")
-					return nil
-				}
-				bars, err = doQuery()
-				if err != nil {
-					return err
-				}
-				if len(bars) == 0 {
-					fmt.Println("无数据")
-					return nil
-				}
+				fmt.Println("无数据")
+				return nil
 			}
+		}
 
-			if jsonOut {
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(bars)
-			}
+		if jsonOut {
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(bars)
+		}
 
-			t := newTable("时间", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "成交量", 9)
-			for _, b := range bars {
-				t.Row(b.Time,
-					fmt.Sprintf("%.2f", b.Open),
-					fmt.Sprintf("%.2f", b.High),
-					fmt.Sprintf("%.2f", b.Low),
-					fmt.Sprintf("%.2f", b.Close),
-					fmt.Sprintf("%d", b.Volume))
+		t := newTable("时间", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "成交量", 9)
+		for _, b := range bars {
+			t.Row(b.Time,
+				fmt.Sprintf("%.2f", b.Open),
+				fmt.Sprintf("%.2f", b.High),
+				fmt.Sprintf("%.2f", b.Low),
+				fmt.Sprintf("%.2f", b.Close),
+				fmt.Sprintf("%d", b.Volume))
+		}
+		t.Print()
+		fmt.Printf("\n共 %d 条\n", len(bars))
+		return nil
+	}
+
+	klineCmd := &cobra.Command{
+		Use:   "kline <code>",
+		Short: "查询 K 线（--freq daily(默认) | 1m | 5m | 15m | 30m | 60m）",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			freq, _ := cmd.Flags().GetString("freq")
+			switch freq {
+			case "daily", "1d", "":
+				return runKlineDaily(cmd, args)
+			case "1m", "5m", "15m", "30m", "60m":
+				return runKlineMinute(cmd, args, freq)
+			default:
+				return fmt.Errorf("--freq 取值无效: %q（允许: daily | 1m | 5m | 15m | 30m | 60m）", freq)
 			}
-			t.Print()
-			fmt.Printf("\n共 %d 条\n", len(bars))
-			return nil
 		},
 	}
-	minuteCmd.Flags().String("freq", "1m", "频率: 1m/5m/15m/30m/60m")
-	minuteCmd.Flags().String("date", "", "指定日期 YYYYMMDD（默认取最新）")
-	minuteCmd.Flags().Int("limit", 240, "返回行数")
-	minuteCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
-	minuteCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
-	queryCmd.AddCommand(minuteCmd)
+	klineCmd.Flags().String("freq", "daily", "频率: daily(日K，默认) / 1m / 5m / 15m / 30m / 60m")
+	klineCmd.Flags().Int("limit", 30, "返回行数（daily 默认 30；分钟 K 未指定时回退 240）")
+	klineCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
+	klineCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
+	// freq=daily 专属
+	klineCmd.Flags().String("from", "", "[freq=daily] 起始日期 YYYYMMDD")
+	klineCmd.Flags().String("to", "", "[freq=daily] 结束日期 YYYYMMDD")
+	klineCmd.Flags().String("adjust", "qfq", "[freq=daily] 复权: qfq(前复权)/none(不复权)")
+	klineCmd.Flags().String("ma", "", "[freq=daily] 均线窗口，逗号分隔（如 5,10,20）；热身不足的行显示 -")
+	// freq=分钟 专属
+	klineCmd.Flags().String("date", "", "[freq=分钟] 指定日期 YYYYMMDD（默认取最新）")
+	queryCmd.AddCommand(klineCmd)
 
 	// --- query stock ---
 	stockCmd := &cobra.Command{
@@ -722,7 +731,7 @@ func newQueryCmd() *cobra.Command {
 			if ok, err := ensureSecurityExists(ctx, ch, code, model.TypeStock); err != nil {
 				return err
 			} else if !ok {
-				fmt.Printf("代码 %s 不存在（securities 表无 type=stock 记录；如查指数/板块请用 query daily --type index 或 query block）\n", code)
+				fmt.Printf("代码 %s 不存在（securities 表无 type=stock 记录；如查指数/板块请用 query kline --type index 或 query block）\n", code)
 				return nil
 			}
 

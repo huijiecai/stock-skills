@@ -360,7 +360,7 @@ ORDER BY (task, start_at);
 
 注：与元数据表不同，此表用普通 `MergeTree`，要保留全部历史日志，不去重。
 
-**CLI 进度日志（v3+）：** `sync daily/finance/info/xdxr --all` 都会打印「[i/total] code...」每 100 只一行。
+**CLI 进度日志（v3+）：** `sync kline/finance/info/xdxr --all` 都会打印「[i/total] code...」每 100 只一行。
 原因：全市场扫描耗时 5–30+ 分钟（finance 为闭源接口，同步全量约 30+ 分钟），进度不可见则看似卡死。
 实现：`internal/sync/{daily,minute_block_finance,info}.go` 中各函数多一个 `progress func(i, total int, code string)` 参数，CLI 层 `syncProgress` 统一 helper。
 
@@ -399,23 +399,25 @@ astock
 ├── sync                              数据同步（TDX → CH）
 │   ├── meta                          股票/指数/板块列表 + 交易日历
 │   ├── info                          F10 公司信息（行业/主营）→ securities 扩展字段
-│   ├── daily   --code a,b,c|--all [--type stock|index|etf] [--count 800]
-│   ├── minute  --code a,b,c       [--type stock|index|etf] [--freq 5m] [--count 800]
+│   ├── kline   --code a,b,c|--all [--type stock|index|etf|block] [--freq daily|1m|5m|15m|30m|60m] [--count 800]
+│   │           # freq=daily（默认）→ kline_daily；1m/5m/…/60m → kline_minute；分钟 K 不支持 --all
 │   ├── block                         板块成分股
 │   ├── xdxr    --code a,b,c|--all    除权除息（仅 stock）
 │   ├── finance --code a,b,c|--all    财务数据（仅 stock，每季跑一次）
 │   ├── status                        最近同步任务状态（原顶层 status 上移至此，与 stats 区分）
 │   └── all     --code a,b,c|--all [--type stock|index|etf] [--days 30]
 │                  [--skip-info] [--skip-finance] [--skip-minute] [--skip-xdxr]
-│                                      stock→全套；index/etf→仅 daily/minute
+│                                      stock→全套；index/etf→仅 kline
 │                                      --all 从 securities 表拉全量代码（3~6h）
 │                                      --skip-* 可以组合出“仅 daily”高速低耗区间
 │
 ├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
-│   ├── daily   <code> [--type stock|index|etf] [--from] [--to] [--limit 30] [--adjust qfq|none]
-│   │           # 表格列：日期|开盘|最高|最低|收盘|涨跌%|成交量|成交额|换手%
-│   │           # 换手%=volume*10000/float_share（finance表取流通股），finance 无数据时显示 "-"
-│   ├── minute  <code> [--type stock|index|etf] [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD]
+│   ├── kline   <code> [--type stock|index|etf] [--freq daily|1m|5m|15m|30m|60m] [--limit 30]
+│   │           [--from YYYYMMDD] [--to YYYYMMDD] [--adjust qfq|none] [--ma 5,10,20]   # freq=daily 专属
+│   │           [--date YYYYMMDD]                                                       # freq=分钟 专属
+│   │           # 表格列（daily）：日期|开盘|最高|最低|收盘|涨跌%|成交量|成交额|换手%|MA5|...
+│   │           # 表格列（分钟）：时间|开盘|最高|最低|收盘|成交量
+│   │           # 换手%=volume*10000/float_share（finance 表取流通股），finance 无数据时显示 "-"
 │   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
 │   ├── block   list    [--keyword 光通信]               列出概念/风格板块
 │   │           rank    [date] [--type concept|style|all]   板块涨幅榜（含成分股涨停统计）¹
@@ -437,15 +439,15 @@ astock
 │     不提供：开板次数/首封时间/封单金额（粒度限制下不可靠，需破单源接东财）。
 │
 │   # code 参数语义（方案 A：--type 默认 stock，显式指定跳出 stock 语义）：
-│   #   • query daily/minute/sync daily/minute/sync all 默认 --type=stock，
+│   #   • query/sync kline、sync all 默认 --type=stock，
 │   #     查指数须 --type index，查 ETF 须 --type etf。
 │   #   • info/finance/xdxr 仅适用 stock；输入代码未在 securities(type=stock) 出现
 │   #     → 提示“代码不存在”（不再靠代码段前缀判定）。
 │   #   • 真重命：000xxx （上证指数 vs 深市股票）——--type 是唯一区分手段。
 │
 │   # autoSync 拒绝规则（TDX 近端语义对齐）：
-│   #   • minute --date 是周末/超出频率窗口（1m≈3天 / 5m≈16天 / 15m≈50天）→ 不触发 sync。
-│   #   • daily --from 早于 4 年前 → 不触发（800 根 ≈ 3.3 年拉不到）。
+│   #   • kline --freq=1m/5m/15m/30m/60m 的 --date 是周末/超出频率窗口（1m≈3天 / 5m≈16天 / 15m≈50天）→ 不触发 sync。
+│   #   • kline (freq=daily) --from 早于 4 年前 → 不触发（800 根 ≈ 3.3 年拉不到）。
 │   #   • query info 防抖：1 小时内已 sync 过不重复 sync，避免 F10 持续为空时死循环。
 │
 ├── live                              实时直连 TDX（不落库；非交易日 / 盘前 9:30 前所有 live 子命令均自动拒绝）
@@ -466,11 +468,12 @@ astock
 ```bash
 astock init                                 # 一次性
 astock sync meta                            # 同步全市场元数据
-astock sync daily --all --from 20200101     # 全市场股票日K回填
-astock sync daily --all --type block        # 全市场板块日K（~428 个 880xxx 概念/风格板）——query block rank 前置
-astock sync daily --code 600519 --from 20100101  # 单只全历史（默认 type=stock）
-astock sync daily --code 000001 --type index     # 上证综指
-astock sync daily --code 880904 --type block     # 单只板块（智能机器概念）
+astock sync kline --all --type stock        # 全市场股票日K回填（默认 freq=daily）
+astock sync kline --all --type block        # 全市场板块日K（~428 个 880xxx 概念/风格板）——query block rank 前置
+astock sync kline --code 600519 --count 800 # 单只历史日K（默认 type=stock freq=daily）
+astock sync kline --code 000001 --type index # 上证综指
+astock sync kline --code 880904 --type block # 单只板块（智能机器概念）
+astock sync kline --code 600519 --freq 5m   # 单只 5 分钟 K
 astock sync all --days 1                    # 每日增量（cron 用，stock 全套）
 astock sync all --code 000001 --type index --days 30  # 仅同步上证指日/分钟 K
 astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务
@@ -501,10 +504,12 @@ astock sync info --code 600519              # 单独同步 F10
 - **R4 list-detail 二元**：列表用 `<noun>` 复数语义命令（`stock` 列表 / `block list`），单条详情用 `<noun> <code>`（`info <code>` / `daily <code>`）；不出现 `list-stock` / `show-stock` 等冗词。
 - **R5 flag 词典固定**：`--limit N`（截断）/ `--asc`/`--desc`（排序方向）/ `--sort-by FIELD`（排序键）/ `--type X`（对象类型）/ `--exclude-st`（噪声过滤）/ `--json`/`--csv`/`--table`（输出格式）/ `--from`/`--to`/`[date]`（时间窗）。新 flag 必先查词典是否能复用。
 - **R6 数据 vs 视图分离**：原始数据落在 `kline_daily` 等表；派生视图（涨跌停/连板天梯/板块涨幅榜）通过 `query` 即时聚合，不另立 sync 任务也不另立顶层命令。
+- **R7 频率属频率维度**：同对象不同频率（K 线 daily/1m/5m/15m/30m/60m）用 `--freq` 区分，不另立命令名；`query daily`/`query minute` ❌ → `query kline --freq daily`/`--freq 1m` ✓。
 
 ### 决策日志
 
 - 2026-06-13：A 整改 4 处不一致（`limit-ladder`→子命令 / `live block stocks`→`members` / 顶层 `status`→`sync status` / 砍 `query count` 合入 `stats [table]`）。
+- 2026-06-13：候选 ⓪——`query/sync daily` + `query/sync minute` 合并为 `query/sync kline --freq`（依 R7）；`--freq=daily` 为默认，迁移成本：用户惯named daily/minute 需改为 `kline --freq ...`，未保留 alias。
 - 后续若新增命令导致破例，须在本节追加“破例项”并说明理由。
 
 ---
@@ -523,16 +528,18 @@ astock stats kline_daily                    # 查单表行数（原 query count�
 astock sync status                          # 最近同步任务状态（原顶层 status）
 
 astock query info 600036                    # F10 详情
-astock query daily 600036                   # 默认 type=stock
-astock query daily 000001                   # 默认 stock＝平安银行
-astock query daily 000001 --type index      # 上证综指
-astock query minute 002971 --date 20260524  # 拒绝：非交易日（周末）不触发 sync
-astock query minute 002971 --date 20260521  # 拒绝：1m 频率窗口外（可改 --freq 5m）
+astock query kline 600036                   # 默认 type=stock freq=daily
+astock query kline 000001                   # 默认 stock＝平安银行
+astock query kline 000001 --type index      # 上证综指
+astock query kline 002971 --freq 1m --date 20260524  # 拒绝：非交易日（周末）不触发 sync
+astock query kline 002971 --freq 5m --date 20260521  # 5m 窗口内 OK
 astock query info 880904                    # 提示代码不存在（板块不在 stock 表）
 
-astock query daily 600519 --limit 30        # 默认 table 输出（带换手%与成交额）
-astock query daily 600519 --adjust qfq      # 前复权日K
-astock query daily 600519 --json            # AI 友好
+astock query kline 600519 --limit 30        # 默认 daily（带换手%与成交额）
+astock query kline 600519 --adjust qfq      # 前复权日K（默认）
+astock query kline 600519 --ma 5,10,20      # 加均线列
+astock query kline 600519 --freq 1m --limit 60  # 今日最后 60 根 1 分钟 K
+astock query kline 600519 --json            # AI 友好
 astock query stock --industry 白酒          # 按行业筛选
 astock live quote 600519 600036             # 多个股票实时报价
 astock live tick 600519                     # 今日分笔
@@ -550,7 +557,7 @@ astock/
 │   ├── main.go                 cobra 入口
 │   ├── init.go                 astock init
 │   ├── sync_*.go               sync meta/daily/minute/block/all
-│   ├── query_*.go              query daily/minute/stock/block
+│   ├── query_*.go              query kline/stock/block
 │   ├── live_*.go               live quote/tick/minute
 │   ├── stats.go
 │   └── status.go
@@ -619,7 +626,7 @@ services:
 2. **TDX 服务器并发**：经验上 10 并发安全，更高可能触发限流。T7 的 goroutine 池上限设 10。
 3. **ClickHouse 时区**：使用 `DateTime` 默认 UTC，建议在 `clickhouse-server/config.xml` 配 `Asia/Shanghai`，或写入时显式时区。
 4. **数据范围**：DDL 和 sync 命令支持任意时间范围，初次只回填近期数据（如 1 年），后续按需扩展，无需修改架构。
-5. **盘中查询行为**：`query daily` 不返回今日不完整数据；今日数据请走 `live` 命令，避免缓存脏数据。
+5. **盘中查询行为**：`query kline`（freq=daily）不返回今日不完整数据；今日数据请走 `live` 命令，避免缓存脏数据。
 6. **分笔数据不落库**：分笔成交数据量极大（茅台单日几万笔，全市场单日约 10 亿笔），且使用频率低。采用「live 命令直连 TDX」方式，不进入 sync 不落库，避免仓库肨胀。
 7. **复权计算**：kline_daily 只存原始价；复权查询通过 SQL `JOIN xdxr` 在查询时计算。供 `--adjust qfq|hfq|raw` 参数选择。
 8. **五档盘口**：包含在 TDX `get_security_quotes` 返回中，`live quote` 命令直接展开输出（bid1–bid5/ask1–ask5），不落库。

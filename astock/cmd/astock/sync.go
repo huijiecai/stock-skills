@@ -96,19 +96,31 @@ func newSyncCmd() *cobra.Command {
 	infoCmd.Flags().Bool("all", false, "遍历全部已入库 stock")
 	syncCmd.AddCommand(infoCmd)
 
-	// --- sync daily ---
-	dailyCmd := &cobra.Command{
-		Use:   "daily",
-		Short: "同步日 K 线 → kline_daily",
+	// --- sync kline ---
+	// 单一 K 线同步命令，按 --freq 分发：daily → ssync.Daily（1m/5m/.../60m） → ssync.Minute
+	klineCmd := &cobra.Command{
+		Use:   "kline",
+		Short: "同步 K 线（--freq daily(默认) → kline_daily；1m/5m/15m/30m/60m → kline_minute）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			codeStr, _ := cmd.Flags().GetString("code")
 			all, _ := cmd.Flags().GetBool("all")
+			freq, _ := cmd.Flags().GetString("freq")
 			count, _ := cmd.Flags().GetUint16("count")
 			typeStr, _ := cmd.Flags().GetString("type")
 			dataType := parseType(typeStr)
+
+			isDaily := freq == "daily" || freq == "1d" || freq == ""
+			isMinute := freq == "1m" || freq == "5m" || freq == "15m" || freq == "30m" || freq == "60m"
+			if !isDaily && !isMinute {
+				return fmt.Errorf("--freq 取值无效: %q（允许: daily | 1m | 5m | 15m | 30m | 60m）", freq)
+			}
+			if isMinute && all {
+				return fmt.Errorf("分钟 K 全市场 --all 数据量过大，此路径未启用；请明确 --code 或走 sync all --all")
+			}
 			if codeStr == "" && !all {
 				return fmt.Errorf("需指定 --code 或 --all")
 			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 			defer cancel()
 			ch, tc, close, err := openBoth(ctx)
@@ -117,34 +129,49 @@ func newSyncCmd() *cobra.Command {
 			}
 			defer close()
 
-			if all {
-				fmt.Printf("→ sync daily (all type=%s count=%d)...\n", dataType, count)
-				n, err := ssync.Daily(ctx, ch, tc, "", dataType, true, count, syncProgress)
-				if err != nil {
-					return err
+			if isDaily {
+				if all {
+					fmt.Printf("→ sync kline daily (all type=%s count=%d)...\n", dataType, count)
+					n, err := ssync.Daily(ctx, ch, tc, "", dataType, true, count, syncProgress)
+					if err != nil {
+						return err
+					}
+					fmt.Printf("✓ 写入 kline_daily %d 行\n", n)
+					return nil
 				}
-				fmt.Printf("✓ 写入 kline_daily %d 行\n", n)
+				codes := parseCodes(codeStr)
+				for _, code := range codes {
+					fmt.Printf("→ sync kline daily %s (type=%s count=%d)...\n", code, dataType, count)
+					n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, count, nil)
+					if err != nil {
+						fmt.Printf("✗ %s: %v\n", code, err)
+						continue
+					}
+					fmt.Printf("✓ %s kline_daily %d 行\n", code, n)
+				}
 				return nil
 			}
 
+			// minute
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
-				fmt.Printf("→ sync daily %s (type=%s count=%d)...\n", code, dataType, count)
-				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, count, nil)
+				fmt.Printf("→ sync kline %s %s (type=%s count=%d)...\n", freq, code, dataType, count)
+				n, err := ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(freq), count)
 				if err != nil {
 					fmt.Printf("✗ %s: %v\n", code, err)
 					continue
 				}
-				fmt.Printf("✓ %s kline_daily %d 行\n", code, n)
+				fmt.Printf("✓ %s kline_minute %d 行\n", code, n)
 			}
 			return nil
 		},
 	}
-	dailyCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔")
-	dailyCmd.Flags().Bool("all", false, "遍历全部已入库标的")
-	dailyCmd.Flags().Uint16("count", 800, "每只拉最近 N 根")
-	dailyCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf/block；--all 下 stock 默认扫 stock+index，block 扫全市场板块")
-	syncCmd.AddCommand(dailyCmd)
+	klineCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔（与 --all 二选一）")
+	klineCmd.Flags().Bool("all", false, "[freq=daily] 遍历全部已入库标的；分钟 K 不支持")
+	klineCmd.Flags().String("freq", "daily", "频率: daily(日K，默认) / 1m / 5m / 15m / 30m / 60m")
+	klineCmd.Flags().Uint16("count", 800, "每只拉最近 N 根")
+	klineCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf/block；--all+daily 下 stock 默认扫 stock+index，block 扫全市场板块")
+	syncCmd.AddCommand(klineCmd)
 
 	// --- sync xdxr ---
 	xdxrCmd := &cobra.Command{
@@ -191,45 +218,7 @@ func newSyncCmd() *cobra.Command {
 	xdxrCmd.Flags().Bool("all", false, "遍历全部已入库 stock")
 	syncCmd.AddCommand(xdxrCmd)
 
-	// --- sync minute ---
-	minuteCmd := &cobra.Command{
-		Use:   "minute",
-		Short: "同步分钟 K 线 → kline_minute",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			codeStr, _ := cmd.Flags().GetString("code")
-			freq, _ := cmd.Flags().GetString("freq")
-			count, _ := cmd.Flags().GetUint16("count")
-			typeStr, _ := cmd.Flags().GetString("type")
-			dataType := parseType(typeStr)
-			if codeStr == "" {
-				return fmt.Errorf("需指定 --code")
-			}
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-			defer cancel()
-			ch, tc, close, err := openBoth(ctx)
-			if err != nil {
-				return err
-			}
-			defer close()
-
-			codes := parseCodes(codeStr)
-			for _, code := range codes {
-				fmt.Printf("→ sync minute %s (type=%s freq=%s count=%d)...\n", code, dataType, freq, count)
-				n, err := ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(freq), count)
-				if err != nil {
-					fmt.Printf("✗ %s: %v\n", code, err)
-					continue
-				}
-				fmt.Printf("✓ %s kline_minute %d 行\n", code, n)
-			}
-			return nil
-		},
-	}
-	minuteCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔")
-	minuteCmd.Flags().String("freq", "5m", "频率: 1m/5m/15m/30m/60m")
-	minuteCmd.Flags().Uint16("count", 800, "拉取根数")
-	minuteCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
-	syncCmd.AddCommand(minuteCmd)
+	// --- sync minute 已合入 sync kline --freq ---
 
 	// --- sync block ---
 	syncCmd.AddCommand(&cobra.Command{
@@ -302,7 +291,7 @@ func newSyncCmd() *cobra.Command {
 	// --- sync all ---
 	allCmd := &cobra.Command{
 		Use:   "all",
-		Short: "批量同步：按 --type 分发（stock=全套；index/etf=仅 daily/minute），支持 --all 全市场",
+		Short: "批量同步：按 --type 分发（stock=全套；index/etf=仅 kline），支持 --all 全市场",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			codeStr, _ := cmd.Flags().GetString("code")
 			allFlag, _ := cmd.Flags().GetBool("all")
@@ -428,7 +417,7 @@ func newSyncCmd() *cobra.Command {
 	allCmd.Flags().Bool("skip-finance", false, "跳过财务数据同步（仅 stock 生效）")
 	allCmd.Flags().Bool("skip-minute", false, "跳过分钟K线同步（1m+5m）")
 	allCmd.Flags().Bool("skip-xdxr", false, "跳过除权除息同步（仅 stock 生效）")
-	allCmd.Flags().String("type", "stock", "标的类型: stock(默认全套)/index/etf(仅 daily/minute)")
+	allCmd.Flags().String("type", "stock", "标的类型: stock(默认全套)/index/etf(仅 kline)")
 	syncCmd.AddCommand(allCmd)
 
 	// sync status（原 astock status 上移至此，避免与 astock stats 混淆）
