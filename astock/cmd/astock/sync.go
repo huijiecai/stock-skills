@@ -105,6 +105,7 @@ func newSyncCmd() *cobra.Command {
 			codeStr, _ := cmd.Flags().GetString("code")
 			all, _ := cmd.Flags().GetBool("all")
 			freq, _ := cmd.Flags().GetString("freq")
+			days, _ := cmd.Flags().GetUint16("days")
 			count, _ := cmd.Flags().GetUint16("count")
 			typeStr, _ := cmd.Flags().GetString("type")
 			dataType := parseType(typeStr)
@@ -121,6 +122,41 @@ func newSyncCmd() *cobra.Command {
 				return fmt.Errorf("需指定 --code 或 --all")
 			}
 
+			// 参数语义统一：--days 为推荐（与 sync all 对齐，按 freq 自动换算根数）；--count 为底层 escape hatch。
+			// 二者互斥；两者都未传时默认 days=30。
+			if days > 0 && count > 0 {
+				return fmt.Errorf("--days 与 --count 互斥，请只指定一个（--days 推荐，--count 为底层兜底）")
+			}
+			if days == 0 && count == 0 {
+				days = 30
+			}
+			var actualCount uint16
+			if days > 0 {
+				var barsPerDay uint16 = 1
+				switch freq {
+				case "1m":
+					barsPerDay = 240
+				case "5m":
+					barsPerDay = 48
+				case "15m":
+					barsPerDay = 16
+				case "30m":
+					barsPerDay = 8
+				case "60m":
+					barsPerDay = 4
+				}
+				total := uint32(days) * uint32(barsPerDay)
+				if total > 800 {
+					fmt.Printf("⚠️  --days %d × %s(%d根/天)=%d 超过 TDX 单次 800 根上限，按 800 截断（约 %.1f 天）\n",
+						days, freq, barsPerDay, total, 800.0/float64(barsPerDay))
+					actualCount = 800
+				} else {
+					actualCount = uint16(total)
+				}
+			} else {
+				actualCount = count
+			}
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 			defer cancel()
 			ch, tc, close, err := openBoth(ctx)
@@ -131,8 +167,8 @@ func newSyncCmd() *cobra.Command {
 
 			if isDaily {
 				if all {
-					fmt.Printf("→ sync kline daily (all type=%s count=%d)...\n", dataType, count)
-					n, err := ssync.Daily(ctx, ch, tc, "", dataType, true, count, syncProgress)
+					fmt.Printf("→ sync kline daily (all type=%s count=%d)...\n", dataType, actualCount)
+					n, err := ssync.Daily(ctx, ch, tc, "", dataType, true, actualCount, syncProgress)
 					if err != nil {
 						return err
 					}
@@ -141,8 +177,8 @@ func newSyncCmd() *cobra.Command {
 				}
 				codes := parseCodes(codeStr)
 				for _, code := range codes {
-					fmt.Printf("→ sync kline daily %s (type=%s count=%d)...\n", code, dataType, count)
-					n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, count, nil)
+					fmt.Printf("→ sync kline daily %s (type=%s count=%d)...\n", code, dataType, actualCount)
+					n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, actualCount, nil)
 					if err != nil {
 						fmt.Printf("✗ %s: %v\n", code, err)
 						continue
@@ -155,8 +191,8 @@ func newSyncCmd() *cobra.Command {
 			// minute
 			codes := parseCodes(codeStr)
 			for _, code := range codes {
-				fmt.Printf("→ sync kline %s %s (type=%s count=%d)...\n", freq, code, dataType, count)
-				n, err := ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(freq), count)
+				fmt.Printf("→ sync kline %s %s (type=%s count=%d)...\n", freq, code, dataType, actualCount)
+				n, err := ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(freq), actualCount)
 				if err != nil {
 					fmt.Printf("✗ %s: %v\n", code, err)
 					continue
@@ -169,7 +205,8 @@ func newSyncCmd() *cobra.Command {
 	klineCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔（与 --all 二选一）")
 	klineCmd.Flags().Bool("all", false, "[freq=daily] 遍历全部已入库标的；分钟 K 不支持")
 	klineCmd.Flags().String("freq", "daily", "频率: daily(日K，默认) / 1m / 5m / 15m / 30m / 60m")
-	klineCmd.Flags().Uint16("count", 800, "每只拉最近 N 根")
+	klineCmd.Flags().Uint16("days", 0, "同步最近 N 个交易日（推荐；按 --freq 自动换算根数；与 --count 互斥；默认 30）")
+	klineCmd.Flags().Uint16("count", 0, "[底层] 直接指定根数（与 --days 互斥；TDX 单次 800 根上限）")
 	klineCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf/block；--all+daily 下 stock 默认扫 stock+index，block 扫全市场板块")
 	syncCmd.AddCommand(klineCmd)
 

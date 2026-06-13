@@ -59,6 +59,37 @@ stats [table]
 
 输出格式：所有子命令默认对齐表格，`--json` 切到 AI 友好 JSON，`--csv` 输出 CSV。
 
+## 同步频率分级（每日复盘指南）
+
+按数据变化频率把同步任务分三档，避免每日盘后无差别全量同步浪费 IO：
+
+| 档位 | 数据类型 | 变化频率 | 建议节奏 | 命令 |
+|------|---------|---------|---------|------|
+| 🔴 高频 | `kline_daily` / `market` 衍生 / `limit` 衍生 / `block_daily` | 每个交易日收盘后 | **每日盘后必跑** | `sync all --all --days 1 --skip-info --skip-finance --skip-xdxr --skip-minute` |
+| 🔴 高频（监控股） | `kline_minute` (1m/5m) | 每个交易日 | **每日盘后跑 watch list** | `sync all --code <持仓+候选> --days 1 --skip-info --skip-finance --skip-xdxr`（自动同步 daily+1m+5m） |
+| 🟡 中频 | `xdxr`（除权除息）/ `finance`（季报） | 公告日 / 季报披露窗口 | **每周一次 或 事件驱动** | `sync all --all --skip-info --skip-minute`（保留 xdxr+finance） |
+| 🟢 低频 | `info`（F10）/ `meta`（标的列表）/ `block`（板块成分） | 月级别 / 上市退市 | **每月一次** | `sync meta` + `sync all --all --skip-finance --skip-xdxr --skip-minute`（仅刷 info+daily） |
+
+**典型每日盘后命令组合**：
+
+```bash
+# 1. 全市场 daily K（每个交易日必做，10-30 min）
+./astock sync all --all --days 1 --skip-info --skip-finance --skip-xdxr --skip-minute
+
+# 2. 持仓 + 候选股的多频率 K 线（一条走完 daily + 1m + 5m）
+./astock sync all --code 600487,002463,002971,600378,002409 --days 1 \
+    --skip-info --skip-finance --skip-xdxr
+```
+
+> 💡 如需单频率手动同步（如仅 60m K 有3 个月、或补历史 30m），才走底层：`sync kline --code <code> --freq 60m --days 60`。日常复盘推荐 `sync all` 语义路径。
+
+**注意事项**：
+- 当前 `sync all` 是**幂等覆盖式同步**，无"已最新就跳过"的智能分支——每次都会从 TDX 重拉对应区间，请合理使用 `--skip-*` 标志
+- `--all` 模式下全市场 5500+ 只 × 6 类数据 ≈ 数小时，**勿在交易时段执行**
+- minute K 仅对 `--code` 指定的标的同步（TDX 单次 800 根上限），不支持 `--all` 全市场分钟 K
+- `sync all` 默认同步 1m + 5m 两种分钟频率；15m/30m/60m 需手动走底层 `sync kline --freq <freq>`
+- `sync kline` 已与 `sync all` 对齐：推荐用 `--days N`（按 freq 自动换算根数，超 800 根会告警截断）；`--count N` 仅作底层 escape hatch，与 `--days` 互斥
+
 ## 设计
 
 详见 [设计文档](../docs/superpowers/specs/2026-06-13-astock-ch-design.md)。
