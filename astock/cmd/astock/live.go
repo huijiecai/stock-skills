@@ -151,5 +151,8 @@ func newLiveCmd() *cobra.Command {
 	}
 	liveCmd.AddCommand(minuteCmd)
 
+	// live block rank / live block stocks（直拉 TDX 板块/成分股实时报价，不落库）
+	addLiveBlockCmd(liveCmd)
+
 	return liveCmd
 }

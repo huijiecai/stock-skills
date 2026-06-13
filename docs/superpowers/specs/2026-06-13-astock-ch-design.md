@@ -424,9 +424,10 @@ astock
 │   ├── finance <code>                                财务数据（仅 stock）
 │   ├── xdxr    <code>                                除权除息（仅 stock）
 │   ├── market  [date] [--exclude-st]                      市场全景快照（涨跌家数/涨停数/板别成交额）¹
-│   └── limit   [date] [--side up|down] [--exclude-st]      涨/跌停清单（含连板数 + 概念标签）¹
+│   ├── limit   [date] [--side up|down] [--exclude-st]      涨/跌停清单（含连板数 + 概念标签）¹
+│   └── limit-ladder [date] [--min-board N] [--exclude-st]  连板天梯（按连板数分组展示，复用 limit 数据）¹
 │
-│   ¹ query market/limit/block rank/block members 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
+│   ¹ query market/limit/limit-ladder/block rank/block members 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
 │     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 daily（+ block daily→说明见下）。
 │     涨跌停判定 100% 精确（按板别±ST 分桶：主板10% / 创业/科创20% / 北交30% / ST 5%）。
 │     涨跌停价计算采用 round-half-up（floor(x*100+0.5)/100），避免 ClickHouse 银行家舍入误判。
@@ -447,10 +448,13 @@ astock
 │   #   • daily --from 早于 4 年前 → 不触发（800 根 ≈ 3.3 年拉不到）。
 │   #   • query info 防抖：1 小时内已 sync 过不重复 sync，避免 F10 持续为空时死循环。
 │
-├── live                              实时直连 TDX（不落库）
+├── live                              实时直连 TDX（不落库；非交易日 / 盘前 9:30 前所有 live 子命令均自动拒绝）
 │   ├── quote   <code...>                              实时报价 + 五档盘口（拒绝 88xxxx/399xxx/899xxx）
 │   ├── tick    <code> [--date YYYYMMDD]               分笔成交（拒绝 88xxxx/399xxx/899xxx）
-│   └── minute  <code> [--freq 1m]                     今日 N 分钟（股票/指数/板块均可）
+│   ├── minute  <code> [--freq 1m]                     今日 N 分钟（股票/指数/板块均可）
+│   └── block                                          板块实时（盘中专用，TDX MQuote 协议）
+│       ├── rank   [--type concept|style|all] [--asc] [--limit N]   板块实时涨幅榜
+│       └── stocks <block_code> [--asc] [--limit N]                 板块成分股实时涨幅榜
 │
 ├── stats                             仓库统计（行数/磁盘/最新日期）
 └── status                            最近同步任务状态
@@ -480,6 +484,8 @@ astock query market --exclude-st            # 排除 ST 股
 astock query limit                          # 涨停清单（含连板数 + 概念 top3）
 astock query limit --exclude-st             # 涨停清单（排除 ST/*ST）
 astock query limit --side down --json       # 跌停清单 JSON
+astock query limit-ladder                   # 连板天梯（≥2 板分组展示）
+astock query limit-ladder --min-board 3     # 仅 3 板及以上
 
 astock query info 600036                    # F10 详情
 astock query daily 600036                   # 默认 type=stock
@@ -495,6 +501,8 @@ astock query daily 600519 --json            # AI 友好
 astock query stock --industry 白酒          # 按行业筛选
 astock live quote 600519 600036             # 多个股票实时报价
 astock live tick 600519                     # 今日分笔
+astock live block rank --type concept       # 板块实时涨幅榜（盘中）
+astock live block stocks 880904 --limit 10  # 智能机器板块成分股实时 TOP10
 ```
 
 ---

@@ -846,6 +846,7 @@ func newQueryCmd() *cobra.Command {
 	// --- query market / query limit（派生命令，纯 ClickHouse SQL）---
 	addMarketCmd(queryCmd)
 	addLimitCmd(queryCmd)
+	addLimitLadderCmd(queryCmd)
 
 	return queryCmd
 }
