@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"sort"
 	"time"
@@ -41,13 +42,14 @@ func addLiveBlockCmd(liveCmd *cobra.Command) {
 
 // LiveBlockRankRow live block rank 单行。
 type LiveBlockRankRow struct {
-	Code      string  `json:"code"`
-	Name      string  `json:"name"`
-	BlockType string  `json:"block_type"` // concept/style
-	Price     float64 `json:"price"`
-	PreClose  float64 `json:"pre_close"`
-	ChangePct float64 `json:"change_pct"`
-	Amount    float64 `json:"amount"`
+	Code         string  `json:"code"`
+	Name         string  `json:"name"`
+	BlockType    string  `json:"block_type"` // concept/style
+	Price        float64 `json:"price"`
+	PreClose     float64 `json:"pre_close"`
+	ChangePct    float64 `json:"change_pct"`
+	Amount       float64 `json:"amount"`
+	LimitUpCount int     `json:"limit_up_count"`
 }
 
 func buildLiveBlockRankCmd() *cobra.Command {
@@ -156,7 +158,10 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 4. 拼装 + 排序 + 截断
+	// 4. 计算各板块涨停数：拉成分股实时报价 + ST判断 + round-half-up 涨停判定
+	limitUpMap := calcLiveLimitUp(ctx, ch, tc, codes)
+
+	// 5. 拼装 + 排序 + 截断
 	rowsOut := make([]*LiveBlockRankRow, 0, len(metas))
 	for _, m := range metas {
 		p, ok := priceMap[m.code]
@@ -166,6 +171,7 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 		rowsOut = append(rowsOut, &LiveBlockRankRow{
 			Code: m.code, Name: m.name, BlockType: m.btype,
 			Price: p.price, PreClose: p.preClose, ChangePct: p.change, Amount: p.amount,
+			LimitUpCount: limitUpMap[m.code],
 		})
 	}
 	sort.Slice(rowsOut, func(i, j int) bool {
@@ -196,6 +202,7 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 		"昨收", 10,
 		"涨跌%", 8,
 		"成交额", 10,
+		"涨停", 4,
 	)
 	for _, r := range rowsOut {
 		t.Row(
@@ -204,10 +211,127 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 			fmt.Sprintf("%.2f", r.PreClose),
 			fmt.Sprintf("%+.2f%%", r.ChangePct),
 			formatAmount(r.Amount),
+			fmt.Sprintf("%d", r.LimitUpCount),
 		)
 	}
 	t.Print()
 	return nil
+}
+
+// calcLiveLimitUp 拉取所有成分股实时报价，计算各板块涨停数。
+// 逻辑复用 query block rank 的 round-half-up 涨停判定规则：
+//   - ST: 5%, 创业板/科创板: 20%, 北交所: 30%, 主板: 10%
+//   - 涨停条件: price == high AND price == floor(preClose * (1+pctLimit) * 100 + 0.5) / 100
+func calcLiveLimitUp(ctx context.Context, ch *dwh.Client, tc *tdx.Client, blockCodes []string) map[string]int {
+	result := make(map[string]int, len(blockCodes))
+
+	// 1. 从 CH 拉全部 block_constituents + securities ST状态
+	sql := fmt.Sprintf(`
+SELECT bc.block_code, bc.stock_code, s.name
+FROM %s.block_constituents AS bc FINAL
+INNER JOIN %s.securities AS s ON bc.stock_code = s.code AND s.type = 'stock'`,
+		ch.DB(), ch.DB())
+
+	rows, err := ch.Conn().Query(ctx, sql)
+	if err != nil {
+		return result
+	}
+	defer rows.Close()
+
+	// block_code -> []stock_code, stock_code -> name (for ST detection)
+	blockStocks := make(map[string][]string)  // block -> stocks
+	stockNames := make(map[string]string)      // stock -> name
+	uniqueStocks := make(map[string]struct{})  // dedup
+	for rows.Next() {
+		var blockCode, stockCode, stockName string
+		if err := rows.Scan(&blockCode, &stockCode, &stockName); err != nil {
+			continue
+		}
+		blockStocks[blockCode] = append(blockStocks[blockCode], stockCode)
+		stockNames[stockCode] = stockName
+		uniqueStocks[stockCode] = struct{}{}
+	}
+
+	// 2. 批量拉全部唯一股票实时报价
+	allCodes := make([]string, 0, len(uniqueStocks))
+	for code := range uniqueStocks {
+		allCodes = append(allCodes, code)
+	}
+
+	type stockQuote struct {
+		price, preClose, high float64
+	}
+	quoteMap := make(map[string]stockQuote, len(allCodes))
+
+	const batch = 50
+	for i := 0; i < len(allCodes); i += batch {
+		end := i + batch
+		if end > len(allCodes) {
+			end = len(allCodes)
+		}
+		quotes, err := tc.GetQuotes(allCodes[i:end])
+		if err != nil {
+			continue
+		}
+		for _, q := range quotes {
+			quoteMap[q.Code] = stockQuote{q.Price, q.PreClose, q.High}
+		}
+	}
+
+	// 3. 判定每只股票是否涨停
+	isLimitUp := make(map[string]bool, len(allCodes))
+	for code, q := range quoteMap {
+		if q.preClose <= 0 || q.price <= 0 {
+			continue
+		}
+		// 涨停幅度
+		pctLimit := 0.10
+		name := stockNames[code]
+		if contains(name, "ST") {
+			pctLimit = 0.05
+		} else if len(code) >= 3 {
+			prefix := code[:3]
+			switch {
+			case prefix == "300" || prefix == "301":
+				pctLimit = 0.20
+			case prefix == "688" || prefix == "689":
+				pctLimit = 0.20
+			case prefix == "920" || prefix == "430" || prefix == "830" || prefix == "870" || prefix == "880":
+				pctLimit = 0.30
+			}
+		}
+		// round-half-up 涨停价
+		limitPrice := math.Floor(q.preClose*(1+pctLimit)*100+0.5) / 100
+		if q.price == q.high && q.price == limitPrice {
+			isLimitUp[code] = true
+		}
+	}
+
+	// 4. 汇总各板块涨停数
+	for _, blockCode := range blockCodes {
+		cnt := 0
+		for _, sc := range blockStocks[blockCode] {
+			if isLimitUp[sc] {
+				cnt++
+			}
+		}
+		result[blockCode] = cnt
+	}
+	return result
+}
+
+// contains 检查字符串是否包含子串（用于 ST 判定）
+func contains(s, sub string) bool {
+	return len(s) >= len(sub) && (s == sub || len(s) > 0 && containsStr(s, sub))
+}
+
+func containsStr(s, sub string) bool {
+	for i := 0; i <= len(s)-len(sub); i++ {
+		if s[i:i+len(sub)] == sub {
+			return true
+		}
+	}
+	return false
 }
 
 // LiveBlockMemberRow live block members 单行。
