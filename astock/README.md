@@ -1,52 +1,64 @@
 # astock
 
-A 股量化数据 CLI 工具。多数据源行情持久化到 PostgreSQL，统一 CLI 接口查询。
+A 股量化数据 CLI 工具。多源行情（TDX 通达信为主）持久化到 ClickHouse，统一 cobra 命令树查询。
 
 ## 快速开始
 
 ```bash
-# 设置环境变量
-export ASTOCK_DB_HOST=localhost
-export ASTOCK_DB_PORT=5432
-export ASTOCK_DB_NAME=astock
-export ASTOCK_DB_USER=postgres
-export ASTOCK_DB_PASS=postgres
+# 1. 启动 ClickHouse（项目根 data/clickhouse 目录已配好）
+docker compose up -d
 
-# 构建
-make build
+# 2. 设置环境变量（默认值已可用，仅生产覆盖）
+export CH_HOST=localhost
+export CH_PORT=9000
+export CH_DATABASE=astock
+export CH_USER=default
+export CH_PASSWORD=
 
-# 查询日K
-./build/astock daily 600519
+# 3. 构建
+make build      # 产物：./astock
 
-# JSON 输出（供 AI 解析）
-./build/astock daily 000001 --json
+# 4. 初始化表结构（一次性）
+./astock init
 
-# 批量同步历史数据
-./build/astock sync --today
+# 5. 同步元数据 + 全套数据
+./astock sync meta                              # 全市场 securities 元数据
+./astock sync kline --code 600519               # 单只历史日 K（默认 freq=daily）
+./astock sync kline --code 600519 --freq 5m     # 单只 5 分钟 K
+./astock sync all --days 1                      # 每日增量（cron 用）
+
+# 6. 查询
+./astock query kline 600519                     # 默认 daily 30 行
+./astock query kline 600519 --ma 5,10,20 --json # 加均线 + AI 友好 JSON 输出
+./astock query market                           # 市场全景快照
+./astock query limit ladder                     # 连板天梯
+./astock live quote 600519                      # 盘中实时报价（非交易日自动拒绝）
 ```
 
-## 命令
+## 命令树速览
 
-| 命令 | 说明 |
-|------|------|
-| `daily <code>` | 日K线 |
-| `minute <code>` | 分钟K线 |
-| `rank volume\|limit-up` | 排名 |
-| `info stocks\|concepts` | 基础信息 |
-| `sync [code...]` | 批量同步 |
-| `stats` | 数据统计 |
+```
+init                                 建表
+sync meta | kline | block | xdxr | finance | info | all | status
+query kline | stock | block (list/rank/members) | info | finance | xdxr | market | limit (ladder)
+live  quote | tick | minute | block (rank/members)
+stats [table]
+```
+
+详尽用法见 `astock <verb> --help` 与设计文档。
 
 ## 环境变量
 
-| 变量 | 默认值 |
-|------|--------|
-| `ASTOCK_DB_HOST` | localhost |
-| `ASTOCK_DB_PORT` | 5432 |
-| `ASTOCK_DB_NAME` | astock |
-| `ASTOCK_DB_USER` | postgres |
-| `ASTOCK_DB_PASS` | postgres |
-| `ASTOCK_RETENTION_DAYS` | 30 |
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `CH_HOST` | `localhost` | ClickHouse 主机 |
+| `CH_PORT` | `9000` | TCP 原生端口（非 HTTP 8123） |
+| `CH_DATABASE` | `astock` | 库名 |
+| `CH_USER` | `default` | 用户名 |
+| `CH_PASSWORD` | _空_ | 密码 |
+
+输出格式：所有子命令默认对齐表格，`--json` 切到 AI 友好 JSON，`--csv` 输出 CSV。
 
 ## 设计
 
-详见 [设计文档](../docs/superpowers/specs/2026-05-24-astock-design.md)。
+详见 [设计文档](../docs/superpowers/specs/2026-06-13-astock-ch-design.md)。

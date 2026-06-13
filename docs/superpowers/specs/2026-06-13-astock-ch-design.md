@@ -350,7 +350,7 @@ ORDER BY (task, start_at);
 
 | 字段 | 类型 | 含义 | 示例 |
 |------|------|------|------|
-| `task` | String | 任务类型 | `meta` / `info` / `daily` / `minute` / `block` / `xdxr` / `finance` |
+| `task` | String | 任务类型 | `sync_meta` / `sync_info` / `sync_kline_daily` / `sync_kline_minute` / `sync_block` / `sync_xdxr` / `sync_finance` |
 | `target` | String | 同步目标 | `all`（全市场） / `600519`（单只） / `880472`（单板块） |
 | `start_at` | DateTime | 开始时间 | `2026-06-13 18:00:00` |
 | `end_at` | Nullable(DateTime) | 结束时间，进行中为 NULL | `NULL` 或实际时间 |
@@ -362,7 +362,7 @@ ORDER BY (task, start_at);
 
 **CLI 进度日志（v3+）：** `sync kline/finance/info/xdxr --all` 都会打印「[i/total] code...」每 100 只一行。
 原因：全市场扫描耗时 5–30+ 分钟（finance 为闭源接口，同步全量约 30+ 分钟），进度不可见则看似卡死。
-实现：`internal/sync/{daily,minute_block_finance,info}.go` 中各函数多一个 `progress func(i, total int, code string)` 参数，CLI 层 `syncProgress` 统一 helper。
+实现：`internal/sync/{kline_daily,kline_minute,block,finance,xdxr,info,meta,log}.go` 中各函数多一个 `progress func(i, total int, code string)` 参数，CLI 层 `syncProgress` 统一 helper。
 
 ---
 
@@ -510,6 +510,7 @@ astock sync info --code 600519              # 单独同步 F10
 
 - 2026-06-13：A 整改 4 处不一致（`limit-ladder`→子命令 / `live block stocks`→`members` / 顶层 `status`→`sync status` / 砍 `query count` 合入 `stats [table]`）。
 - 2026-06-13：候选 ⓪——`query/sync daily` + `query/sync minute` 合并为 `query/sync kline --freq`（依 R7）；`--freq=daily` 为默认，迁移成本：用户惯named daily/minute 需改为 `kline --freq ...`，未保留 alias。
+- 2026-06-13：候选 ⓪ 收尾——`internal/sync/` 源码重构为单一职责文件：`daily.go` 拆为 `kline_daily.go`+`xdxr.go`；`minute_block_finance.go` 拆为 `kline_minute.go`+`block.go`+`finance.go`。同时 `sync_log.task` 字段 `sync_daily`/`sync_minute` 重命名为 `sync_kline_daily`/`sync_kline_minute`（与 CLI `sync kline --freq` 语义对齐；日志表新旧值自然半衰期并存，不破坏历史可读性）。`astock/README.md` 全文重写（PostgreSQL → ClickHouse / env 名 / 命令名 / 设计文档链接）。
 - 后续若新增命令导致破例，须在本节追加“破例项”并说明理由。
 
 ---

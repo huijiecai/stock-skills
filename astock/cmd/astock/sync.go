@@ -97,7 +97,7 @@ func newSyncCmd() *cobra.Command {
 	syncCmd.AddCommand(infoCmd)
 
 	// --- sync kline ---
-	// 单一 K 线同步命令，按 --freq 分发：daily → ssync.Daily（1m/5m/.../60m） → ssync.Minute
+	// 单一 K 线同步命令，按 --freq 分发：daily → ssync.Daily（1m/5m/.../60m）→ ssync.Minute
 	klineCmd := &cobra.Command{
 		Use:   "kline",
 		Short: "同步 K 线（--freq daily(默认) → kline_daily；1m/5m/15m/30m/60m → kline_minute）",
