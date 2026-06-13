@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ⚠️ 近期扫描已可由 astock 取代：`astock query limit ladder`
+#    但本脚本「近10天多次涨停+形态扫描」逻辑 astock 未覆盖，仍需保留。优先级详见 SKILL.md 「数据采集工具」章节。
 """
 全市场扫描：从近10天涨停数据中找出形态好+有预期的主板标的
 筛选条件：

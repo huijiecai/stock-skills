@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# ⚠️ 已被 astock 取代：`astock query block rank --type concept`
+#    本脚本仅在 astock 不可用时作兜底。优先级详见 SKILL.md 「数据采集工具」章节。
 """
 概念板块涨幅排行采集工具
 

@@ -413,13 +413,32 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 
 ### 数据采集工具
 
+**优先级原则**：**astock 是唯一推荐的数据入口**。旧 Python 脚本（`tools/*.py`）仅作 **兜底备胎**，某些能力待 astock 补齐后会逐步弃用。
+
 ```bash
-# 涨停数据（Tushare）
-python tools/fetch_tushare_data.py --limit-up --date YYYY-MM-DD
+# 每日盘后一键同步（全市场 daily K + market 派生 + limit 派生 + block_daily）
+./astock sync all --all --days 1 --skip-info --skip-finance --skip-xdxr --skip-minute
 
-# 个股/概念数据（adata，免费）
-python tools/fetch_adata_data.py --watch 002929 600276
+# 持仓 + 候选股多频率 K 线（daily + 1m + 5m）
+./astock sync all --code 600487,002463,002971 --days 1 --skip-info --skip-finance --skip-xdxr
 
-# 盘后一键采集
-python tools/collect_daily_data.py --date YYYY-MM-DD
+# 丢了某只 minute K 随手补
+./astock sync kline --code 603893 --freq 1m --days 1
 ```
+
+**astock 命令 ↔ 旧脚本映射**：
+
+| 场景 | ✅ 推荐：astock | ⚠️ 兜底：旧脚本 |
+|------|----------|-----------------|
+| 涨停跟踪/连板天梯 | `astock query limit --date YYYYMMDD`、`astock query limit ladder` | `tools/fetch_tushare_data.py --limit-up` |
+| 市场全景（三大指数/涨跌停数/成交额） | `astock query market` | `tools/fetch_market_sentiment.py` |
+| 概念/行业板块涨幅排名 | `astock query block rank --type concept` | `tools/fetch_concept_rank.py` |
+| 个股实时报价 | `astock live quote 600519` | `tools/fetch_adata_data.py --realtime` |
+| 个股分时/日K查询 | `astock query kline 600519 --freq 1m\|daily` | `tools/fetch_adata_data.py --watch` |
+| 盘后一键采集 | `astock sync all --all --days 1 ...` | `tools/collect_daily_data.py` |
+| 近 N 日多次涨停扫描 | `astock query limit ladder`（近期） | `tools/scan_market.py`（历史全量扫描仍需脚本补齐） |
+| 定时实时监控 | `watch -n 300 './astock live quote 002407 002463 ...'` | `tools/realtime_monitor.sh` |
+| K 线形态分析 | ——（AI 配合 `query kline`） | `tools/analyze_form.py`（仍可用） |
+| 盘前一键采集 | `astock query market` + `query limit` + `query block rank` 手动组合 | `tools/collect_premarket.py`（这个脚本还是最便捷） |
+
+**为什么优先 astock**：统一数据源（TDX 主 + 多源补充）、ClickHouse 持久化、表格/JSON 双模输出、交易日调度内置、数据表可复用。旧脚本依赖 Tushare/adata 多个免费账号且无中间层表。

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# ⚠️ 部分可由 astock 取代：`astock query market` + `astock query limit` + `astock query block rank` 手动组合
+#    但本脚本作为"一键采集"依然便捷，优先级详见 SKILL.md 「数据采集工具」章节。
 """
 盘前分析一键数据采集
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# ⚠️ 已被 astock 取代：`astock sync all --all --days 1 --skip-info --skip-finance --skip-xdxr --skip-minute`
+#    本脚本仅在 astock 不可用时作兜底。优先级详见 SKILL.md 「数据采集工具」章节。
 """
 盘后数据采集一键脚本
 

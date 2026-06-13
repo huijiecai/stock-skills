@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# ⚠️ 已被 astock 取代：`astock live quote <code>`、`astock query kline <code> --freq 1m\|daily`
+#    本脚本仅在 astock 不可用时作兜底。优先级详见 SKILL.md 「数据采集工具」章节。
 """
 模拟看盘数据采集工具（基于 adata，免费无需注册）
 

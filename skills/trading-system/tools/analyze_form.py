@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ⚠️ K 线形态分析 astock 未直接覆盖，本脚本仍可用；调用前建议先用 `astock query kline <code> --freq daily --json` 拉 K 线。
+#    优先级详见 SKILL.md 「数据采集工具」章节。
 """分析候选个股K线形态"""
 import json
 from pathlib import Path
