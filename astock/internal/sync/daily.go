@@ -28,7 +28,13 @@ func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dat
 		}
 		total = n
 	} else if all {
-		codes, err := listStockCodes(ctx, ch)
+		var codes []stockInfo
+		var err error
+		if dataType == model.TypeBlock {
+			codes, err = listBlockCodes(ctx, ch)
+		} else {
+			codes, err = listStockCodes(ctx, ch)
+		}
 		if err != nil {
 			return 0, err
 		}
@@ -154,6 +160,27 @@ func listStockCodes(ctx context.Context, ch *dwh.Client) ([]stockInfo, error) {
 			return nil, err
 		}
 		out = append(out, stockInfo{Code: code, Type: model.DataType(typ)})
+	}
+	return out, nil
+}
+
+// listBlockCodes 从 CH blocks 表读取全部板块代码（880xxx）。
+// 仅被 sync daily --type block --all 使用。板块不入 securities 表，独立表维护。
+func listBlockCodes(ctx context.Context, ch *dwh.Client) ([]stockInfo, error) {
+	rows, err := ch.Conn().Query(ctx,
+		fmt.Sprintf(`SELECT code FROM %s.blocks FINAL ORDER BY code`, ch.DB()))
+	if err != nil {
+		return nil, fmt.Errorf("query blocks: %w", err)
+	}
+	defer rows.Close()
+
+	var out []stockInfo
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		out = append(out, stockInfo{Code: code, Type: model.TypeBlock})
 	}
 	return out, nil
 }

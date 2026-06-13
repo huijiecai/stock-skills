@@ -119,13 +119,15 @@ func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code string, dat
 	return true
 }
 
-// parseType 将 --type 参数（stock/index/etf）转换为 model.DataType，默认 stock。
+// parseType 将 --type 参数（stock/index/etf/block）转换为 model.DataType，默认 stock。
 func parseType(s string) model.DataType {
 	switch s {
 	case "index":
 		return model.TypeIndex
 	case "etf":
 		return model.TypeETF
+	case "block":
+		return model.TypeBlock
 	}
 	return model.TypeStock
 }
@@ -541,68 +543,9 @@ func newQueryCmd() *cobra.Command {
 	blockListCmd.Flags().Int("limit", 50, "返回条数")
 	blockCmd.AddCommand(blockListCmd)
 
-	blockMembersCmd := &cobra.Command{
-		Use:   "members <block_code>",
-		Short: "查询板块成分股",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			blockCode := args[0]
-			jsonOut := isJSON(cmd)
-
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-			ch, err := dwh.New(ctx, cfg)
-			if err != nil {
-				return err
-			}
-			defer ch.Close()
-
-			q := fmt.Sprintf(`SELECT bc.stock_code, s.name, s.industry
-				FROM %s.block_constituents AS bc
-				LEFT JOIN %s.securities AS s ON bc.stock_code = s.code AND s.type = 'stock'
-				WHERE bc.block_code = '%s'
-				ORDER BY bc.stock_code`, ch.DB(), ch.DB(), blockCode)
-
-			rows, err := ch.Conn().Query(ctx, q)
-			if err != nil {
-				return err
-			}
-			defer rows.Close()
-
-			type memberRow struct {
-				Code     string `json:"code"`
-				Name     string `json:"name"`
-				Industry string `json:"industry"`
-			}
-			var list []*memberRow
-			for rows.Next() {
-				var r memberRow
-				if err := rows.Scan(&r.Code, &r.Name, &r.Industry); err != nil {
-					return err
-				}
-				list = append(list, &r)
-			}
-			if len(list) == 0 {
-				fmt.Println("无成分股或板块代码不存在")
-				return nil
-			}
-
-			if jsonOut {
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(list)
-			}
-
-			t := newTable("代码", 8, "名称", 12, "行业", 14)
-			for _, r := range list {
-				t.Row(r.Code, r.Name, r.Industry)
-			}
-			t.Print()
-			fmt.Printf("\n共 %d 只成分股\n", len(list))
-			return nil
-		},
-	}
-	blockCmd.AddCommand(blockMembersCmd)
+	// rank / members 子命令由 query_block.go 提供（增强版 members 含当日行情，rank 为新增涨幅榜）
+	addBlockRankCmd(blockCmd)
+	addBlockMembersCmd(blockCmd)
 	queryCmd.AddCommand(blockCmd)
 
 	// --- query finance ---

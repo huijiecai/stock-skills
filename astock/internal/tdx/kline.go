@@ -19,7 +19,7 @@ func (c *Client) GetKlineDayAll(code string, dataType model.DataType) ([]*model.
 	}
 
 	var resp *protocol.KlineResp
-	if dataType == model.TypeIndex {
+	if dataType == model.TypeIndex || dataType == model.TypeBlock {
 		resp, err = cli.GetIndexDayAll(IndexCode(code))
 	} else {
 		resp, err = cli.GetKlineDayAll(code)
@@ -39,7 +39,7 @@ func (c *Client) GetKlineDay(code string, dataType model.DataType, count uint16)
 	}
 
 	var resp *protocol.KlineResp
-	if dataType == model.TypeIndex {
+	if dataType == model.TypeIndex || dataType == model.TypeBlock {
 		resp, err = cli.GetIndexDay(IndexCode(code), 0, count)
 	} else {
 		resp, err = cli.GetKlineDay(code, 0, count)

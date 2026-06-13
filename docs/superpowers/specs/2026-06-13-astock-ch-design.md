@@ -417,18 +417,21 @@ astock
 │   ├── minute  <code> [--type stock|index|etf] [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD]
 │   ├── count   <table>                              查表行数
 │   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
-│   ├── block   list [--keyword 光通信]               列出概念/行业板块
-│   │           members <block_code>                  查某板块成分股
+│   ├── block   list    [--keyword 光通信]               列出概念/风格板块
+│   │           rank    [date] [--type concept|style|all]   板块涨幅榜（含成分股涨停统计）¹
+│   │           members <block_code> [date] [--asc]      板块成分股（含当日涨幅/成交额/换手/涨停状态）¹
 │   ├── info    <code>                                F10 详情（仅 stock）
 │   ├── finance <code>                                财务数据（仅 stock）
 │   ├── xdxr    <code>                                除权除息（仅 stock）
 │   ├── market  [date] [--exclude-st]                      市场全景快照（涨跌家数/涨停数/板别成交额）¹
 │   └── limit   [date] [--side up|down] [--exclude-st]      涨/跌停清单（含连板数 + 概念标签）¹
 │
-│   ¹ query market/limit 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
-│     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 daily。
+│   ¹ query market/limit/block rank/block members 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
+│     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 daily（+ block daily→说明见下）。
 │     涨跌停判定 100% 精确（按板别±ST 分桶：主板10% / 创业/科创20% / 北交30% / ST 5%）。
 │     涨跌停价计算采用 round-half-up（floor(x*100+0.5)/100），避免 ClickHouse 银行家舍入误判。
+│     query block rank 涨幅来自板块自身 kline_daily(type='block')，与通达信/同花顺一致；
+│     成分股涨家数/涨停数由 block_constituents JOIN kline_daily(type='stock') 聚合。
 │     --exclude-st 可排除 ST/*ST 股（减少噪声）。
 │     不提供：开板次数/首封时间/封单金额（粒度限制下不可靠，需破单源接东财）。
 │
@@ -459,9 +462,11 @@ astock
 ```bash
 astock init                                 # 一次性
 astock sync meta                            # 同步全市场元数据
-astock sync daily --all --from 20200101     # 全市场日K回填
+astock sync daily --all --from 20200101     # 全市场股票日K回填
+astock sync daily --all --type block        # 全市场板块日K（~428 个 880xxx 概念/风格板）——query block rank 前置
 astock sync daily --code 600519 --from 20100101  # 单只全历史（默认 type=stock）
 astock sync daily --code 000001 --type index     # 上证综指
+astock sync daily --code 880904 --type block     # 单只板块（智能机器概念）
 astock sync all --days 1                    # 每日增量（cron 用，stock 全套）
 astock sync all --code 000001 --type index --days 30  # 仅同步上证指日/分钟 K
 astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务

@@ -118,8 +118,8 @@ func newSyncCmd() *cobra.Command {
 			defer close()
 
 			if all {
-				fmt.Printf("→ sync daily (all count=%d)...\n", count)
-				n, err := ssync.Daily(ctx, ch, tc, "", "", true, count, syncProgress)
+				fmt.Printf("→ sync daily (all type=%s count=%d)...\n", dataType, count)
+				n, err := ssync.Daily(ctx, ch, tc, "", dataType, true, count, syncProgress)
 				if err != nil {
 					return err
 				}
@@ -143,7 +143,7 @@ func newSyncCmd() *cobra.Command {
 	dailyCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔")
 	dailyCmd.Flags().Bool("all", false, "遍历全部已入库标的")
 	dailyCmd.Flags().Uint16("count", 800, "每只拉最近 N 根")
-	dailyCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
+	dailyCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf/block；--all 下 stock 默认扫 stock+index，block 扫全市场板块")
 	syncCmd.AddCommand(dailyCmd)
 
 	// --- sync xdxr ---
