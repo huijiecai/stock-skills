@@ -400,8 +400,11 @@ astock
 │   ├── block                         板块成分股
 │   ├── xdxr    --code a,b,c|--all    除权除息（仅 stock）
 │   ├── finance --code a,b,c|--all    财务数据（仅 stock，每季跑一次）
-│   └── all     --code a,b,c [--type stock|index|etf] [--days 30] [--skip-info] [--skip-finance]
+│   └── all     --code a,b,c|--all [--type stock|index|etf] [--days 30]
+│                  [--skip-info] [--skip-finance] [--skip-minute] [--skip-xdxr]
 │                                      stock→全套；index/etf→仅 daily/minute
+│                                      --all 从 securities 表拉全量代码（3~6h）
+│                                      --skip-* 可以组合出“仅 daily”高速低耗区间
 │
 ├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
 │   ├── daily   <code> [--type stock|index|etf] [--from] [--to] [--limit 30] [--adjust qfq|none]
@@ -412,7 +415,14 @@ astock
 │   │           members <block_code>                  查某板块成分股
 │   ├── info    <code>                                F10 详情（仅 stock）
 │   ├── finance <code>                                财务数据（仅 stock）
-│   └── xdxr    <code>                                除权除息（仅 stock）
+│   ├── xdxr    <code>                                除权除息（仅 stock）
+│   ├── market  [date]                                 市场全景快照（涨跌家数/涨停数/板别成交额）¹
+│   └── limit   [date] [--side up|down]                涨/跌停清单（含连板数 + 概念标签）¹
+│
+│   ¹ query market/limit 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
+│     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 daily。
+│     涨跌停判定 100% 精确（按板别±ST 分桶：主板10% / 创业/科创20% / 北交30% / ST 5%）。
+│     不提供：开板次数/首封时间/封单金额（粒度限制下不可靠，需破单源接东财）。
 │
 │   # code 参数语义（方案 A：--type 默认 stock，显式指定跳出 stock 语义）：
 │   #   • query daily/minute/sync daily/minute/sync all 默认 --type=stock，
@@ -447,7 +457,14 @@ astock sync daily --code 000001 --type index     # 上证综指
 astock sync all --days 1                    # 每日增量（cron 用，stock 全套）
 astock sync all --code 000001 --type index --days 30  # 仅同步上证指日/分钟 K
 astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务
+astock sync all --all --skip-minute --skip-xdxr --skip-finance --skip-info --days 30
+                                            # 全市场仅 daily（~10–15 min，供 query market/limit 使用）
 astock sync info --code 600519              # 单独同步 F10
+
+astock query market 20260612                # 市场全景快照（指定日）
+astock query market                         # 默认最近交易日
+astock query limit                          # 涨停清单（含连板数 + 概念 top3）
+astock query limit --side down --json       # 跌停清单 JSON
 
 astock query info 600036                    # F10 详情
 astock query daily 600036                   # 默认 type=stock

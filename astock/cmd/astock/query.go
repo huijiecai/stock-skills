@@ -885,6 +885,10 @@ func newQueryCmd() *cobra.Command {
 	infoCmd.Flags().Bool("no-sync", false, "F10 为空时不自动触发 sync info")
 	queryCmd.AddCommand(infoCmd)
 
+	// --- query market / query limit（派生命令，纯 ClickHouse SQL）---
+	addMarketCmd(queryCmd)
+	addLimitCmd(queryCmd)
+
 	return queryCmd
 }
 
