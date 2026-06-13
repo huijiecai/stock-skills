@@ -302,18 +302,26 @@ func newSyncCmd() *cobra.Command {
 	// --- sync all ---
 	allCmd := &cobra.Command{
 		Use:   "all",
-		Short: "批量同步：按 --type 分发（stock=全套；index/etf=仅 daily/minute）",
+		Short: "批量同步：按 --type 分发（stock=全套；index/etf=仅 daily/minute），支持 --all 全市场",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			codeStr, _ := cmd.Flags().GetString("code")
+			allFlag, _ := cmd.Flags().GetBool("all")
 			days, _ := cmd.Flags().GetUint16("days")
 			skipInfo, _ := cmd.Flags().GetBool("skip-info")
 			skipFin, _ := cmd.Flags().GetBool("skip-finance")
+			skipMin, _ := cmd.Flags().GetBool("skip-minute")
+			skipXDXR, _ := cmd.Flags().GetBool("skip-xdxr")
 			typeStr, _ := cmd.Flags().GetString("type")
 			dataType := parseType(typeStr)
-			if codeStr == "" {
-				return fmt.Errorf("需指定 --code（逗号分隔多只）")
+			if codeStr == "" && !allFlag {
+				return fmt.Errorf("需指定 --code（逗号分隔多只）或 --all")
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
+			// --all 全市场可能耗时数小时，放宽到 6h；--code 模式 60min 仍够。
+			timeout := 60 * time.Minute
+			if allFlag {
+				timeout = 6 * time.Hour
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), timeout)
 			defer cancel()
 			ch, tc, close, err := openBoth(ctx)
 			if err != nil {
@@ -329,7 +337,21 @@ func newSyncCmd() *cobra.Command {
 			min1Count := days * 240 // 1m: 每天 240 根
 			min5Count := days * 48  // 5m: 每天 48 根
 	
-			codes := parseCodes(codeStr)
+			// 代码列表：--all 时从 securities 拉全量；否则解析 --code
+			var codes []string
+			if allFlag {
+				codes, err = loadCodesFromCH(ctx, ch, dataType)
+				if err != nil {
+					return fmt.Errorf("加载 securities 代码列表失败: %w", err)
+				}
+				if len(codes) == 0 {
+					return fmt.Errorf("securities 表中无 type=%s 数据，请先 sync meta", dataType)
+				}
+				fmt.Printf("→ 从 securities 加载 %d 只 %s\n", len(codes), dataType)
+			} else {
+				codes = parseCodes(codeStr)
+			}
+	
 			for i, code := range codes {
 				fmt.Printf("\n━━ [%d/%d] %s (type=%s) ━━\n", i+1, len(codes), code, dataType)
 	
@@ -354,25 +376,27 @@ func newSyncCmd() *cobra.Command {
 				}
 	
 				// minute: 1m + 5m
-				freqCounts := []struct {
-					freq  string
-					count uint16
-				}{
-					{"1m", min1Count},
-					{"5m", min5Count},
-				}
-				for _, fc := range freqCounts {
-					fmt.Printf("  → minute %s (%d天=%d根)...\n", fc.freq, days, fc.count)
-					n, err = ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(fc.freq), fc.count)
-					if err != nil {
-						fmt.Printf("  ✗ minute(%s): %v\n", fc.freq, err)
-					} else {
-						fmt.Printf("  ✓ minute(%s) %d 行\n", fc.freq, n)
+				if !skipMin {
+					freqCounts := []struct {
+						freq  string
+						count uint16
+					}{
+						{"1m", min1Count},
+						{"5m", min5Count},
+					}
+					for _, fc := range freqCounts {
+						fmt.Printf("  → minute %s (%d天=%d根)...\n", fc.freq, days, fc.count)
+						n, err = ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(fc.freq), fc.count)
+						if err != nil {
+							fmt.Printf("  ✗ minute(%s): %v\n", fc.freq, err)
+						} else {
+							fmt.Printf("  ✓ minute(%s) %d 行\n", fc.freq, n)
+						}
 					}
 				}
 	
 				// xdxr——仅 stock
-				if isStock {
+				if isStock && !skipXDXR {
 					fmt.Printf("  → xdxr...\n")
 					n, err = ssync.XDXR(ctx, ch, tc, code, false)
 					if err != nil {
@@ -397,10 +421,13 @@ func newSyncCmd() *cobra.Command {
 			return nil
 		},
 	}
-	allCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔（必填）")
+	allCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔（与 --all 二选一）")
+	allCmd.Flags().Bool("all", false, "遍历 securities 表中全部当前 --type 标的")
 	allCmd.Flags().Uint16("days", 30, "同步最近 N 个交易日")
 	allCmd.Flags().Bool("skip-info", false, "跳过 F10 公司信息同步（仅 stock 生效）")
 	allCmd.Flags().Bool("skip-finance", false, "跳过财务数据同步（仅 stock 生效）")
+	allCmd.Flags().Bool("skip-minute", false, "跳过分钟K线同步（1m+5m）")
+	allCmd.Flags().Bool("skip-xdxr", false, "跳过除权除息同步（仅 stock 生效）")
 	allCmd.Flags().String("type", "stock", "标的类型: stock(默认全套)/index/etf(仅 daily/minute)")
 	syncCmd.AddCommand(allCmd)
 
@@ -432,4 +459,24 @@ func parseCodes(s string) []string {
 		}
 	}
 	return out
+}
+
+// loadCodesFromCH 从 securities 表按 type 拉取全部已入库代码。
+// sync all --all 用于全市场扫描；前置依赖 sync meta 已执行。
+func loadCodesFromCH(ctx context.Context, ch *dwh.Client, dataType model.DataType) ([]string, error) {
+	sql := fmt.Sprintf("SELECT code FROM %s.securities FINAL WHERE type = ? ORDER BY code", ch.DB())
+	rows, err := ch.Conn().Query(ctx, sql, string(dataType))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var codes []string
+	for rows.Next() {
+		var code string
+		if err := rows.Scan(&code); err != nil {
+			return nil, err
+		}
+		codes = append(codes, code)
+	}
+	return codes, nil
 }
