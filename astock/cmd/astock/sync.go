@@ -218,8 +218,6 @@ func newSyncCmd() *cobra.Command {
 	xdxrCmd.Flags().Bool("all", false, "遍历全部已入库 stock")
 	syncCmd.AddCommand(xdxrCmd)
 
-	// --- sync minute 已合入 sync kline --freq ---
-
 	// --- sync block ---
 	syncCmd.AddCommand(&cobra.Command{
 		Use:   "block",
@@ -440,7 +438,7 @@ func openBoth(ctx context.Context) (*dwh.Client, *tdx.Client, func(), error) {
 	return ch, tc, close, nil
 }
 
-// syncProgress 供 sync daily/xdxr/finance/info 的 --all 路径使用的进度回调。
+// syncProgress 供 sync kline/xdxr/finance/info 的 --all 路径使用的进度回调。
 // 每 100 只股打一行进度，避免全市场扫描 30+ 分钟期间静默看如卡死。
 func syncProgress(i, total int, code string) {
 	if i%100 == 0 {

@@ -409,7 +409,7 @@ astock
 │                  [--skip-info] [--skip-finance] [--skip-minute] [--skip-xdxr]
 │                                      stock→全套；index/etf→仅 kline
 │                                      --all 从 securities 表拉全量代码（3~6h）
-│                                      --skip-* 可以组合出“仅 daily”高速低耗区间
+│                                      --skip-* 可以组合出“仅 kline daily”高速低耗区间
 │
 ├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
 │   ├── kline   <code> [--type stock|index|etf] [--freq daily|1m|5m|15m|30m|60m] [--limit 30]
@@ -430,7 +430,7 @@ astock
 │           ladder [date] [--min-board N] [--exclude-st]   连板天梯（limit 子命令，按连板数分组展示）¹
 │
 │   ¹ query market/limit/limit ladder/block rank/block members 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
-│     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 daily（+ block daily→说明见下）。
+│     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 kline daily（+ block kline daily→说明见下）。
 │     涨跌停判定 100% 精确（按板别±ST 分桶：主板10% / 创业/科创20% / 北交30% / ST 5%）。
 │     涨跌停价计算采用 round-half-up（floor(x*100+0.5)/100），避免 ClickHouse 银行家舍入误判。
 │     query block rank 涨幅来自板块自身 kline_daily(type='block')，与通达信/同花顺一致；
@@ -478,7 +478,7 @@ astock sync all --days 1                    # 每日增量（cron 用，stock �
 astock sync all --code 000001 --type index --days 30  # 仅同步上证指日/分钟 K
 astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务
 astock sync all --all --skip-minute --skip-xdxr --skip-finance --skip-info --days 30
-                                            # 全市场仅 daily（~10–15 min，供 query market/limit 使用）
+                                            # 全市场仅 kline daily（~10–15 min，供 query market/limit 使用）
 astock sync info --code 600519              # 单独同步 F10
 ```
 
@@ -501,7 +501,7 @@ astock sync info --code 600519              # 单独同步 F10
 - **R1 三层结构** `astock <verb> <noun> [sub-action]`，最深三层；超过三层须重新审视是否拆 verb。
 - **R2 禁止连字符复合命令名**：`limit-ladder` ❌ → `limit ladder`（子命令）✓。flag 才允许连字符（`--exclude-st`）。
 - **R3 同一对象统一用词**：板块成分股全用 `members`，不与 `stocks` / `constituents` 交替。
-- **R4 list-detail 二元**：列表用 `<noun>` 复数语义命令（`stock` 列表 / `block list`），单条详情用 `<noun> <code>`（`info <code>` / `daily <code>`）；不出现 `list-stock` / `show-stock` 等冗词。
+- **R4 list-detail 二元**：列表用 `<noun>` 复数语义命令（`stock` 列表 / `block list`），单条详情用 `<noun> <code>`（`info <code>` / `kline <code>`）；不出现 `list-stock` / `show-stock` 等冗词。
 - **R5 flag 词典固定**：`--limit N`（截断）/ `--asc`/`--desc`（排序方向）/ `--sort-by FIELD`（排序键）/ `--type X`（对象类型）/ `--exclude-st`（噪声过滤）/ `--json`/`--csv`/`--table`（输出格式）/ `--from`/`--to`/`[date]`（时间窗）。新 flag 必先查词典是否能复用。
 - **R6 数据 vs 视图分离**：原始数据落在 `kline_daily` 等表；派生视图（涨跌停/连板天梯/板块涨幅榜）通过 `query` 即时聚合，不另立 sync 任务也不另立顶层命令。
 - **R7 频率属频率维度**：同对象不同频率（K 线 daily/1m/5m/15m/30m/60m）用 `--freq` 区分，不另立命令名；`query daily`/`query minute` ❌ → `query kline --freq daily`/`--freq 1m` ✓。
@@ -556,8 +556,8 @@ astock/
 ├── cmd/astock/
 │   ├── main.go                 cobra 入口
 │   ├── init.go                 astock init
-│   ├── sync_*.go               sync meta/daily/minute/block/all
-│   ├── query_*.go              query kline/stock/block
+│   ├── sync_*.go               sync meta/kline/block/all
+│   ├── query_*.go              query kline/stock/block/info/finance/xdxr/market/limit
 │   ├── live_*.go               live quote/tick/minute
 │   ├── stats.go
 │   └── status.go

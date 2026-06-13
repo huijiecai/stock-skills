@@ -79,7 +79,7 @@ func runBlockRank(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("查询板块最新交易日失败: %w", err)
 		}
 		if d.IsZero() {
-			return fmt.Errorf("kline_daily 中无板块数据，请先 sync daily --type block --all")
+			return fmt.Errorf("kline_daily 中无板块数据，请先 sync kline --type block --all")
 		}
 		date = d.Format("20060102")
 	}
