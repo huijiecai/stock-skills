@@ -24,7 +24,9 @@ import (
 //   - 北交所：43xxxx / 83xxxx / 87xxxx / 88xxxx / 920xxx → ±30%
 //   - ST 股（name 含 'ST'）：覆盖板别为 ±5%
 //
-// 涨停判定：close = round(pre_close * (1+涨幅上限), 2) AND close = high。
+// 涨停判定：close = 涨停价 AND close = high，
+// 涨停价采用 A 股交易所规则：四舍五入到分（round-half-up），
+// 用 floor(x*100+0.5)/100 实现，避免 ClickHouse round() 的银行家舍入误判。
 func addMarketCmd(queryCmd *cobra.Command) {
 	marketCmd := &cobra.Command{
 		Use:   "market [date]",
@@ -36,9 +38,11 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 示例：
   astock query market 20260612
   astock query market               # 最近交易日
+  astock query market --exclude-st  # 排除 ST 股
   astock query market --json        # JSON 输出供 AI/脚本消费`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			excludeST, _ := cmd.Flags().GetBool("exclude-st")
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
@@ -64,7 +68,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 				date = d.Format("20060102")
 			}
 
-			snap, err := queryMarketSnapshot(ctx, ch, date)
+			snap, err := queryMarketSnapshot(ctx, ch, date, excludeST)
 			if err != nil {
 				return err
 			}
@@ -82,6 +86,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 			return nil
 		},
 	}
+	marketCmd.Flags().Bool("exclude-st", false, "排除 ST/*ST 股")
 	queryCmd.AddCommand(marketCmd)
 }
 
@@ -104,7 +109,13 @@ type MarketSnapshot struct {
 // queryMarketSnapshot 从 ClickHouse 派生市场全景快照。
 //
 // 涨跌停规则按板别 + ST 状态分桶；查询时一次扫描 kline_daily JOIN securities。
-func queryMarketSnapshot(ctx context.Context, ch *dwh.Client, date string) (*MarketSnapshot, error) {
+// 涨/跌停价采用 round-half-up（floor(x*100+0.5)/100），避免 ClickHouse 银行家舍入。
+func queryMarketSnapshot(ctx context.Context, ch *dwh.Client, date string, excludeST bool) (*MarketSnapshot, error) {
+	stFilter := ""
+	if excludeST {
+		// stFilter 作为 %s 占位符传入 fmt.Sprintf，不会二次格式化，用单 %
+		stFilter = "AND s.name NOT LIKE '%ST%' AND s.name NOT LIKE 'S%ST%'"
+	}
 	// 通过日期过滤 + 板别 CASE 表达式一次性聚合。
 	// 涨幅上限 limit = CASE 板别（兼顾 ST 覆写）；涨停判定 round(pre_close * (1+limit), 2) = close。
 	sql := fmt.Sprintf(`
@@ -135,21 +146,21 @@ WITH joined AS (
     ) AS pct_limit
   FROM %s.kline_daily AS k
   INNER JOIN %s.securities AS s ON k.code = s.code AND s.type = 'stock'
-  WHERE k.type='stock' AND k.trade_date = toDate('%s')
+  WHERE k.type='stock' AND k.trade_date = toDate('%s') %s
 )
 SELECT
   count() AS total,
   countIf(close > pre_close) AS up,
   countIf(close < pre_close) AS down,
   countIf(close = pre_close) AS flat,
-  countIf(close = round(pre_close * (1 + pct_limit), 2) AND close = high AND pre_close > 0) AS lu,
-  countIf(close = round(pre_close * (1 - pct_limit), 2) AND close = low  AND pre_close > 0) AS ld,
+  countIf(close = floor(pre_close * (1 + pct_limit) * 100 + 0.5) / 100 AND close = high AND pre_close > 0) AS lu,
+  countIf(close = floor(pre_close * (1 - pct_limit) * 100 + 0.5) / 100 AND close = low  AND pre_close > 0) AS ld,
   sum(amount) AS amt_all,
   sumIf(amount, board='main')    AS amt_main,
   sumIf(amount, board='growth')  AS amt_growth,
   sumIf(amount, board='star')    AS amt_star,
   sumIf(amount, board='beijing') AS amt_beijing
-FROM joined`, ch.DB(), ch.DB(), formatDate(date))
+FROM joined`, ch.DB(), ch.DB(), formatDate(date), stFilter)
 
 	var snap MarketSnapshot
 	snap.Date = formatDate(date)

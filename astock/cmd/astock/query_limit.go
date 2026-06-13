@@ -35,6 +35,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 示例：
   astock query limit 20260612              # 涨停清单
   astock query limit 20260612 --side down  # 跌停清单
+  astock query limit 20260612 --exclude-st # 涨停清单（排除 ST）
   astock query limit                       # 最近交易日涨停
   astock query limit --json                # JSON 输出`,
 		Args: cobra.MaximumNArgs(1),
@@ -43,6 +44,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 			if side != "up" && side != "down" {
 				return fmt.Errorf("--side 必须是 up 或 down")
 			}
+			excludeST, _ := cmd.Flags().GetBool("exclude-st")
 			ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 			defer cancel()
 			ch, err := dwh.New(ctx, cfg)
@@ -68,7 +70,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 				date = d.Format("20060102")
 			}
 
-			list, err := queryLimitList(ctx, ch, date, side)
+			list, err := queryLimitList(ctx, ch, date, side, excludeST)
 			if err != nil {
 				return err
 			}
@@ -87,6 +89,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 		},
 	}
 	limitCmd.Flags().String("side", "up", "方向: up(涨停) / down(跌停)")
+	limitCmd.Flags().Bool("exclude-st", false, "排除 ST/*ST 股")
 	queryCmd.AddCommand(limitCmd)
 }
 
@@ -110,17 +113,23 @@ type LimitStock struct {
 //  1. 单 SQL 取当日涨/跌停股 + 当日数据 + 板别（约几十只）
 //  2. 单 SQL 拉这些股最近 30 个交易日 daily 数据 → 在 Go 层计算连板数
 //  3. 单 SQL 拉这些股的概念标签 top3 → 填充
-func queryLimitList(ctx context.Context, ch *dwh.Client, date, side string) ([]*LimitStock, error) {
+//
+// 涨跌停价采用 A 股交易所规则：四舍五入到分（round-half-up），
+// 用 floor(x*100+0.5)/100 实现，避免 ClickHouse round() 的银行家舍入误判。
+func queryLimitList(ctx context.Context, ch *dwh.Client, date, side string, excludeST bool) ([]*LimitStock, error) {
 	// ----- 1. 当日涨/跌停股 -----
-	// 涨停：close = round(pre_close*(1+pct_limit),2) AND close = high
-	// 跌停：close = round(pre_close*(1-pct_limit),2) AND close = low
 	var hitExpr, limitPriceExpr string
 	if side == "up" {
-		hitExpr = "close = round(pre_close * (1 + pct_limit), 2) AND close = high AND pre_close > 0"
-		limitPriceExpr = "round(pre_close * (1 + pct_limit), 2)"
+		hitExpr = "close = floor(pre_close * (1 + pct_limit) * 100 + 0.5) / 100 AND close = high AND pre_close > 0"
+		limitPriceExpr = "floor(pre_close * (1 + pct_limit) * 100 + 0.5) / 100"
 	} else {
-		hitExpr = "close = round(pre_close * (1 - pct_limit), 2) AND close = low AND pre_close > 0"
-		limitPriceExpr = "round(pre_close * (1 - pct_limit), 2)"
+		hitExpr = "close = floor(pre_close * (1 - pct_limit) * 100 + 0.5) / 100 AND close = low AND pre_close > 0"
+		limitPriceExpr = "floor(pre_close * (1 - pct_limit) * 100 + 0.5) / 100"
+	}
+	stFilter := ""
+	if excludeST {
+		// stFilter 作为 %s 占位符传入 fmt.Sprintf，不会二次格式化，用单 %%
+		stFilter = "AND s.name NOT LIKE '%ST%' AND s.name NOT LIKE 'S%ST%'"
 	}
 
 	sql1 := fmt.Sprintf(`
@@ -149,14 +158,14 @@ WITH joined AS (
     ) AS pct_limit
   FROM %s.kline_daily AS k
   INNER JOIN %s.securities AS s ON k.code = s.code AND s.type = 'stock'
-  WHERE k.type='stock' AND k.trade_date = toDate('%s')
+  WHERE k.type='stock' AND k.trade_date = toDate('%s') %s
 )
 SELECT code, name, board, pct_limit, close, %s AS limit_price,
        (close - pre_close) / pre_close * 100 AS change_pct, amount
 FROM joined
 WHERE %s
 ORDER BY amount DESC`,
-		ch.DB(), ch.DB(), formatDate(date), limitPriceExpr, hitExpr)
+		ch.DB(), ch.DB(), formatDate(date), stFilter, limitPriceExpr, hitExpr)
 
 	rows, err := ch.Conn().Query(ctx, sql1)
 	if err != nil {
@@ -235,7 +244,7 @@ WITH joined AS (
     AND k.trade_date >= toDate('%s') - INTERVAL 60 DAY
 )
 SELECT code, trade_date,
-       (close = round(pre_close * (1 + pct_limit), 2) AND close = high AND pre_close > 0) AS is_lu
+       (close = floor(pre_close * (1 + pct_limit) * 100 + 0.5) / 100 AND close = high AND pre_close > 0) AS is_lu
 FROM joined
 ORDER BY code ASC, trade_date DESC`,
 		ch.DB(), ch.DB(), codeIn, formatDate(date), formatDate(date))

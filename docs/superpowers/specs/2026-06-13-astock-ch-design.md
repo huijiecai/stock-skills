@@ -416,12 +416,14 @@ astock
 │   ├── info    <code>                                F10 详情（仅 stock）
 │   ├── finance <code>                                财务数据（仅 stock）
 │   ├── xdxr    <code>                                除权除息（仅 stock）
-│   ├── market  [date]                                 市场全景快照（涨跌家数/涨停数/板别成交额）¹
-│   └── limit   [date] [--side up|down]                涨/跌停清单（含连板数 + 概念标签）¹
+│   ├── market  [date] [--exclude-st]                      市场全景快照（涨跌家数/涨停数/板别成交额）¹
+│   └── limit   [date] [--side up|down] [--exclude-st]      涨/跌停清单（含连板数 + 概念标签）¹
 │
 │   ¹ query market/limit 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
 │     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 daily。
 │     涨跌停判定 100% 精确（按板别±ST 分桶：主板10% / 创业/科创20% / 北交30% / ST 5%）。
+│     涨跌停价计算采用 round-half-up（floor(x*100+0.5)/100），避免 ClickHouse 银行家舍入误判。
+│     --exclude-st 可排除 ST/*ST 股（减少噪声）。
 │     不提供：开板次数/首封时间/封单金额（粒度限制下不可靠，需破单源接东财）。
 │
 │   # code 参数语义（方案 A：--type 默认 stock，显式指定跳出 stock 语义）：
@@ -463,7 +465,9 @@ astock sync info --code 600519              # 单独同步 F10
 
 astock query market 20260612                # 市场全景快照（指定日）
 astock query market                         # 默认最近交易日
+astock query market --exclude-st            # 排除 ST 股
 astock query limit                          # 涨停清单（含连板数 + 概念 top3）
+astock query limit --exclude-st             # 涨停清单（排除 ST/*ST）
 astock query limit --side down --json       # 跌停清单 JSON
 
 astock query info 600036                    # F10 详情
