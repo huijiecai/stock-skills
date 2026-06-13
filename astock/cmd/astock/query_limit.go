@@ -90,6 +90,8 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 	}
 	limitCmd.Flags().String("side", "up", "方向: up(涨停) / down(跌停)")
 	limitCmd.Flags().Bool("exclude-st", false, "排除 ST/*ST 股")
+	// query limit ladder 作为子命令挂在 limit 下（命名宪法 v1：禁连字符复合命令名）
+	limitCmd.AddCommand(buildLimitLadderSubCmd())
 	queryCmd.AddCommand(limitCmd)
 }
 

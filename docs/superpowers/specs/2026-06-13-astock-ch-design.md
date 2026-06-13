@@ -179,7 +179,7 @@ ORDER BY trade_date;
 
 #### `xdxr` — 除权除息（复权计算基础）
 
-**为什么必需**：TDX 返回的 K 线是**不复权原始价**，复权需客户端自算。没有 XDXR，送股/分红日会出现虚假“暴跌”（茂台 2006-05-15 送股后不复权看却 “暴跌 47%”），所有技术指标会全部失效。
+**为什么必需**：TDX 返回的 K 线是**不复权原始价**，复权需客户端自算。没有 XDXR，送股/分红日会出现虚假“暴跌”（茅台 2006-05-15 送股后不复权看却 “暴跌 47%”），所有技术指标会全部失效。
 
 ```sql
 CREATE TABLE xdxr (
@@ -404,6 +404,7 @@ astock
 │   ├── block                         板块成分股
 │   ├── xdxr    --code a,b,c|--all    除权除息（仅 stock）
 │   ├── finance --code a,b,c|--all    财务数据（仅 stock，每季跑一次）
+│   ├── status                        最近同步任务状态（原顶层 status 上移至此，与 stats 区分）
 │   └── all     --code a,b,c|--all [--type stock|index|etf] [--days 30]
 │                  [--skip-info] [--skip-finance] [--skip-minute] [--skip-xdxr]
 │                                      stock→全套；index/etf→仅 daily/minute
@@ -415,7 +416,6 @@ astock
 │   │           # 表格列：日期|开盘|最高|最低|收盘|涨跌%|成交量|成交额|换手%
 │   │           # 换手%=volume*10000/float_share（finance表取流通股），finance 无数据时显示 "-"
 │   ├── minute  <code> [--type stock|index|etf] [--freq 1m|5m|15m|30m|60m] [--date YYYYMMDD]
-│   ├── count   <table>                              查表行数
 │   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
 │   ├── block   list    [--keyword 光通信]               列出概念/风格板块
 │   │           rank    [date] [--type concept|style|all]   板块涨幅榜（含成分股涨停统计）¹
@@ -424,10 +424,10 @@ astock
 │   ├── finance <code>                                财务数据（仅 stock）
 │   ├── xdxr    <code>                                除权除息（仅 stock）
 │   ├── market  [date] [--exclude-st]                      市场全景快照（涨跌家数/涨停数/板别成交额）¹
-│   ├── limit   [date] [--side up|down] [--exclude-st]      涨/跌停清单（含连板数 + 概念标签）¹
-│   └── limit-ladder [date] [--min-board N] [--exclude-st]  连板天梯（按连板数分组展示，复用 limit 数据）¹
+│   └── limit   [date] [--side up|down] [--exclude-st]      涨/跌停清单（含连板数 + 概念标签）¹
+│           ladder [date] [--min-board N] [--exclude-st]   连板天梯（limit 子命令，按连板数分组展示）¹
 │
-│   ¹ query market/limit/limit-ladder/block rank/block members 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
+│   ¹ query market/limit/limit ladder/block rank/block members 均为“派生命令”：纯 ClickHouse SQL 从 kline_daily 聚合，
 │     不依赖 TDX，不破单源原则。前置需 sync all --all 入库全市场 daily（+ block daily→说明见下）。
 │     涨跌停判定 100% 精确（按板别±ST 分桶：主板10% / 创业/科创20% / 北交30% / ST 5%）。
 │     涨跌停价计算采用 round-half-up（floor(x*100+0.5)/100），避免 ClickHouse 银行家舍入误判。
@@ -453,11 +453,11 @@ astock
 │   ├── tick    <code> [--date YYYYMMDD]               分笔成交（拒绝 88xxxx/399xxx/899xxx）
 │   ├── minute  <code> [--freq 1m]                     今日 N 分钟（股票/指数/板块均可）
 │   └── block                                          板块实时（盘中专用，TDX MQuote 协议）
-│       ├── rank   [--type concept|style|all] [--asc] [--limit N]   板块实时涨幅榜
-│       └── stocks <block_code> [--asc] [--limit N]                 板块成分股实时涨幅榜
+│       ├── rank    [--type concept|style|all] [--asc] [--limit N]   板块实时涨幅榜
+│       └── members <block_code> [--asc] [--limit N]                 板块成分股实时涨幅榜
 │
-├── stats                             仓库统计（行数/磁盘/最新日期）
-└── status                            最近同步任务状态
+├── stats   [table]                   仓库统计；可选 [table] 参数查单表行数（原 query count 合并入此）
+└── (sync status 位于 sync 子命令树下，不再作为顶层命令)
 
 全局选项：--json | --table（默认）| --csv
 ```
@@ -477,15 +477,50 @@ astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务
 astock sync all --all --skip-minute --skip-xdxr --skip-finance --skip-info --days 30
                                             # 全市场仅 daily（~10–15 min，供 query market/limit 使用）
 astock sync info --code 600519              # 单独同步 F10
+```
 
+---
+
+## 五·附 CLI 命名宪法 v1（自 2026-06-13 起强制）
+
+本节锚定 `astock` 命令树的命名一致性。新增/重构命令前必须先读这一节，违反任一条须在 PR 描述中显式说明并取得放行。
+
+### 5 条公理
+
+1. **单一职责**：一条命令只做一件事，不做就拆。
+2. **正交性**：动词 × 名词矩阵无交叉重叠（`sync` 写仓库 / `query` 读仓库 / `live` 直连 TDX / `stats` 元数据）。
+3. **可预测**：用户能基于已有命令猜对新命令名（`live block members` 已存在 → `query block members` 也存在）。
+4. **就近聚合**：同一对象的所有动作挂在同一名词下（板块全部在 `block` 子树）。
+5. **修饰分离**：变体用 flag 不用新命令名（按成交额排序是 `query stock --sort-by amount`，不是 `query top-vol`）。
+
+### 6 条规范
+
+- **R1 三层结构** `astock <verb> <noun> [sub-action]`，最深三层；超过三层须重新审视是否拆 verb。
+- **R2 禁止连字符复合命令名**：`limit-ladder` ❌ → `limit ladder`（子命令）✓。flag 才允许连字符（`--exclude-st`）。
+- **R3 同一对象统一用词**：板块成分股全用 `members`，不与 `stocks` / `constituents` 交替。
+- **R4 list-detail 二元**：列表用 `<noun>` 复数语义命令（`stock` 列表 / `block list`），单条详情用 `<noun> <code>`（`info <code>` / `daily <code>`）；不出现 `list-stock` / `show-stock` 等冗词。
+- **R5 flag 词典固定**：`--limit N`（截断）/ `--asc`/`--desc`（排序方向）/ `--sort-by FIELD`（排序键）/ `--type X`（对象类型）/ `--exclude-st`（噪声过滤）/ `--json`/`--csv`/`--table`（输出格式）/ `--from`/`--to`/`[date]`（时间窗）。新 flag 必先查词典是否能复用。
+- **R6 数据 vs 视图分离**：原始数据落在 `kline_daily` 等表；派生视图（涨跌停/连板天梯/板块涨幅榜）通过 `query` 即时聚合，不另立 sync 任务也不另立顶层命令。
+
+### 决策日志
+
+- 2026-06-13：A 整改 4 处不一致（`limit-ladder`→子命令 / `live block stocks`→`members` / 顶层 `status`→`sync status` / 砍 `query count` 合入 `stats [table]`）。
+- 后续若新增命令导致破例，须在本节追加“破例项”并说明理由。
+
+---
+
+**用法示例（命名宪法生效后）：**
+```bash
 astock query market 20260612                # 市场全景快照（指定日）
 astock query market                         # 默认最近交易日
 astock query market --exclude-st            # 排除 ST 股
 astock query limit                          # 涨停清单（含连板数 + 概念 top3）
 astock query limit --exclude-st             # 涨停清单（排除 ST/*ST）
 astock query limit --side down --json       # 跌停清单 JSON
-astock query limit-ladder                   # 连板天梯（≥2 板分组展示）
-astock query limit-ladder --min-board 3     # 仅 3 板及以上
+astock query limit ladder                   # 连板天梯（≥2 板分组展示）
+astock query limit ladder --min-board 3     # 仅 3 板及以上
+astock stats kline_daily                    # 查单表行数（原 query count）
+astock sync status                          # 最近同步任务状态（原顶层 status）
 
 astock query info 600036                    # F10 详情
 astock query daily 600036                   # 默认 type=stock
@@ -502,7 +537,7 @@ astock query stock --industry 白酒          # 按行业筛选
 astock live quote 600519 600036             # 多个股票实时报价
 astock live tick 600519                     # 今日分笔
 astock live block rank --type concept       # 板块实时涨幅榜（盘中）
-astock live block stocks 880904 --limit 10  # 智能机器板块成分股实时 TOP10
+astock live block members 880904 --limit 10 # 智能机器板块成分股实时 TOP10
 ```
 
 ---
@@ -585,7 +620,7 @@ services:
 3. **ClickHouse 时区**：使用 `DateTime` 默认 UTC，建议在 `clickhouse-server/config.xml` 配 `Asia/Shanghai`，或写入时显式时区。
 4. **数据范围**：DDL 和 sync 命令支持任意时间范围，初次只回填近期数据（如 1 年），后续按需扩展，无需修改架构。
 5. **盘中查询行为**：`query daily` 不返回今日不完整数据；今日数据请走 `live` 命令，避免缓存脏数据。
-6. **分笔数据不落库**：分笔成交数据量极大（茂台单日几万笔，全市场单日约 10 亿笔），且使用频率低。采用「live 命令直连 TDX」方式，不进入 sync 不落库，避免仓库肨胀。
+6. **分笔数据不落库**：分笔成交数据量极大（茅台单日几万笔，全市场单日约 10 亿笔），且使用频率低。采用「live 命令直连 TDX」方式，不进入 sync 不落库，避免仓库肨胀。
 7. **复权计算**：kline_daily 只存原始价；复权查询通过 SQL `JOIN xdxr` 在查询时计算。供 `--adjust qfq|hfq|raw` 参数选择。
 8. **五档盘口**：包含在 TDX `get_security_quotes` 返回中，`live quote` 命令直接展开输出（bid1–bid5/ask1–ask5），不落库。
 9. **财务同步频率**：中报/三季报/年报公布后的月份跑一次即可，不进入每日 `sync all`。

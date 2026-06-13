@@ -431,6 +431,9 @@ func newSyncCmd() *cobra.Command {
 	allCmd.Flags().String("type", "stock", "标的类型: stock(默认全套)/index/etf(仅 daily/minute)")
 	syncCmd.AddCommand(allCmd)
 
+	// sync status（原 astock status 上移至此，避免与 astock stats 混淆）
+	syncCmd.AddCommand(newStatusCmd())
+
 	return syncCmd
 }
 

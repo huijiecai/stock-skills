@@ -23,8 +23,8 @@ import (
 //
 // 共两个子命令：
 //
-//	live block rank          —— 全市场板块实时涨幅榜
-//	live block stocks <code> —— 单板块成分股实时涨幅榜
+//	live block rank             —— 全市场板块实时涨幅榜
+//	live block members <code>   —— 单板块成分股实时涨幅榜
 //
 // 板块本身用 sh880xxx 代码拉 MQuote（已验证 IndexCode 路由 + GetQuotes 内置 MarketOfIndex）；
 // 成分股从 ClickHouse block_constituents 表查 stock_code 列表 + 实时拉报价。
@@ -35,7 +35,7 @@ func addLiveBlockCmd(liveCmd *cobra.Command) {
 	}
 
 	blockCmd.AddCommand(buildLiveBlockRankCmd())
-	blockCmd.AddCommand(buildLiveBlockStocksCmd())
+	blockCmd.AddCommand(buildLiveBlockMembersCmd())
 	liveCmd.AddCommand(blockCmd)
 }
 
@@ -210,8 +210,8 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// LiveBlockStockRow live block stocks 单行。
-type LiveBlockStockRow struct {
+// LiveBlockMemberRow live block members 单行。
+type LiveBlockMemberRow struct {
 	Code      string  `json:"code"`
 	Name      string  `json:"name"`
 	Industry  string  `json:"industry,omitempty"`
@@ -221,9 +221,9 @@ type LiveBlockStockRow struct {
 	Amount    float64 `json:"amount"`
 }
 
-func buildLiveBlockStocksCmd() *cobra.Command {
+func buildLiveBlockMembersCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "stocks <block_code>",
+		Use:   "members <block_code>",
 		Short: "板块成分股实时涨幅榜（盘中专用）",
 		Long: `板块成分股实时涨幅榜——成分股清单来自 ClickHouse block_constituents，
 报价来自 TDX MQuote 协议，强制 quote.date == today。
@@ -231,19 +231,19 @@ func buildLiveBlockStocksCmd() *cobra.Command {
 非交易日 / 盘前会立即拒绝。
 
 示例：
-  astock live block stocks 880904           # 智能机器板块（涨幅 DESC）
-  astock live block stocks 880904 --asc     # 升序
-  astock live block stocks 880904 --limit 10
-  astock live block stocks 880904 --json`,
+  astock live block members 880904           # 智能机器板块（涨幅 DESC）
+  astock live block members 880904 --asc     # 升序
+  astock live block members 880904 --limit 10
+  astock live block members 880904 --json`,
 		Args: cobra.ExactArgs(1),
-		RunE: runLiveBlockStocks,
+		RunE: runLiveBlockMembers,
 	}
 	cmd.Flags().Bool("asc", false, "升序")
 	cmd.Flags().Int("limit", 0, "返回前 N（默认全部）")
 	return cmd
 }
 
-func runLiveBlockStocks(cmd *cobra.Command, args []string) error {
+func runLiveBlockMembers(cmd *cobra.Command, args []string) error {
 	blockCode := args[0]
 	asc, _ := cmd.Flags().GetBool("asc")
 	limit, _ := cmd.Flags().GetInt("limit")
@@ -331,13 +331,13 @@ ORDER BY bc.stock_code`,
 	}
 
 	// 3. 拼装 + 排序 + 截断
-	rowsOut := make([]*LiveBlockStockRow, 0, len(metas))
+	rowsOut := make([]*LiveBlockMemberRow, 0, len(metas))
 	for _, m := range metas {
 		p, ok := priceMap[m.code]
 		if !ok || p.price == 0 {
 			continue
 		}
-		rowsOut = append(rowsOut, &LiveBlockStockRow{
+		rowsOut = append(rowsOut, &LiveBlockMemberRow{
 			Code: m.code, Name: m.name, Industry: m.industry,
 			Price: p.price, PreClose: p.preClose, ChangePct: p.change, Amount: p.amount,
 		})

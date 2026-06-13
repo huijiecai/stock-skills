@@ -14,13 +14,14 @@ import (
 
 func init() {
 	rootCmd.AddCommand(newStatsCmd())
-	rootCmd.AddCommand(newStatusCmd())
+	// newStatusCmd 不再作为顶层命令注册、改由 sync.go 在 sync 子命令树中 AddCommand
 }
 
 func newStatsCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "stats",
-		Short: "仓库概览统计",
+		Use:   "stats [table]",
+		Short: "仓库概览统计；可选 [table] 参数查单表行数（原 query count 合并入此）",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 			defer cancel()
@@ -29,6 +30,22 @@ func newStatsCmd() *cobra.Command {
 				return err
 			}
 			defer ch.Close()
+
+			// stats <table>：单表行数（原 query count 语义）
+			if len(args) == 1 {
+				var n uint64
+				q := fmt.Sprintf(`SELECT count() FROM %s.%s`, ch.DB(), args[0])
+				if err := ch.Conn().QueryRow(ctx, q).Scan(&n); err != nil {
+					return err
+				}
+				if isJSON(cmd) {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(map[string]uint64{args[0]: n})
+				}
+				fmt.Printf("%s: %d 行\n", args[0], n)
+				return nil
+			}
 
 			tables := []string{
 				"securities", "blocks", "block_constituents",

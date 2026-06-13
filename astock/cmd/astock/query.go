@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -163,8 +165,30 @@ func newQueryCmd() *cobra.Command {
 			limit, _ := cmd.Flags().GetInt("limit")
 			noSync, _ := cmd.Flags().GetBool("no-sync")
 			typeStr, _ := cmd.Flags().GetString("type")
+			maStr, _ := cmd.Flags().GetString("ma")
 			dataType := parseType(typeStr)
 			jsonOut := isJSON(cmd)
+
+			// 解析 --ma 均线参数：逗号分隔的正整数列表（如 "5,10,20"）
+			var maWindows []int
+			maxW := 0
+			if strings.TrimSpace(maStr) != "" {
+				for _, p := range strings.Split(maStr, ",") {
+					w, err := strconv.Atoi(strings.TrimSpace(p))
+					if err != nil || w < 2 {
+						return fmt.Errorf("--ma 参数无效: %q（需要逗号分隔的≥ 2 整数）", maStr)
+					}
+					maWindows = append(maWindows, w)
+					if w > maxW {
+						maxW = w
+					}
+				}
+			}
+			// 为计算均线热身，多拉 maxW-1 根（仅供计算，不展示）
+			fetchLimit := limit
+			if maxW > 0 {
+				fetchLimit = limit + maxW - 1
+			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
@@ -174,7 +198,7 @@ func newQueryCmd() *cobra.Command {
 			}
 			defer ch.Close()
 
-			bars, err := queryDaily(ctx, ch, code, dataType, from, to, limit)
+			bars, err := queryDaily(ctx, ch, code, dataType, from, to, fetchLimit)
 			if err != nil {
 				return err
 			}
@@ -183,7 +207,7 @@ func newQueryCmd() *cobra.Command {
 					fmt.Println("无数据")
 					return nil
 				}
-				bars, err = queryDaily(ctx, ch, code, dataType, from, to, limit)
+				bars, err = queryDaily(ctx, ch, code, dataType, from, to, fetchLimit)
 				if err != nil {
 					return err
 				}
@@ -211,6 +235,27 @@ func newQueryCmd() *cobra.Command {
 				}
 			}
 
+			// 计算均线（queryDaily 末尾已翻转为时间 ASC：bars[0]=最旧，bars[len-1]=最新）
+			// 在复权后计算，避免除权日均线虚假跳变
+			if len(maWindows) > 0 {
+				for _, b := range bars {
+					b.MA = make(map[string]float64)
+				}
+				for _, w := range maWindows {
+					for i := w - 1; i < len(bars); i++ {
+						var sum float64
+						for j := i - w + 1; j <= i; j++ {
+							sum += bars[j].Close
+						}
+						bars[i].MA[fmt.Sprintf("MA%d", w)] = sum / float64(w)
+					}
+				}
+				// 裁掉热身多拉的头部，仅保留最新 limit 行
+				if len(bars) > limit {
+					bars = bars[len(bars)-limit:]
+				}
+			}
+
 			if jsonOut {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -218,7 +263,11 @@ func newQueryCmd() *cobra.Command {
 			}
 
 			// 表格输出
-			t := newTable("日期", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "涨跌%", 8, "成交量", 10, "成交额", 10, "换手%", 8)
+			headers := []interface{}{"日期", 12, "开盘", 8, "最高", 8, "最低", 8, "收盘", 8, "涨跌%", 8, "成交量", 10, "成交额", 10, "换手%", 8}
+			for _, w := range maWindows {
+				headers = append(headers, fmt.Sprintf("MA%d", w), 8)
+			}
+			t := newTable(headers...)
 			for _, b := range bars {
 				pct := 0.0
 				if b.PreClose > 0 {
@@ -228,7 +277,8 @@ func newQueryCmd() *cobra.Command {
 				if b.Turnover > 0 {
 					turnoverStr = fmt.Sprintf("%.2f%%", b.Turnover)
 				}
-				t.Row(b.TradeDate,
+				row := []string{
+					b.TradeDate,
 					fmt.Sprintf("%.2f", b.Open),
 					fmt.Sprintf("%.2f", b.High),
 					fmt.Sprintf("%.2f", b.Low),
@@ -236,7 +286,17 @@ func newQueryCmd() *cobra.Command {
 					fmt.Sprintf("%+.2f%%", pct),
 					fmt.Sprintf("%d", b.Volume),
 					formatAmount(b.Amount),
-					turnoverStr)
+					turnoverStr,
+				}
+				for _, w := range maWindows {
+					k := fmt.Sprintf("MA%d", w)
+					if v, ok := b.MA[k]; ok {
+						row = append(row, fmt.Sprintf("%.2f", v))
+					} else {
+						row = append(row, "-")
+					}
+				}
+				t.Row(row...)
 			}
 			t.Print()
 			return nil
@@ -248,6 +308,7 @@ func newQueryCmd() *cobra.Command {
 	dailyCmd.Flags().Int("limit", 30, "返回行数")
 	dailyCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
 	dailyCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
+	dailyCmd.Flags().String("ma", "", "均线窗口，逗号分隔（如 5,10,20）；热身不足的行显示 -")
 	queryCmd.AddCommand(dailyCmd)
 
 	// --- query minute ---
@@ -359,41 +420,19 @@ func newQueryCmd() *cobra.Command {
 	minuteCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
 	queryCmd.AddCommand(minuteCmd)
 
-	// --- query count ---
-	queryCmd.AddCommand(&cobra.Command{
-		Use:   "count <table>",
-		Short: "查询某张表行数",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			defer cancel()
-			ch, err := dwh.New(ctx, cfg)
-			if err != nil {
-				return err
-			}
-			defer ch.Close()
-
-			var n uint64
-			q := fmt.Sprintf(`SELECT count() FROM %s.%s`, ch.DB(), args[0])
-			row := ch.Conn().QueryRow(ctx, q)
-			if err := row.Scan(&n); err != nil {
-				return err
-			}
-			fmt.Printf("%s: %d 行\n", args[0], n)
-			return nil
-		},
-	})
-
 	// --- query stock ---
 	stockCmd := &cobra.Command{
 		Use:   "stock",
-		Short: "查询标的列表（股票/指数/ETF）",
+		Short: "查询标的列表（股票/指数/ETF）；--sort-by amount|pct 按指定日行情排序",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typ, _ := cmd.Flags().GetString("type")
 			market, _ := cmd.Flags().GetString("market")
 			industry, _ := cmd.Flags().GetString("industry")
 			keyword, _ := cmd.Flags().GetString("keyword")
 			limit, _ := cmd.Flags().GetInt("limit")
+			sortBy, _ := cmd.Flags().GetString("sort-by")
+			date, _ := cmd.Flags().GetString("date")
+			asc, _ := cmd.Flags().GetBool("asc")
 			jsonOut := isJSON(cmd)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -404,6 +443,116 @@ func newQueryCmd() *cobra.Command {
 			}
 			defer ch.Close()
 
+			// 走 JOIN 分支：按当日成交额/涨幅排序
+			if sortBy == "amount" || sortBy == "pct" {
+				where := "s.type = 'stock'"
+				if typ != "" {
+					where = fmt.Sprintf("s.type = '%s'", typ)
+				}
+				if market != "" {
+					where += fmt.Sprintf(" AND s.market = '%s'", market)
+				}
+				if industry != "" {
+					where += fmt.Sprintf(" AND s.industry LIKE '%%%s%%'", industry)
+				}
+				if keyword != "" {
+					where += fmt.Sprintf(" AND (s.name LIKE '%%%s%%' OR s.code LIKE '%%%s%%')", keyword, keyword)
+				}
+
+				dateExpr := fmt.Sprintf(`(SELECT max(trade_date) FROM %s.kline_daily WHERE type = '%s')`, ch.DB(), func() string {
+					if typ != "" {
+						return typ
+					}
+					return "stock"
+				}())
+				if date != "" {
+					d, err := time.Parse("20060102", date)
+					if err != nil {
+						return fmt.Errorf("--date 参数无效: %q（需 YYYYMMDD）", date)
+					}
+					dateExpr = fmt.Sprintf("'%s'", d.Format("2006-01-02"))
+				}
+
+				sortField := "k.amount"
+				if sortBy == "pct" {
+					sortField = "if(k.pre_close > 0, (k.close - k.pre_close) / k.pre_close, -1e9)"
+				}
+				order := "DESC"
+				if asc {
+					order = "ASC"
+				}
+
+				joinType := "stock"
+				if typ != "" {
+					joinType = typ
+				}
+				q := fmt.Sprintf(`SELECT s.code, s.name, s.market, s.type, s.industry, k.close, k.pre_close, k.amount, k.trade_date
+					FROM %[1]s.securities s FINAL
+					INNER JOIN (
+						SELECT code, close, pre_close, amount, trade_date
+						FROM %[1]s.kline_daily FINAL
+						WHERE type = '%[2]s' AND trade_date = %[3]s
+					) AS k ON k.code = s.code
+					WHERE %[4]s
+					ORDER BY %[5]s %[6]s, s.code
+					LIMIT %[7]d`, ch.DB(), joinType, dateExpr, where, sortField, order, limit)
+
+				rows, err := ch.Conn().Query(ctx, q)
+				if err != nil {
+					return err
+				}
+				defer rows.Close()
+
+				type rankedRow struct {
+					Code      string  `json:"code"`
+					Name      string  `json:"name"`
+					Market    string  `json:"market"`
+					Type      string  `json:"type"`
+					Industry  string  `json:"industry"`
+					Close     float64 `json:"close"`
+					Pct       float64 `json:"pct"`
+					Amount    float64 `json:"amount"`
+					TradeDate string  `json:"trade_date"`
+				}
+				var list []*rankedRow
+				for rows.Next() {
+					var r rankedRow
+					var pre float64
+					var td time.Time
+					if err := rows.Scan(&r.Code, &r.Name, &r.Market, &r.Type, &r.Industry, &r.Close, &pre, &r.Amount, &td); err != nil {
+						return err
+					}
+					if pre > 0 {
+						r.Pct = (r.Close - pre) / pre * 100
+					}
+					r.TradeDate = td.Format("2006-01-02")
+					list = append(list, &r)
+				}
+				if len(list) == 0 {
+					fmt.Println("无匹配结果（未 sync 当日 daily？试 astock sync all --all --skip-* --days 1）")
+					return nil
+				}
+
+				if jsonOut {
+					enc := json.NewEncoder(os.Stdout)
+					enc.SetIndent("", "  ")
+					return enc.Encode(list)
+				}
+
+				fmt.Printf("=== 按 %s %s排序（交易日：%s） ===\n", sortBy, order, list[0].TradeDate)
+				t := newTable("代码", 8, "名称", 12, "市场", 4, "行业", 12, "收盘", 8, "涨幅%", 8, "成交额", 10)
+				for _, r := range list {
+					t.Row(r.Code, r.Name, r.Market, r.Industry,
+						fmt.Sprintf("%.2f", r.Close),
+						fmt.Sprintf("%+.2f%%", r.Pct),
+						formatAmount(r.Amount))
+				}
+				t.Print()
+				fmt.Printf("\n共 %d 条\n", len(list))
+				return nil
+			}
+
+			// 默认分支：按 code 排序的原语义
 			where := "1=1"
 			if typ != "" {
 				where += fmt.Sprintf(" AND type = '%s'", typ)
@@ -467,6 +616,9 @@ func newQueryCmd() *cobra.Command {
 	stockCmd.Flags().String("industry", "", "行业关键字（模糊匹配）")
 	stockCmd.Flags().String("keyword", "", "名称或代码关键字")
 	stockCmd.Flags().Int("limit", 50, "返回条数")
+	stockCmd.Flags().String("sort-by", "", "排序键: amount(成交额) / pct(涨幅)；为空按 code 排序")
+	stockCmd.Flags().String("date", "", "仅 sort-by 启用时生效；指定交易日 YYYYMMDD，默认最新")
+	stockCmd.Flags().Bool("asc", false, "仅 sort-by 启用时生效；默认 DESC，--asc 换升序")
 	queryCmd.AddCommand(stockCmd)
 
 	// --- query block ---
@@ -766,17 +918,25 @@ func newQueryCmd() *cobra.Command {
 			}
 			defer ch.Close()
 
+			type blockOfStock struct {
+				Code   string  `json:"code"`
+				Name   string  `json:"name"`
+				Type   string  `json:"type"`
+				Pct    float64 `json:"pct"`     // 板块当日涨幅 %
+				HasPct bool    `json:"has_pct"` // false 表示未同步过板块日K
+			}
 			type infoRow struct {
-				Code      string `json:"code"`
-				Name      string `json:"name"`
-				Market    string `json:"market"`
-				Type      string `json:"type"`
-				ListDate  string `json:"list_date"`
-				Industry  string `json:"industry"`
-				Sector    string `json:"sector"`
-				Province  string `json:"province"`
-				Business  string `json:"business"`
-				UpdatedAt string `json:"updated_at"`
+				Code      string          `json:"code"`
+				Name      string          `json:"name"`
+				Market    string          `json:"market"`
+				Type      string          `json:"type"`
+				ListDate  string          `json:"list_date"`
+				Industry  string          `json:"industry"`
+				Sector    string          `json:"sector"`
+				Province  string          `json:"province"`
+				Business  string          `json:"business"`
+				UpdatedAt string          `json:"updated_at"`
+				Blocks    []*blockOfStock `json:"blocks,omitempty"`
 			}
 			doQuery := func() (*infoRow, bool, bool, error) {
 				q := fmt.Sprintf(`SELECT code, name, market, type, list_date, delist_date,
@@ -822,6 +982,44 @@ func newQueryCmd() *cobra.Command {
 				}
 			}
 
+			// 查询所属板块（带板块当日涨幅）——block_constituents JOIN blocks LEFT JOIN kline_daily(type=block)
+			// 只要 block_constituents 不为空就有输出；未 sync block daily 时涨幅列显示 "-"
+			queryBlocksOf := func() ([]*blockOfStock, error) {
+				q := fmt.Sprintf(`SELECT b.code, b.name, b.type, k.close, k.pre_close
+					FROM %[1]s.block_constituents bc FINAL
+					INNER JOIN (SELECT code, name, type FROM %[1]s.blocks FINAL) AS b ON b.code = bc.block_code
+					LEFT JOIN (
+						SELECT code, close, pre_close FROM %[1]s.kline_daily FINAL
+						WHERE type = 'block'
+						  AND trade_date = (SELECT max(trade_date) FROM %[1]s.kline_daily WHERE type = 'block')
+					) AS k ON k.code = b.code
+					WHERE bc.stock_code = '%[2]s'
+					ORDER BY if(k.pre_close > 0, (k.close - k.pre_close) / k.pre_close, -1e9) DESC, b.code`,
+					ch.DB(), code)
+				rows, err := ch.Conn().Query(ctx, q)
+				if err != nil {
+					return nil, err
+				}
+				defer rows.Close()
+				var list []*blockOfStock
+				for rows.Next() {
+					var bc blockOfStock
+					var cl, pc float64
+					if err := rows.Scan(&bc.Code, &bc.Name, &bc.Type, &cl, &pc); err != nil {
+						return nil, err
+					}
+					if pc > 0 {
+						bc.Pct = (cl - pc) / pc * 100
+						bc.HasPct = true
+					}
+					list = append(list, &bc)
+				}
+				return list, nil
+			}
+			if blks, err := queryBlocksOf(); err == nil {
+				r.Blocks = blks
+			}
+
 			if jsonOut {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -837,6 +1035,21 @@ func newQueryCmd() *cobra.Command {
 			fmt.Printf("省份     : %s\n", r.Province)
 			fmt.Printf("经营范围 : %s\n", r.Business)
 			fmt.Printf("更新时间 : %s\n", r.UpdatedAt)
+
+			// 所属板块段（按板块当日涨幅 DESC）
+			if len(r.Blocks) > 0 {
+				fmt.Println()
+				fmt.Printf("所属板块（共 %d 个，按当日涨幅 DESC）:\n", len(r.Blocks))
+				bt := newTable("代码", 8, "名称", 14, "类型", 8, "涨幅%", 8)
+				for _, b := range r.Blocks {
+					pctStr := "-"
+					if b.HasPct {
+						pctStr = fmt.Sprintf("%+.2f%%", b.Pct)
+					}
+					bt.Row(b.Code, b.Name, b.Type, pctStr)
+				}
+				bt.Print()
+			}
 			return nil
 		},
 	}
@@ -844,9 +1057,9 @@ func newQueryCmd() *cobra.Command {
 	queryCmd.AddCommand(infoCmd)
 
 	// --- query market / query limit（派生命令，纯 ClickHouse SQL）---
+	// query limit ladder 作为 query limit 的子命令在 addLimitCmd 内部挂载（命名宪法 v1：禁连字符复合命令名）
 	addMarketCmd(queryCmd)
 	addLimitCmd(queryCmd)
-	addLimitLadderCmd(queryCmd)
 
 	return queryCmd
 }
@@ -854,15 +1067,16 @@ func newQueryCmd() *cobra.Command {
 // --- 内部数据结构 ---
 
 type dailyBar struct {
-	TradeDate string  `json:"trade_date"`
-	Open      float64 `json:"open"`
-	High      float64 `json:"high"`
-	Low       float64 `json:"low"`
-	Close     float64 `json:"close"`
-	PreClose  float64 `json:"pre_close"`
-	Volume    uint64  `json:"volume"`
-	Amount    float64 `json:"amount"`
-	Turnover  float64 `json:"turnover"` // 换手率（%）。无 finance 数据时为 0
+	TradeDate string             `json:"trade_date"`
+	Open      float64            `json:"open"`
+	High      float64            `json:"high"`
+	Low       float64            `json:"low"`
+	Close     float64            `json:"close"`
+	PreClose  float64            `json:"pre_close"`
+	Volume    uint64             `json:"volume"`
+	Amount    float64            `json:"amount"`
+	Turnover  float64            `json:"turnover"` // 换手率（%）。无 finance 数据时为 0
+	MA        map[string]float64 `json:"ma,omitempty"` // 均线：键如 "MA5" / "MA10" / "MA20"，热身不足不入表
 }
 
 type xdxrRow struct {

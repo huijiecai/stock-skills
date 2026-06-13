@@ -14,29 +14,23 @@ import (
 	"github.com/huijiecai/stock/astock/internal/dwh"
 )
 
-// addLimitLadderCmd 注册 query limit-ladder——连板天梯。
+// buildLimitLadderSubCmd 连板天梯，作为 query limit 的子命令。
 //
-// 派生自 query limit（同一份 queryLimitList 数据），按连板数 ConsecDays 分组并降序展示，
-// 用于复盘当日"龙头梯队"全貌：4 板 / 3 板 / 2 板分层，几只龙头一目了然。
-//
-// 与 query limit 的差异：
-//   - 仅涨停方向（连板天梯无跌停语义）
-//   - 默认 --min-board=2（不展示首板，因为首板一抓一大把不属于龙头）
-//   - 输出按板数分组打印，每组一张小表
-//   - JSON 仍返回扁平数组（已按 ConsecDays DESC, Amount DESC 排序）
-func addLimitLadderCmd(queryCmd *cobra.Command) {
+// 指令路径：query limit ladder [date]（命名宪法 v1：禁止连字符复合命令名）。
+// 派生自 queryLimitList（同一份数据），按连板数 ConsecDays 分组并降序展示。
+func buildLimitLadderSubCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "limit-ladder [date]",
+		Use:   "ladder [date]",
 		Short: "连板天梯：按连板数分组展示当日仍封涨停股",
 		Long: `连板天梯——派生自 query limit，按连板数分组展示当日所有仍封涨停股。
 
 date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 
 示例：
-  astock query limit-ladder 20260612              # ≥2 板天梯（默认）
-  astock query limit-ladder 20260612 --min-board 3 # 仅 3 板及以上
-  astock query limit-ladder --exclude-st          # 排除 ST
-  astock query limit-ladder --json                # JSON 扁平输出`,
+  astock query limit ladder 20260612              # ≥2 板天梯（默认）
+  astock query limit ladder 20260612 --min-board 3 # 仅 3 板及以上
+  astock query limit ladder --exclude-st           # 排除 ST
+  astock query limit ladder --json                 # JSON 扁平输出`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			minBoard, _ := cmd.Flags().GetInt("min-board")
@@ -106,7 +100,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 	}
 	cmd.Flags().Int("min-board", 2, "最低连板数（默认 2，即 2 板及以上）")
 	cmd.Flags().Bool("exclude-st", false, "排除 ST/*ST 股")
-	queryCmd.AddCommand(cmd)
+	return cmd
 }
 
 // printLimitLadder 按连板数分组打印天梯表格。
