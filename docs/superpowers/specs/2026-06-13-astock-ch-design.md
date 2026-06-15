@@ -293,6 +293,10 @@ ORDER BY (type, code, trade_date);
 - `turnover/change_pct` 用 Float32：百分比 2 位小数足够，省一半存储。
 - `MATERIALIZED`：物化字段，写入时不占存储，查询时按公式即时计算。
 
+**首根 `pre_close` 兜底（v3.1，2026-06-15）**：TDX 在「单根/孤根」请求场景（如 `--days 1`、`--count 1`）不返回 pre_close → 写入 0 → `change_pct` 短路成 0%、`query block rank` 全榜 +0.00%。
+修复：`internal/sync/kline_daily.go::syncDailyOne` 在 PrepareBatch 之前若发现 `bars[0].PreClose == 0`，回查 CH `kline_daily` 中该 code 上一交易日 close 反填。多根批量请求（≥2 根）TDX 自带 pre_close，无需触发；首次入库（CH 无前值）容忍首根 0。
+影响范围：`stock/index/block` 全 type；`query block rank` 涨幅准确性的硬依赖。
+
 #### `kline_minute` — 分钟 K 线
 
 多周期共表，靠 `freq` 字段区分。
@@ -328,6 +332,7 @@ ORDER BY (type, code, freq, dt);
 - 不含 `pre_close`/`turnover`：分钟级无意义，仅日维度需要。
 - 多周期共表的好处：避免 `kline_1m`/`kline_5m` 多表维护，查询用 `WHERE freq='1m'` 即可。
 - 30 天分钟 K 全市场约 4000 万行，按月分区可独立删除老数据。
+- **`type=block` 的 TDX 路由（v3.1，2026-06-15 修复）**：`internal/tdx/kline.go` 历史只对 `TypeIndex` 走 `GetIndexMinute(IndexCode(code), ...)`，板块（880xxx）走 `GetKlineMinute` 必报「股票代码长度错误」。修复后 `if dataType == TypeIndex || TypeBlock { fnIx } else { fn }` 三 type 统一覆盖。`query kline <880xxx> --type block --freq 1m/5m` 自此可正常触发自动 sync。
 
 ### 4.4 同步状态表
 
@@ -405,10 +410,11 @@ astock
 │   ├── xdxr    --code a,b,c|--all    除权除息（仅 stock）
 │   ├── finance --code a,b,c|--all    财务数据（仅 stock，每季跑一次）
 │   ├── status                        最近同步任务状态（原顶层 status 上移至此，与 stats 区分）
-│   └── all     --code a,b,c|--all [--type stock|index|etf] [--days 30]
+│   └── all     --code a,b,c|--all [--type stock|index|etf|block] [--days 30]
 │                  [--skip-info] [--skip-finance] [--skip-minute] [--skip-xdxr]
-│                                      stock→全套；index/etf→仅 kline
-│                                      --all 从 securities 表拉全量代码（3~6h）
+│                                      不显式 --type → 串行 stock+index+block 三类（v3.1 默认）
+│                                      显式 --type stock→全套；index/etf/block→仅 kline
+│                                      --all 从 securities/blocks 表拉全量代码（3~6h）
 │                                      --skip-* 可以组合出“仅 kline daily”高速低耗区间
 │
 ├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
@@ -474,11 +480,12 @@ astock sync kline --code 600519 --count 800 # 单只历史日K（默认 type=sto
 astock sync kline --code 000001 --type index # 上证综指
 astock sync kline --code 880904 --type block # 单只板块（智能机器概念）
 astock sync kline --code 600519 --freq 5m   # 单只 5 分钟 K
-astock sync all --days 1                    # 每日增量（cron 用，stock 全套）
-astock sync all --code 000001 --type index --days 30  # 仅同步上证指日/分钟 K
+astock sync all --days 1                    # 每日增量（cron 用）——v3.1 默认串行 stock+index+block 三类
+astock sync all --all --days 1              # 全市场三类 daily+1m+5m+info+finance+xdxr（隐含首根 pre_close 反填）
+astock sync all --code 000001 --type index --days 30  # 仅同步上证综指日/分钟 K
 astock sync all --code 600519 --days 5 --skip-finance  # 跳过财务
 astock sync all --all --skip-minute --skip-xdxr --skip-finance --skip-info --days 30
-                                            # 全市场仅 kline daily（~10–15 min，供 query market/limit 使用）
+                                            # 三类 daily 仅同步（供 query market/limit 使用）
 astock sync info --code 600519              # 单独同步 F10
 ```
 
@@ -511,6 +518,11 @@ astock sync info --code 600519              # 单独同步 F10
 - 2026-06-13：A 整改 4 处不一致（`limit-ladder`→子命令 / `live block stocks`→`members` / 顶层 `status`→`sync status` / 砍 `query count` 合入 `stats [table]`）。
 - 2026-06-13：候选 ⓪——`query/sync daily` + `query/sync minute` 合并为 `query/sync kline --freq`（依 R7）；`--freq=daily` 为默认，迁移成本：用户惯named daily/minute 需改为 `kline --freq ...`，未保留 alias。
 - 2026-06-13：候选 ⓪ 收尾——`internal/sync/` 源码重构为单一职责文件：`daily.go` 拆为 `kline_daily.go`+`xdxr.go`；`minute_block_finance.go` 拆为 `kline_minute.go`+`block.go`+`finance.go`。同时 `sync_log.task` 字段 `sync_daily`/`sync_minute` 重命名为 `sync_kline_daily`/`sync_kline_minute`（与 CLI `sync kline --freq` 语义对齐；日志表新旧值自然半衰期并存，不破坏历史可读性）。`astock/README.md` 全文重写（PostgreSQL → ClickHouse / env 名 / 命令名 / 设计文档链接）。
+- **2026-06-15（v3.1 板块同步三项修复）**：实战在 6/15 看盘中踩到 3 个结构性缺陷，一次修齐：
+  1. **板块分钟 K 路由缺失**：`internal/tdx/kline.go` 分钟 K 路由只覆盖 `TypeIndex`，880xxx 板块走股票路径 → 报「代码长度错误」。补 `|| TypeBlock`。
+  2. **首根 `pre_close=0`**：`--days 1` 孤根请求场景 TDX 不返回 pre_close → `query block rank` 全榜 +0.00%。`syncDailyOne` 写入前查 CH 上一交易日 close 反填。
+  3. **`sync all` 名实不符**：原仅覆盖 `--type stock` 单类。重构为不显式传 `--type` 时串行 `[stock, index, block]`；`loadCodesFromCH` 加 blocks 表支持。`query block rank` 帮助文本加「⚠️ 日期是位置参数」提示。
+  遗留：6/15 已写入 0 的历史脏数据需 `sync all --all --days 1` 重跑才能修复（反填仅在写入时触发）。
 - 后续若新增命令导致破例，须在本节追加“破例项”并说明理由。
 
 ---
