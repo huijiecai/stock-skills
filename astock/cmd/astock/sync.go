@@ -326,7 +326,7 @@ func newSyncCmd() *cobra.Command {
 	// --- sync all ---
 	allCmd := &cobra.Command{
 		Use:   "all",
-		Short: "批量同步：按 --type 分发（stock=全套；index/etf=仅 kline），支持 --all 全市场",
+		Short: "批量同步：默认串行 stock+index+block；显式 --type 仅跑单类（stock=全套/index/etf/block=仅 kline）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			codeStr, _ := cmd.Flags().GetString("code")
 			allFlag, _ := cmd.Flags().GetBool("all")
@@ -336,10 +336,21 @@ func newSyncCmd() *cobra.Command {
 			skipMin, _ := cmd.Flags().GetBool("skip-minute")
 			skipXDXR, _ := cmd.Flags().GetBool("skip-xdxr")
 			typeStr, _ := cmd.Flags().GetString("type")
-			dataType := parseType(typeStr)
+			typeExplicit := cmd.Flags().Changed("type")
+
 			if codeStr == "" && !allFlag {
 				return fmt.Errorf("需指定 --code（逗号分隔多只）或 --all")
 			}
+
+			// 默认不传 --type：串行 stock → index → block，一次覆盖全市场。
+			// 显式 --type 传入：仅跑单类（兼容原行为，避免误带 ETF 等费时 type）。
+			var typesToRun []model.DataType
+			if typeExplicit {
+				typesToRun = []model.DataType{parseType(typeStr)}
+			} else {
+				typesToRun = []model.DataType{model.TypeStock, model.TypeIndex, model.TypeBlock}
+			}
+
 			// --all 全市场可能耗时数小时，放宽到 6h；--code 模式 60min 仍够。
 			timeout := 60 * time.Minute
 			if allFlag {
@@ -352,107 +363,115 @@ func newSyncCmd() *cobra.Command {
 				return err
 			}
 			defer close()
-	
-			// stock 走全套；info/xdxr/finance 仅适用 stock。
-			isStock := dataType == model.TypeStock
-	
+
 			// 按天数换算各频率的 count
 			dailyCount := days
 			min1Count := days * 240 // 1m: 每天 240 根
 			min5Count := days * 48  // 5m: 每天 48 根
-	
-			// 代码列表：--all 时从 securities 拉全量；否则解析 --code
-			var codes []string
-			if allFlag {
-				codes, err = loadCodesFromCH(ctx, ch, dataType)
-				if err != nil {
-					return fmt.Errorf("加载 securities 代码列表失败: %w", err)
-				}
-				if len(codes) == 0 {
-					return fmt.Errorf("securities 表中无 type=%s 数据，请先 sync meta", dataType)
-				}
-				fmt.Printf("→ 从 securities 加载 %d 只 %s\n", len(codes), dataType)
-			} else {
-				codes = parseCodes(codeStr)
-			}
-	
-			for i, code := range codes {
-				fmt.Printf("\n━━ [%d/%d] %s (type=%s) ━━\n", i+1, len(codes), code, dataType)
-	
-				// info (F10 公司信息)——仅 stock
-				if isStock && !skipInfo {
-					fmt.Printf("  → info...\n")
-					n, err := ssync.Info(ctx, ch, tc, code, false, nil)
+
+			grandTotal := 0
+			for _, dataType := range typesToRun {
+				isStock := dataType == model.TypeStock
+
+				// 代码列表：--all 时从 securities/blocks 拉全量；否则解析 --code
+				var codes []string
+				if allFlag {
+					codes, err = loadCodesFromCH(ctx, ch, dataType)
 					if err != nil {
-						fmt.Printf("  ✗ info: %v\n", err)
-					} else {
-						fmt.Printf("  ✓ info %d 条\n", n)
+						return fmt.Errorf("加载 %s 代码列表失败: %w", dataType, err)
 					}
-				}
-	
-				// daily
-				fmt.Printf("  → daily (%d天)...\n", days)
-				n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, dailyCount, nil)
-				if err != nil {
-					fmt.Printf("  ✗ daily: %v\n", err)
+					if len(codes) == 0 {
+						fmt.Printf("⚠️  %s 表中无数据，跳过（如需请先 sync meta / sync block）\n", dataType)
+						continue
+					}
+					fmt.Printf("\n═══ 调度 %s：%d 只 ═══\n", dataType, len(codes))
 				} else {
-					fmt.Printf("  ✓ daily %d 行\n", n)
-				}
-	
-				// minute: 1m + 5m
-				if !skipMin {
-					freqCounts := []struct {
-						freq  string
-						count uint16
-					}{
-						{"1m", min1Count},
-						{"5m", min5Count},
+					// --code 模式下默认仅跑首个 typesToRun（避免同一批 code 拍到 index/block 上）
+					if len(typesToRun) > 1 && dataType != typesToRun[0] {
+						continue
 					}
-					for _, fc := range freqCounts {
-						fmt.Printf("  → minute %s (%d天=%d根)...\n", fc.freq, days, fc.count)
-						n, err = ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(fc.freq), fc.count)
+					codes = parseCodes(codeStr)
+				}
+
+				for i, code := range codes {
+					fmt.Printf("\n━━ [%d/%d] %s (type=%s) ━━\n", i+1, len(codes), code, dataType)
+
+					// info (F10 公司信息)——仅 stock
+					if isStock && !skipInfo {
+						fmt.Printf("  → info...\n")
+						n, err := ssync.Info(ctx, ch, tc, code, false, nil)
 						if err != nil {
-							fmt.Printf("  ✗ minute(%s): %v\n", fc.freq, err)
+							fmt.Printf("  ✗ info: %v\n", err)
 						} else {
-							fmt.Printf("  ✓ minute(%s) %d 行\n", fc.freq, n)
+							fmt.Printf("  ✓ info %d 条\n", n)
+						}
+					}
+
+					// daily
+					fmt.Printf("  → daily (%d天)...\n", days)
+					n, err := ssync.Daily(ctx, ch, tc, code, dataType, false, dailyCount, nil)
+					if err != nil {
+						fmt.Printf("  ✗ daily: %v\n", err)
+					} else {
+						fmt.Printf("  ✓ daily %d 行\n", n)
+						grandTotal += n
+					}
+
+					// minute: 1m + 5m（stock/index/block 均可，已修复路由）
+					if !skipMin {
+						freqCounts := []struct {
+							freq  string
+							count uint16
+						}{
+							{"1m", min1Count},
+							{"5m", min5Count},
+						}
+						for _, fc := range freqCounts {
+							fmt.Printf("  → minute %s (%d天=%d根)...\n", fc.freq, days, fc.count)
+							n, err = ssync.Minute(ctx, ch, tc, code, dataType, model.Freq(fc.freq), fc.count)
+							if err != nil {
+								fmt.Printf("  ✗ minute(%s): %v\n", fc.freq, err)
+							} else {
+								fmt.Printf("  ✓ minute(%s) %d 行\n", fc.freq, n)
+							}
+						}
+					}
+
+					// xdxr——仅 stock
+					if isStock && !skipXDXR {
+						fmt.Printf("  → xdxr...\n")
+						n, err = ssync.XDXR(ctx, ch, tc, code, false, nil)
+						if err != nil {
+							fmt.Printf("  ✗ xdxr: %v\n", err)
+						} else {
+							fmt.Printf("  ✓ xdxr %d 行\n", n)
+						}
+					}
+
+					// finance——仅 stock
+					if isStock && !skipFin {
+						fmt.Printf("  → finance...\n")
+						n, err = ssync.Finance(ctx, ch, tc, code, false, nil)
+						if err != nil {
+							fmt.Printf("  ✗ finance: %v\n", err)
+						} else {
+							fmt.Printf("  ✓ finance %d 行\n", n)
 						}
 					}
 				}
-	
-				// xdxr——仅 stock
-				if isStock && !skipXDXR {
-					fmt.Printf("  → xdxr...\n")
-					n, err = ssync.XDXR(ctx, ch, tc, code, false, nil)
-					if err != nil {
-						fmt.Printf("  ✗ xdxr: %v\n", err)
-					} else {
-						fmt.Printf("  ✓ xdxr %d 行\n", n)
-					}
-				}
-	
-				// finance——仅 stock
-				if isStock && !skipFin {
-					fmt.Printf("  → finance...\n")
-					n, err = ssync.Finance(ctx, ch, tc, code, false, nil)
-					if err != nil {
-						fmt.Printf("  ✗ finance: %v\n", err)
-					} else {
-						fmt.Printf("  ✓ finance %d 行\n", n)
-					}
-				}
 			}
-			fmt.Printf("\n━━ 全部完成（%d 只, type=%s, %d天）━━\n", len(codes), dataType, days)
+			fmt.Printf("\n━━ 全部完成（types=%v, %d天）━━\n", typesToRun, days)
 			return nil
 		},
 	}
 	allCmd.Flags().String("code", "", "6 位代码，多只用逗号分隔（与 --all 二选一）")
-	allCmd.Flags().Bool("all", false, "遍历 securities 表中全部当前 --type 标的")
+	allCmd.Flags().Bool("all", false, "遇历 securities/blocks 表中全部当前 --type 标的")
 	allCmd.Flags().Uint16("days", 30, "同步最近 N 个交易日")
 	allCmd.Flags().Bool("skip-info", false, "跳过 F10 公司信息同步（仅 stock 生效）")
 	allCmd.Flags().Bool("skip-finance", false, "跳过财务数据同步（仅 stock 生效）")
 	allCmd.Flags().Bool("skip-minute", false, "跳过分钟K线同步（1m+5m）")
 	allCmd.Flags().Bool("skip-xdxr", false, "跳过除权除息同步（仅 stock 生效）")
-	allCmd.Flags().String("type", "stock", "标的类型: stock(默认全套)/index/etf(仅 kline)")
+	allCmd.Flags().String("type", "stock", "标的类型：不传什么默认串行 stock+index+block；显式传则仅跑单类（stock/index/etf/block）")
 	syncCmd.AddCommand(allCmd)
 
 	// sync status（原 astock status 上移至此，避免与 astock stats 混淆）
@@ -496,11 +515,19 @@ func parseCodes(s string) []string {
 	return out
 }
 
-// loadCodesFromCH 从 securities 表按 type 拉取全部已入库代码。
-// sync all --all 用于全市场扫描；前置依赖 sync meta 已执行。
+// loadCodesFromCH 从 securities/blocks 表按 type 拉取全部已入库代码。
+// sync all --all 用于全市场扫描；前置依赖 sync meta（securities）/ sync block（blocks）已执行。
+// block 类型独立维护在 blocks 表，不入 securities。
 func loadCodesFromCH(ctx context.Context, ch *dwh.Client, dataType model.DataType) ([]string, error) {
-	sql := fmt.Sprintf("SELECT code FROM %s.securities FINAL WHERE type = ? ORDER BY code", ch.DB())
-	rows, err := ch.Conn().Query(ctx, sql, string(dataType))
+	var sql string
+	var args []any
+	if dataType == model.TypeBlock {
+		sql = fmt.Sprintf("SELECT code FROM %s.blocks FINAL ORDER BY code", ch.DB())
+	} else {
+		sql = fmt.Sprintf("SELECT code FROM %s.securities FINAL WHERE type = ? ORDER BY code", ch.DB())
+		args = append(args, string(dataType))
+	}
+	rows, err := ch.Conn().Query(ctx, sql, args...)
 	if err != nil {
 		return nil, err
 	}

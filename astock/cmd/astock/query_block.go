@@ -32,6 +32,7 @@ func addBlockRankCmd(blockCmd *cobra.Command) {
 		Long: `板块涨幅排名——基于 TDX 板块 daily + 成分股事实数据聚合。
 
 date 可选，格式 YYYYMMDD；省略则取板块 kline_daily 中最新交易日。
+⚠️  日期是位置参数，不是 --date flag：直接写在后面。
 
 示例：
   astock query block rank 20260612              # 概念板块涨幅榜（默认）

@@ -70,6 +70,20 @@ func syncDailyOne(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code stri
 		return 0, nil
 	}
 
+	// 首根 pre_close 兜底：TDX 单根/孤根请求场景下首根 PreClose=0，
+	// 查 ClickHouse 上一交易日 close 反填，避免 query block rank 等下游公式被短路成 0%。
+	// 适用 stock/index/block 全部 type；前提是 CH 已存有上一交易日数据，否则容忍首根为 0。
+	if bars[0].PreClose == 0 {
+		firstDate, _ := time.Parse("2006-01-02", bars[0].TradeDate)
+		var prevClose float64
+		row := ch.Conn().QueryRow(ctx,
+			fmt.Sprintf(`SELECT close FROM %s.kline_daily FINAL WHERE code = ? AND type = ? AND trade_date < ? ORDER BY trade_date DESC LIMIT 1`, ch.DB()),
+			code, string(dataType), firstDate)
+		if err := row.Scan(&prevClose); err == nil && prevClose > 0 {
+			bars[0].PreClose = prevClose
+		}
+	}
+
 	batch, err := ch.Conn().PrepareBatch(ctx,
 		fmt.Sprintf(`INSERT INTO %s.kline_daily (code, type, trade_date, open, high, low, close, pre_close, volume, amount, turnover)`, ch.DB()))
 	if err != nil {

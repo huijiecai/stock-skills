@@ -95,7 +95,7 @@ func (c *Client) GetKlineMinute(code string, dataType model.DataType, freq model
 		}
 
 		var resp *protocol.KlineResp
-		if dataType == model.TypeIndex {
+		if dataType == model.TypeIndex || dataType == model.TypeBlock {
 			resp, err = fnIx(IndexCode(code), offset, batch)
 		} else {
 			resp, err = fn(code, offset, batch)
