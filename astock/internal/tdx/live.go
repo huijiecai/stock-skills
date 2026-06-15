@@ -7,66 +7,100 @@ import (
 	"github.com/injoyai/tdx/protocol"
 )
 
-// GetQuotes 拉取一组实时报价（含五档盘口）。code 不带前缀，函数内部按规则补 sh/sz/bj。
-// 绕过 cli.GetQuote 避免 DefaultCodes 依赖，直接使用底层 Frame 协议。
+// GetQuotes 拉取一组实时报价（含五档盘口）。code 不带前缀。
+//
+// 分流逻辑：
+//   - 股票代码 → cli.GetQuote（上游已验证，内部 AddPrefix + 响应数量校验）
+//   - 板块/指数代码 → 直接 protocol.MQuote framing（绕开 cli.GetQuote 的 DefaultCodes 依赖，K.Close 即真实点位）
+//
+// 为什么分流：之前全走自实现 framing 时，股票响应中 q.Code 会错位、五档盘口全 0；
+// 上游 cli.GetQuote 对股票路径还做了响应校验与位置对齐，股票场景必须走上游。
 func (c *Client) GetQuotes(codes []string) ([]*model.Quote, error) {
 	cli, err := c.Raw()
 	if err != nil {
 		return nil, err
 	}
 
-	prefixed := make([]string, 0, len(codes))
+	stockCodes := make([]string, 0, len(codes))
+	indexCodes := make([]string, 0)
 	for _, code := range codes {
-		if m := MarketOfIndex(code); m != "" {
-			prefixed = append(prefixed, m+code)
-			continue
+		if IsBlockOrPureIndex(code) {
+			indexCodes = append(indexCodes, code)
+		} else {
+			stockCodes = append(stockCodes, code)
 		}
-		if m := MarketOf(code); m != "" {
-			prefixed = append(prefixed, m+code)
-			continue
-		}
-		prefixed = append(prefixed, code)
 	}
 
-	// 直接使用底层协议，避免 DefaultCodes 未初始化问题
-	f, err := protocol.MQuote.Frame(prefixed...)
-	if err != nil {
-		return nil, fmt.Errorf("quote frame: %w", err)
-	}
-	result, err := cli.SendFrame(f)
-	if err != nil {
-		return nil, fmt.Errorf("get quote: %w", err)
-	}
-	resp := result.(protocol.QuotesResp)
+	out := make([]*model.Quote, 0, len(codes))
 
-	out := make([]*model.Quote, 0, len(resp))
-	for _, q := range resp {
-		quote := &model.Quote{
-			Code:     q.Code,
-			Price:    q.K.Close.Float64(),
-			PreClose: q.K.Last.Float64(),
-			Open:     q.K.Open.Float64(),
-			High:     q.K.High.Float64(),
-			Low:      q.K.Low.Float64(),
-			Volume:   int64(q.TotalHand),
-			Amount:   q.Amount,
+	// 股票走 cli.GetQuote（上游会 AddPrefix、验证响应数量、按请求顺序返回）
+	if len(stockCodes) > 0 {
+		// cli.GetQuote 内部会以 AddPrefix 原地改写 codes（共享底层数组），这里复制一份避免污染 stockCodes。
+		args := append([]string(nil), stockCodes...)
+		resp, err := cli.GetQuote(args...)
+		if err != nil {
+			return nil, fmt.Errorf("get stock quote: %w", err)
 		}
-		if quote.PreClose > 0 {
-			quote.ChangePct = (quote.Price - quote.PreClose) / quote.PreClose * 100
-		}
-		for i := 0; i < 5; i++ {
-			quote.Bids[i] = model.QuoteLevel{
-				Price:  q.BuyLevel[i].Price.Float64(),
-				Volume: int64(q.BuyLevel[i].Number),
+		for i, q := range resp {
+			if i >= len(stockCodes) {
+				break
 			}
-			quote.Asks[i] = model.QuoteLevel{
-				Price:  q.SellLevel[i].Price.Float64(),
-				Volume: int64(q.SellLevel[i].Number),
-			}
+			out = append(out, mapQuote(stockCodes[i], q))
 		}
-		out = append(out, quote)
 	}
+
+	// 板块/指数走底层 framing
+	if len(indexCodes) > 0 {
+		prefixed := make([]string, len(indexCodes))
+		for i, code := range indexCodes {
+			prefixed[i] = IndexCode(code)
+		}
+		f, ferr := protocol.MQuote.Frame(prefixed...)
+		if ferr != nil {
+			return nil, fmt.Errorf("quote frame: %w", ferr)
+		}
+		result, serr := cli.SendFrame(f)
+		if serr != nil {
+			return nil, fmt.Errorf("get index quote: %w", serr)
+		}
+		resp := result.(protocol.QuotesResp)
+		for i, q := range resp {
+			if i >= len(indexCodes) {
+				break
+			}
+			out = append(out, mapQuote(indexCodes[i], q))
+		}
+	}
+
 	return out, nil
+}
+
+// mapQuote 将 protocol.Quote 转为 model.Quote。Code 取请求原始代码（响应中的 Code 不可信）。
+func mapQuote(code string, q *protocol.Quote) *model.Quote {
+	quote := &model.Quote{
+		Code:     code,
+		Price:    q.K.Close.Float64(),
+		PreClose: q.K.Last.Float64(),
+		Open:     q.K.Open.Float64(),
+		High:     q.K.High.Float64(),
+		Low:      q.K.Low.Float64(),
+		Volume:   int64(q.TotalHand),
+		Amount:   q.Amount,
+	}
+	if quote.PreClose > 0 {
+		quote.ChangePct = (quote.Price - quote.PreClose) / quote.PreClose * 100
+	}
+	for i := 0; i < 5; i++ {
+		quote.Bids[i] = model.QuoteLevel{
+			Price:  q.BuyLevel[i].Price.Float64(),
+			Volume: int64(q.BuyLevel[i].Number),
+		}
+		quote.Asks[i] = model.QuoteLevel{
+			Price:  q.SellLevel[i].Price.Float64(),
+			Volume: int64(q.SellLevel[i].Number),
+		}
+	}
+	return quote
 }
 
 // GetTradeAll 拉取一只股票当日全部分笔成交（最早 9:25 集合竞价 → 最新一笔）。

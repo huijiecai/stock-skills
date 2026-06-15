@@ -124,7 +124,8 @@ func newLiveCmd() *cobra.Command {
 			defer tc.Close()
 
 			dataType := model.TypeStock
-			if m := tdx.MarketOfIndex(args[0]); m != "" {
+			// 判断为“纯指数/板块”才走指数路由；避免 000xxx、000001 这种深圳股票被误判为上证指数。
+			if tdx.IsBlockOrPureIndex(args[0]) {
 				dataType = model.TypeIndex
 			}
 			ticks, err := tc.GetMinute(args[0], dataType)

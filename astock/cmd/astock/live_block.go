@@ -197,7 +197,7 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 	t := newTable(
 		"代码", 8,
 		"名称", 16,
-		"类型", 6,
+		"类型", 8,
 		"现价", 10,
 		"昨收", 10,
 		"涨跌%", 8,
@@ -368,7 +368,7 @@ func buildLiveBlockMembersCmd() *cobra.Command {
 }
 
 func runLiveBlockMembers(cmd *cobra.Command, args []string) error {
-	blockCode := args[0]
+	input := args[0]
 	asc, _ := cmd.Flags().GetBool("asc")
 	limit, _ := cmd.Flags().GetInt("limit")
 	jsonOut := isJSON(cmd)
@@ -393,12 +393,16 @@ func runLiveBlockMembers(cmd *cobra.Command, args []string) error {
 	}
 	defer ch.Close()
 
-	// 1. 验板块存在 + 拉成分股清单（带 securities 名称/行业）
-	var blockName, blockType string
-	row := ch.Conn().QueryRow(ctx,
-		fmt.Sprintf("SELECT name, type FROM %s.blocks FINAL WHERE code = '%s' LIMIT 1", ch.DB(), blockCode))
-	if err := row.Scan(&blockName, &blockType); err != nil {
-		return fmt.Errorf("板块 %s 不存在: %w", blockCode, err)
+	// 1. 验板块存在——先按代码精确查，失败再按名称查（UX：支持传入名称如 "有色金属"）
+	var blockCode, blockName, blockType string
+	rowCode := ch.Conn().QueryRow(ctx,
+		fmt.Sprintf("SELECT code, name, type FROM %s.blocks FINAL WHERE code = '%s' LIMIT 1", ch.DB(), input))
+	if e := rowCode.Scan(&blockCode, &blockName, &blockType); e != nil {
+		rowName := ch.Conn().QueryRow(ctx,
+			fmt.Sprintf("SELECT code, name, type FROM %s.blocks FINAL WHERE name = '%s' LIMIT 1", ch.DB(), input))
+		if e2 := rowName.Scan(&blockCode, &blockName, &blockType); e2 != nil {
+			return fmt.Errorf("板块 %s 不存在（既无此代码也无此名称）", input)
+		}
 	}
 
 	memSQL := fmt.Sprintf(`
