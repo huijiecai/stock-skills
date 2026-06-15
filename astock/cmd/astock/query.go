@@ -121,15 +121,18 @@ func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code string, dat
 	return true
 }
 
-// parseType 将 --type 参数（stock/index/block）转换为 model.DataType，默认 stock。
-func parseType(s string) model.DataType {
+// parseType 将 --type 参数（stock/index/block）转换为 model.DataType。
+// 不支持的类型（含历史已移除的 etf）一律报错，避免静默 fallback 误导。
+func parseType(s string) (model.DataType, error) {
 	switch s {
+	case "", "stock":
+		return model.TypeStock, nil
 	case "index":
-		return model.TypeIndex
+		return model.TypeIndex, nil
 	case "block":
-		return model.TypeBlock
+		return model.TypeBlock, nil
 	}
-	return model.TypeStock
+	return "", fmt.Errorf("不支持的类型: %q（支持: stock/index/block）", s)
 }
 
 // ensureSecurityExists 在 securities 表预检代码是否存在（指定 type）。
@@ -161,7 +164,10 @@ func newQueryCmd() *cobra.Command {
 		noSync, _ := cmd.Flags().GetBool("no-sync")
 		typeStr, _ := cmd.Flags().GetString("type")
 		maStr, _ := cmd.Flags().GetString("ma")
-		dataType := parseType(typeStr)
+		dataType, err := parseType(typeStr)
+		if err != nil {
+			return err
+		}
 		jsonOut := isJSON(cmd)
 
 		// 解析 --ma 均线参数：逗号分隔的正整数列表（如 "5,10,20"）
@@ -303,7 +309,10 @@ func newQueryCmd() *cobra.Command {
 		limit, _ := cmd.Flags().GetInt("limit")
 		noSync, _ := cmd.Flags().GetBool("no-sync")
 		typeStr, _ := cmd.Flags().GetString("type")
-		dataType := parseType(typeStr)
+		dataType, err := parseType(typeStr)
+		if err != nil {
+			return err
+		}
 		jsonOut := isJSON(cmd)
 
 		// 分钟 K 行数默认更大；用户未显式 --limit 时回退 240
@@ -433,6 +442,9 @@ func newQueryCmd() *cobra.Command {
 		Short: "查询标的列表（股票/指数）；--sort-by amount|pct 按指定日行情排序",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typ, _ := cmd.Flags().GetString("type")
+			if _, err := parseType(typ); err != nil {
+				return err
+			}
 			market, _ := cmd.Flags().GetString("market")
 			industry, _ := cmd.Flags().GetString("industry")
 			keyword, _ := cmd.Flags().GetString("keyword")

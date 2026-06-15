@@ -108,7 +108,10 @@ func newSyncCmd() *cobra.Command {
 			days, _ := cmd.Flags().GetUint16("days")
 			count, _ := cmd.Flags().GetUint16("count")
 			typeStr, _ := cmd.Flags().GetString("type")
-			dataType := parseType(typeStr)
+			dataType, err := parseType(typeStr)
+			if err != nil {
+				return err
+			}
 
 			isDaily := freq == "daily" || freq == "1d" || freq == ""
 			isMinute := freq == "1m" || freq == "5m" || freq == "15m" || freq == "30m" || freq == "60m"
@@ -346,7 +349,11 @@ func newSyncCmd() *cobra.Command {
 			// 显式 --type 传入：仅跑单类（兼容原行为）。
 			var typesToRun []model.DataType
 			if typeExplicit {
-				typesToRun = []model.DataType{parseType(typeStr)}
+				dt, err := parseType(typeStr)
+				if err != nil {
+					return err
+				}
+				typesToRun = []model.DataType{dt}
 			} else {
 				typesToRun = []model.DataType{model.TypeStock, model.TypeIndex, model.TypeBlock}
 			}
