@@ -27,7 +27,7 @@ func newSyncCmd() *cobra.Command {
 	// --- sync meta ---
 	syncCmd.AddCommand(&cobra.Command{
 		Use:   "meta",
-		Short: "同步全市场标的列表（stock/index/etf）→ securities",
+		Short: "同步全市场标的列表（stock/index）→ securities",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 			defer cancel()
@@ -207,7 +207,7 @@ func newSyncCmd() *cobra.Command {
 	klineCmd.Flags().String("freq", "daily", "频率: daily(日K，默认) / 1m / 5m / 15m / 30m / 60m")
 	klineCmd.Flags().Uint16("days", 0, "同步最近 N 个交易日（推荐；按 --freq 自动换算根数；与 --count 互斥；默认 30）")
 	klineCmd.Flags().Uint16("count", 0, "[底层] 直接指定根数（与 --days 互斥；TDX 单次 800 根上限）")
-	klineCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf/block；--all+daily 下 stock 默认扫 stock+index，block 扫全市场板块")
+	klineCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/block；--all+daily 下 stock 默认扫 stock+index，block 扫全市场板块")
 	syncCmd.AddCommand(klineCmd)
 
 	// --- sync xdxr ---
@@ -326,7 +326,7 @@ func newSyncCmd() *cobra.Command {
 	// --- sync all ---
 	allCmd := &cobra.Command{
 		Use:   "all",
-		Short: "批量同步：默认串行 stock+index+block；显式 --type 仅跑单类（stock=全套/index/etf/block=仅 kline）",
+		Short: "批量同步：默认串行 stock+index+block；显式 --type 仅跑单类（stock=全套/index/block=仅 kline）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			codeStr, _ := cmd.Flags().GetString("code")
 			allFlag, _ := cmd.Flags().GetBool("all")
@@ -343,7 +343,7 @@ func newSyncCmd() *cobra.Command {
 			}
 
 			// 默认不传 --type：串行 stock → index → block，一次覆盖全市场。
-			// 显式 --type 传入：仅跑单类（兼容原行为，避免误带 ETF 等费时 type）。
+			// 显式 --type 传入：仅跑单类（兼容原行为）。
 			var typesToRun []model.DataType
 			if typeExplicit {
 				typesToRun = []model.DataType{parseType(typeStr)}
@@ -471,7 +471,7 @@ func newSyncCmd() *cobra.Command {
 	allCmd.Flags().Bool("skip-finance", false, "跳过财务数据同步（仅 stock 生效）")
 	allCmd.Flags().Bool("skip-minute", false, "跳过分钟K线同步（1m+5m）")
 	allCmd.Flags().Bool("skip-xdxr", false, "跳过除权除息同步（仅 stock 生效）")
-	allCmd.Flags().String("type", "stock", "标的类型：不传什么默认串行 stock+index+block；显式传则仅跑单类（stock/index/etf/block）")
+	allCmd.Flags().String("type", "stock", "标的类型：不传什么默认串行 stock+index+block；显式传则仅跑单类（stock/index/block）")
 	syncCmd.AddCommand(allCmd)
 
 	// sync status（原 astock status 上移至此，避免与 astock stats 混淆）

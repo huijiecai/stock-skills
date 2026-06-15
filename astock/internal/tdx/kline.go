@@ -10,7 +10,7 @@ import (
 	"github.com/huijiecai/stock/astock/internal/model"
 )
 
-// GetKlineDayAll 拉取一只股票/ETF 全部日 K（自动分页，最早 1990 至今）。
+// GetKlineDayAll 拉取一只股票全部日 K（自动分页，最早 1990 至今）。
 // code: 不带前缀的 6 位代码。type 用于标记返回 Bar.Type。
 func (c *Client) GetKlineDayAll(code string, dataType model.DataType) ([]*model.Bar, error) {
 	cli, err := c.Raw()

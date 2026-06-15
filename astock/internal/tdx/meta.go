@@ -9,9 +9,10 @@ import (
 	"github.com/huijiecai/stock/astock/internal/model"
 )
 
-// ListSecurities 拉取全市场标的清单（股票 + 指数 + ETF）。
+// ListSecurities 拉取全市场标的清单（股票 + 指数）。
 // 注意：injoyai/tdx 的 GetStockCodeAll 已经按 ExchangeSH/SZ/BJ 三家拉齐并加好 sh/sz/bj 前缀。
-// 我们解析前缀后填到 Security.Market；type 由调用方指定（stock/index/etf）。
+// 我们解析前缀后填到 Security.Market；type 由调用方指定（stock/index）。
+// 不同步 ETF：项目不交易基金、不需要 ETF 数据。
 func (c *Client) ListSecurities() ([]*model.Security, error) {
 	cli, err := c.Raw()
 	if err != nil {
@@ -56,22 +57,7 @@ func (c *Client) ListSecurities() ([]*model.Security, error) {
 		}
 	}
 
-	// 3) ETF
-	etfs, err := cli.GetETFCodeAll()
-	if err != nil {
-		return nil, fmt.Errorf("get etf code all: %w", err)
-	}
-	for _, prefixed := range etfs {
-		market, code, ok := splitPrefixed(prefixed)
-		if !ok {
-			continue
-		}
-		out = append(out, &model.Security{
-			Code:   code,
-			Market: market,
-			Type:   model.TypeETF,
-		})
-	}
+	// （3）ETF：已移除。项目不交易 ETF，避免 securities 表几百行无用数据。
 
 	// 给股票回填名字（GetStockCodeAll 不返回 Name，需要再扫一遍 GetCodeAll）
 	nameMap := make(map[string]string, 8000)

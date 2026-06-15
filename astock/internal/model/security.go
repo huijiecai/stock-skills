@@ -2,12 +2,12 @@ package model
 
 import "time"
 
-// Security 一只可交易标的（股票/指数/ETF/可转债）。
+// Security 一只可交易标的（股票/指数/可转债）。
 // 对应 ClickHouse 表 securities。
 type Security struct {
 	Code       string    `json:"code"`         // 6 位代码
 	Market     string    `json:"market"`       // sh/sz/bj
-	Type       DataType  `json:"type"`         // stock/index/etf/bond
+	Type       DataType  `json:"type"`         // stock/index/bond
 	Name       string    `json:"name"`         // 中文名称
 	ListDate   time.Time `json:"list_date"`    // 上市日期
 	DelistDate time.Time `json:"delist_date,omitempty"`

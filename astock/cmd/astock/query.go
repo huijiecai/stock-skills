@@ -121,13 +121,11 @@ func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code string, dat
 	return true
 }
 
-// parseType 将 --type 参数（stock/index/etf/block）转换为 model.DataType，默认 stock。
+// parseType 将 --type 参数（stock/index/block）转换为 model.DataType，默认 stock。
 func parseType(s string) model.DataType {
 	switch s {
 	case "index":
 		return model.TypeIndex
-	case "etf":
-		return model.TypeETF
 	case "block":
 		return model.TypeBlock
 	}
@@ -419,7 +417,7 @@ func newQueryCmd() *cobra.Command {
 	klineCmd.Flags().String("freq", "daily", "频率: daily(日K，默认) / 1m / 5m / 15m / 30m / 60m")
 	klineCmd.Flags().Int("limit", 30, "返回行数（daily 默认 30；分钟 K 未指定时回退 240）")
 	klineCmd.Flags().Bool("no-sync", false, "本地无数据时不自动触发 sync")
-	klineCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/etf")
+	klineCmd.Flags().String("type", "stock", "标的类型: stock(默认)/index/block")
 	// freq=daily 专属
 	klineCmd.Flags().String("from", "", "[freq=daily] 起始日期 YYYYMMDD")
 	klineCmd.Flags().String("to", "", "[freq=daily] 结束日期 YYYYMMDD")
@@ -432,7 +430,7 @@ func newQueryCmd() *cobra.Command {
 	// --- query stock ---
 	stockCmd := &cobra.Command{
 		Use:   "stock",
-		Short: "查询标的列表（股票/指数/ETF）；--sort-by amount|pct 按指定日行情排序",
+		Short: "查询标的列表（股票/指数）；--sort-by amount|pct 按指定日行情排序",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			typ, _ := cmd.Flags().GetString("type")
 			market, _ := cmd.Flags().GetString("market")
@@ -620,7 +618,7 @@ func newQueryCmd() *cobra.Command {
 			return nil
 		},
 	}
-	stockCmd.Flags().String("type", "stock", "标的类型: stock/index/etf")
+	stockCmd.Flags().String("type", "stock", "标的类型: stock/index")
 	stockCmd.Flags().String("market", "", "市场: sh/sz/bj")
 	stockCmd.Flags().String("industry", "", "行业关键字（模糊匹配）")
 	stockCmd.Flags().String("keyword", "", "名称或代码关键字")

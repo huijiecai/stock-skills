@@ -9,7 +9,7 @@ import (
 	"github.com/huijiecai/stock/astock/internal/tdx"
 )
 
-// Meta 同步全市场标的列表（stock + index + etf）到 securities 表。
+// Meta 同步全市场标的列表（stock + index）到 securities 表。
 // 因为 ReplacingMergeTree 按 (type, market, code) 去重，可以每次全量覆盖写。
 func Meta(ctx context.Context, ch *dwh.Client, tc *tdx.Client) (int, error) {
 	start := time.Now()

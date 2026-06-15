@@ -79,13 +79,13 @@
 
 #### `securities` — 标的身份证表
 
-所有可交易标的（股票/指数/ETF/可转债）共用此表。
+所有可交易标的（股票/指数/可转债）共用此表。
 
 ```sql
 CREATE TABLE securities (
     code        String,           -- 6 位代码
     market      LowCardinality(String),  -- sh/sz/bj
-    type        LowCardinality(String),  -- stock/index/etf/bond
+    type        LowCardinality(String),  -- stock/index/bond
     name        String,
     list_date   Date,
     delist_date Nullable(Date),
@@ -102,7 +102,7 @@ ORDER BY (type, market, code);
 |------|------|------|------|
 | `code` | String | 6 位代码（不带市场前缀） | `600519`、`000001`、`399001` |
 | `market` | LowCardinality(String) | 交易所 | `sh` / `sz` / `bj` |
-| `type` | LowCardinality(String) | 标的类型 | `stock` / `index` / `etf` / `bond` |
+| `type` | LowCardinality(String) | 标的类型 | `stock` / `index` / `bond` |
 | `name` | String | 中文名称 | `贵州茅台`、`上证指数` |
 | `list_date` | Date | 上市日期 | `2001-08-27` |
 | `delist_date` | Nullable(Date) | 退市日期，未退市为 NULL | `NULL` 或 `2024-05-20` |
@@ -404,27 +404,27 @@ astock
 ├── sync                              数据同步（TDX → CH）
 │   ├── meta                          股票/指数/板块列表 + 交易日历
 │   ├── info                          F10 公司信息（行业/主营）→ securities 扩展字段
-│   ├── kline   --code a,b,c|--all [--type stock|index|etf|block] [--freq daily|1m|5m|15m|30m|60m] [--count 800]
+│   ├── kline   --code a,b,c|--all [--type stock|index|block] [--freq daily|1m|5m|15m|30m|60m] [--count 800]
 │   │           # freq=daily（默认）→ kline_daily；1m/5m/…/60m → kline_minute；分钟 K 不支持 --all
 │   ├── block                         板块成分股
 │   ├── xdxr    --code a,b,c|--all    除权除息（仅 stock）
 │   ├── finance --code a,b,c|--all    财务数据（仅 stock，每季跑一次）
 │   ├── status                        最近同步任务状态（原顶层 status 上移至此，与 stats 区分）
-│   └── all     --code a,b,c|--all [--type stock|index|etf|block] [--days 30]
+│   └── all     --code a,b,c|--all [--type stock|index|block] [--days 30]
 │                  [--skip-info] [--skip-finance] [--skip-minute] [--skip-xdxr]
 │                                      不显式 --type → 串行 stock+index+block 三类（v3.1 默认）
-│                                      显式 --type stock→全套；index/etf/block→仅 kline
+│                                      显式 --type stock→全套；index/block→仅 kline
 │                                      --all 从 securities/blocks 表拉全量代码（3~6h）
 │                                      --skip-* 可以组合出“仅 kline daily”高速低耗区间
 │
 ├── query                             本地仓库查询（未命中自动 sync，可加 --no-sync 关闭）
-│   ├── kline   <code> [--type stock|index|etf] [--freq daily|1m|5m|15m|30m|60m] [--limit 30]
+│   ├── kline   <code> [--type stock|index|block] [--freq daily|1m|5m|15m|30m|60m] [--limit 30]
 │   │           [--from YYYYMMDD] [--to YYYYMMDD] [--adjust qfq|none] [--ma 5,10,20]   # freq=daily 专属
 │   │           [--date YYYYMMDD]                                                       # freq=分钟 专属
 │   │           # 表格列（daily）：日期|开盘|最高|最低|收盘|涨跌%|成交量|成交额|换手%|MA5|...
 │   │           # 表格列（分钟）：时间|开盘|最高|最低|收盘|成交量
 │   │           # 换手%=volume*10000/float_share（finance 表取流通股），finance 无数据时显示 "-"
-│   ├── stock   [--type stock|index|etf] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
+│   ├── stock   [--type stock|index] [--market sh|sz|bj] [--industry 白酒] [--keyword 茅台]
 │   ├── block   list    [--keyword 光通信]               列出概念/风格板块
 │   │           rank    [date] [--type concept|style|all]   板块涨幅榜（含成分股涨停统计）¹
 │   │           members <block_code> [date] [--asc]      板块成分股（含当日涨幅/成交额/换手/涨停状态）¹
@@ -446,7 +446,7 @@ astock
 │
 │   # code 参数语义（方案 A：--type 默认 stock，显式指定跳出 stock 语义）：
 │   #   • query/sync kline、sync all 默认 --type=stock，
-│   #     查指数须 --type index，查 ETF 须 --type etf。
+│   #     查指数须 --type index。
 │   #   • info/finance/xdxr 仅适用 stock；输入代码未在 securities(type=stock) 出现
 │   #     → 提示“代码不存在”（不再靠代码段前缀判定）。
 │   #   • 真重命：000xxx （上证指数 vs 深市股票）——--type 是唯一区分手段。
@@ -523,6 +523,10 @@ astock sync info --code 600519              # 单独同步 F10
   2. **首根 `pre_close=0`**：`--days 1` 孤根请求场景 TDX 不返回 pre_close → `query block rank` 全榜 +0.00%。`syncDailyOne` 写入前查 CH 上一交易日 close 反填。
   3. **`sync all` 名实不符**：原仅覆盖 `--type stock` 单类。重构为不显式传 `--type` 时串行 `[stock, index, block]`；`loadCodesFromCH` 加 blocks 表支持。`query block rank` 帮助文本加「⚠️ 日期是位置参数」提示。
   遗留：6/15 已写入 0 的历史脏数据需 `sync all --all --days 1` 重跑才能修复（反填仅在写入时触发）。
+- **2026-06-15（v3.2 移除 ETF 支持）**：项目不交易基金 ETF，原 `--type etf` 路径从未被使用（`listStockCodes` SQL 反而拼不出 etf 代码是隐藏 bug）。全面移除：
+  - 代码：`internal/tdx/meta.go` 删除 `GetETFCodeAll` 同步段；`internal/model/enums.go` 删 `TypeETF`；`cmd/astock/{sync,query}.go` 全部 --type/--short 帮助文本去 etf；`parseType` 删 `etf` case。
+  - 数据：ClickHouse `ALTER TABLE securities DELETE WHERE type='etf'` 清除 2341 行。
+  - 质检：go build 通过；`securities` 只剩 stock(5530)+index(553) 两类；`kline_daily/kline_minute` 无 etf 行残留。
 - 后续若新增命令导致破例，须在本节追加“破例项”并说明理由。
 
 ---

@@ -5,7 +5,6 @@ type DataType string
 const (
 	TypeStock DataType = "stock"
 	TypeIndex DataType = "index"
-	TypeETF   DataType = "etf"
 	TypeBond  DataType = "bond"
 	TypeBlock DataType = "block"
 )
