@@ -8,7 +8,7 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 > 这是一个**预期驱动**的交易系统。所有操作围绕预期展开，目标是账户盈利。
 > 系统规则文件：`system/trading-system.md`（v3.10）
 > 模板文件：`system/templates.md`（v3.10）
-> 真实看盘循环模式：`system/real-trading.md`（v1.0，2026-06-15 起启用）
+> 真实看盘循环模式：`system/real-trading.md`（v2.0，快扫+深析分层架构，2026-06-17起启用）
 
 ---
 
