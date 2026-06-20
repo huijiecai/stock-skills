@@ -21,6 +21,12 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 
 两种模式**交易规则完全一致**（R1-R11 / 三维确认 / L038），仅执行节奏与文档结构不同。
 
+> **L038 = 盘中感知评估框架**：当盘前预案外的方向出现异动（≥2只涨停），15分钟内完成评估：
+> ① 三维确认（资金涨停股名+时间 / 预期依据催化锚 / 价格具体价位）
+> ② 趋势确认（分时图态势：持续上行/放量突破/还是冲高回落）
+> 通过 → 加入tracker → 条件允许则买入；不通过 → 放弃
+> 详见 `system/trading-system.md` §零之二路径B
+
 ---
 
 ## 一、系统核心逻辑
@@ -431,6 +437,8 @@ astock query block rank 的概念标签是数据输入，不是分析结论。�
 ### 数据采集工具
 
 **astock 是唯一数据入口**。数据存储在 ClickHouse 中，通过 `query` 命令获取。
+
+> **路径**：二进制位于 `astock/astock`（项目根目录下）。若 `astock` 不在 PATH 中，使用绝对路径 `/Users/huijiecai/Project/stock/astock/astock`，或先 `export PATH="$PATH:/Users/huijiecai/Project/stock/astock"`。
 
 ```bash
 # 每日盘后一键同步（全市场 daily K + market 派生 + limit 派生 + block_daily）
