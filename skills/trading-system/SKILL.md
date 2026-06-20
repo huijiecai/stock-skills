@@ -192,7 +192,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 □ 读取 expectations/tracker.md → 了解活跃预期（阶段+锚点+预研标的）
 □ 读取 account/portfolio.md → 了解当前持仓+止损止盈红线
 □ 读取 system/templates.md → 获取八维扫描规范+输出模板
-□ 读取前一日的涨停数据 limit-up-YYYYMM(DD-1).json → 先行信号参考
+□ 执行 astock query limit --date YYYYMM(DD-1) → 前一日涨停数据（先行信号参考）
 □ 八维催化扫描（按templates.md规范，8个维度逐一搜索并记录）
   - 每个活跃方向做产业链纵深搜索（上游/中游/下游各搜）
   - 雪球(xueqiu.com)作为必搜本土催化来源
@@ -211,9 +211,9 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 
 ```
 □ 读取 expectations/tracker.md → 当前跟踪的所有预期及核心标的
-□ 读取 data/limit_list/limit-up-YYYYMMDD.json → 全部涨停股明细
-□ 读取 data/limit_list/limit-up-concepts-YYYYMMDD/concepts.json → 概念排名TOP15
-□ 读取 data/limit_list/limit-up-YYYYMM(DD-1).json → T-1先行信号
+□ 执行 astock query limit --date YYYYMMDD → 全部涨停股明细
+□ 执行 astock query block rank --type concept → 概念排名TOP15
+□ 执行 astock query limit --date YYYYMM(DD-1) → T-1先行信号
 □ 读取 daily/YYYY-MM/DD/盘前分析.md → 催化清单(C1/C2/...)
 □ 将概念排名与催化清单交叉核对
 ```
@@ -353,8 +353,8 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 ### 第一步：数据筛基础池
 
 ```
-□ 读取当日 limit-up-YYYYMMDD.json
-□ 读取前日 limit-up-YYYYMM(DD-1).json → 标记连板（两日均出现=连板，排除）
+□ 执行 astock query limit --date YYYYMMDD → 当日涨停数据
+□ 执行 astock query limit --date YYYYMM(DD-1) → 前日数据（标记连板，排除）
 □ 主板筛选：排除 300xxx/301xxx/688xxx/920xxx
 □ 成交额门槛：amount ≥ 5亿
 ```
@@ -362,7 +362,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 ### 第二步：方向聚类
 
 ```
-□ 读取 concepts.json → 获取每个涨停股的概念标签
+□ 执行 astock query block rank --type concept → 获取概念板块排名
 □ 按概念交叉分组：同一大方向的涨停股归为一类
 □ 识别共振方向：涨停数≥3 + 封板时间跨上午/下午 = 全天强势
 □ 初步识别领涨股：同方向中最早封板 + 最大成交额
@@ -420,13 +420,13 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 | `expectations/tracker.md` | 预期追踪面板 | 盘前/模拟看盘前必读 |
 | `account/portfolio.md` | 虚拟交易账户 | 涉及持仓/买卖时 |
 | `daily/YYYY-MM/DD/盘前分析.md` | 当日盘前分析 | 写模拟看盘时 |
-| `data/limit_list/limit-up-YYYYMMDD.json` | 涨停数据 | 写模拟看盘时 |
-| `data/limit_list/limit-up-concepts-YYYYMMDD/` | 概念聚合 | 写模拟看盘时 |
+| `astock query limit --date YYYYMMDD` | 涨停数据 | 写模拟看盘时 |
+| `astock query block rank --type concept` | 概念排名 | 写模拟看盘时 |
 | `lessons/learned.md` | 经验教训库 | 复盘时更新 |
 
 ### 数据采集工具
 
-**优先级原则**：**astock 是唯一推荐的数据入口**。旧 Python 脚本（`tools/*.py`）仅作 **兜底备胎**，某些能力待 astock 补齐后会逐步弃用。
+**astock 是唯一数据入口**。数据存储在 ClickHouse 中，通过 `query` 命令获取。
 
 ```bash
 # 每日盘后一键同步（全市场 daily K + market 派生 + limit 派生 + block_daily）
@@ -439,19 +439,19 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 ./astock sync kline --code 603893 --freq 1m --days 1
 ```
 
-**astock 命令 ↔ 旧脚本映射**：
+**常用查询命令**：
 
-| 场景 | ✅ 推荐：astock | ⚠️ 兜底：旧脚本 |
-|------|----------|-----------------|
-| 涨停跟踪/连板天梯 | `astock query limit --date YYYYMMDD`、`astock query limit ladder` | `tools/fetch_tushare_data.py --limit-up` |
-| 市场全景（三大指数/涨跌停数/成交额） | `astock query market` | `tools/fetch_market_sentiment.py` |
-| 概念/行业板块涨幅排名 | `astock query block rank --type concept` | `tools/fetch_concept_rank.py` |
-| 个股实时报价 | `astock live quote 600519` | `tools/fetch_adata_data.py --realtime` |
-| 个股分时/日K查询 | `astock query kline 600519 --freq 1m\|daily` | `tools/fetch_adata_data.py --watch` |
-| 盘后一键采集 | `astock sync all --all --days 1 ...` | `tools/collect_daily_data.py` |
-| 近 N 日多次涨停扫描 | `astock query limit ladder`（近期） | `tools/scan_market.py`（历史全量扫描仍需脚本补齐） |
-| 定时实时监控 | `watch -n 300 './astock live quote 002407 002463 ...'` | `tools/realtime_monitor.sh` |
-| K 线形态分析 | ——（AI 配合 `query kline`） | `tools/analyze_form.py`（仍可用） |
-| 盘前一键采集 | `astock query market` + `query limit` + `query block rank` 手动组合 | `tools/collect_premarket.py`（这个脚本还是最便捷） |
+| 场景 | 命令 |
+|------|------|
+| 涨停跟踪/连板天梯 | `astock query limit --date YYYYMMDD`、`astock query limit ladder` |
+| 市场全景（三大指数/涨跌停数/成交额） | `astock query market` |
+| 概念/行业板块涨幅排名 | `astock query block rank --type concept` |
+| 个股实时报价 | `astock live quote 600519` |
+| 个股分时/日K查询 | `astock query kline 600519 --freq 1m\|daily` |
+| 盘后一键采集 | `astock sync all --all --days 1 ...` |
+| 近 N 日多次涨停扫描 | `astock query limit ladder` |
+| 定时实时监控 | `watch -n 300 './astock live quote 002407 002463 ...'` |
+| K 线形态分析 | `astock query kline --freq daily` + AI 分析 |
+| 盘前数据采集 | `astock query market` + `query limit` + `query block rank` |
 
-**为什么优先 astock**：统一数据源（TDX 主 + 多源补充）、ClickHouse 持久化、表格/JSON 双模输出、交易日调度内置、数据表可复用。旧脚本依赖 Tushare/adata 多个免费账号且无中间层表。
+**astock 优势**：统一数据源（TDX 主 + 多源补充）、ClickHouse 持久化、表格/JSON 双模输出、交易日调度内置、数据表可复用。
