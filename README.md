@@ -27,28 +27,19 @@ stock/
 │   ├── data/                         ClickHouse 持久化目录（gitignore）
 │   └── build/astock                  编译产物（gitignore）
 │
-├── skills/                         ★ AI Skills（按活跃度排序）
-│   ├── trading-system/               【主力·日常使用】预期驱动交易系统
-│   │   ├── SKILL.md                    系统入口（v3.10）
-│   │   ├── README.md                   工具链与数据采集说明
-│   │   ├── system/
-│   │   │   ├── trading-system.md       规则体系（红线 R1~R12）
-│   │   │   └── templates.md            盘前/模拟看盘/复盘模板（★强制★节点定义）
-│   │   ├── account/portfolio.md        虚拟交易账户状态（最新持仓/累计盈亏）
-│   │   ├── expectations/tracker.md     活跃预期清单（R8 红线依赖）
-│   │   ├── lessons/learned.md          L001~L023 实战教训库
-│   │   ├── knowledge/                  产业链知识（PCB/光模块/液冷等）
-│   │   ├── daily/YYYY-MM/DD/           每日 4 件套：盘前/模拟看盘/复盘/信号记录
-│   │   └── tools/                      Python 数据采集脚本（adata/tushare，逐步被 astock 替代）
-│   │
-│   ├── dragon-stock-trading/          【早期·参考】龙头战法分析
-│   │   ├── SKILL.md
-│   │   └── reference/龙头战法理论.md
-│   │
-│   └── investment-analysis/           【按需·调用】公司/行业研究 + 概念池管理
-│       ├── SKILL.md
-│       ├── reference/                   操作指南
-│       └── templates/                   公司/行业报告模板
+├── skills/                         ★ AI Skills
+│   └── trading-system/               【唯一·主力】预期驱动交易系统（含研究分析能力）
+│       ├── SKILL.md                    系统入口（v3.10）
+│       ├── README.md                   工具链与数据采集说明
+│       ├── system/
+│       │   ├── trading-system.md       规则体系（红线 R1~R12）
+│       │   └── templates.md            盘前/模拟看盘/复盘模板（★强制★节点定义）
+│       ├── account/portfolio.md        虚拟交易账户状态（最新持仓/累计盈亏）
+│       ├── expectations/tracker.md     活跃预期清单（R8 红线依赖）
+│       ├── lessons/learned.md          L001~L023 实战教训库
+│       ├── knowledge/                  产业链知识 + 公司/行业分析模板
+│       ├── daily/YYYY-MM/DD/           每日 4 件套：盘前/模拟看盘/复盘/信号记录
+│       └── tools/                      Python 数据采集脚本（adata/tushare，逐步被 astock 替代）
 │
 ├── docs/superpowers/specs/         系统设计文档
 │   └── 2026-06-13-astock-ch-design.md   astock ClickHouse 版设计（最新，替代旧 PG 方案）
