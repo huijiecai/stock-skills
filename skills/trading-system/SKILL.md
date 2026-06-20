@@ -97,7 +97,7 @@ description: 预期驱动交易系统。执行每日模拟看盘、盘前分析�
 
 ### 2.2 概念标签 ≠ 归因结论
 
-concepts.json的标签是数据输入，不是分析结论。每只涨停股必须追问"它为什么涨停？实际催化是什么？"
+astock query block rank 的概念标签是数据输入，不是分析结论。每只涨停股必须追问"它为什么涨停？实际催化是什么？"
 
 - 标签说"华为"，但实际催化可能是"MLCC涨价" → 归因到MLCC，不是华为
 - **同一只股只归入一个方向**（它的主驱动方向）
@@ -221,7 +221,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 #### 阶段二：数据核验
 
 ```
-□ 步骤1：概念排名TOP15表（从concepts.json）
+□ 步骤1：概念排名TOP15表（从 astock query block rank --type concept）
 □ 步骤2：核心涨停股明细表（代码/名称/收盘价/涨幅/成交额/涨停时间/所属概念）
 □ ★ 步骤2.5：概念去噪（三维确认前强制完成，不可跳过）：
   □ 个股预期归因：每只涨停股追问"实际催化是什么？"（不是concept标签）
@@ -376,7 +376,7 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 - 预期可验证吗？（有产业数据锚/业绩/订单公告）
 
 **B. 正宗度验证**
-- 概念交叉数：concepts.json中出现在几个概念下？≥3 = 高正宗度
+- 概念交叉数：astock query block members 中出现在几个概念下？≥3 = 高正宗度
 - 产业链位置：上游材料/设备 > 中游制造 > 下游应用
 - 行业地位：国内TOP3？唯一供应商？
 - 排除蹭概念：主营和方向关联度<30% → 剔除
@@ -416,13 +416,17 @@ concepts.json的标签是数据输入，不是分析结论。每只涨停股必�
 |------|------|---------|
 | `system/trading-system.md` | 完整规则（v3.10） | 查规则细节时 |
 | `system/templates.md` | 文件模板+八维扫描+数据核验 | 写任何每日文件前 |
-| `system/real-trading.md` | 真实看盘循环模式（v1.0） | 进入盘中实战前必读 |
+| `system/real-trading.md` | 真实看盘循环模式（v2.0） | 进入盘中实战前必读 |
 | `expectations/tracker.md` | 预期追踪面板 | 盘前/模拟看盘前必读 |
 | `account/portfolio.md` | 虚拟交易账户 | 涉及持仓/买卖时 |
 | `daily/YYYY-MM/DD/盘前分析.md` | 当日盘前分析 | 写模拟看盘时 |
 | `astock query limit --date YYYYMMDD` | 涨停数据 | 写模拟看盘时 |
 | `astock query block rank --type concept` | 概念排名 | 写模拟看盘时 |
 | `lessons/learned.md` | 经验教训库 | 复盘时更新 |
+| `reference/行业分析模板.md` | 产业链分析模板（v2.1） | 建产业链分析时 |
+| `reference/公司分析模板.md` | 公司分析模板（v2.0） | 建公司分析时 |
+| `knowledge/README.md` | 研究成果索引+三层映射表 | 查研究覆盖情况时 |
+| `knowledge/MLCC产业链分析.md` | MLCC产业链分析（已完成） | MLCC方向交易时 |
 
 ### 数据采集工具
 

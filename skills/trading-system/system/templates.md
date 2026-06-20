@@ -179,7 +179,7 @@
 ```markdown
 # YYYY-MM-DD 真实数据模拟看盘
 
-> 数据来源：[Tushare stk_mins + 市场数据 + adata概念enrichment]
+> 数据来源：astock query/live 命令
 > 监控标的：[列出当日监控的所有股票代码]
 > 目标：从盘前预案出发，逐时间点验证+盘中感知+虚拟账户操作
 
@@ -201,13 +201,13 @@
 
 > **规则：任何分析结论必须基于下方原始数据，禁止凭印象写“低价/中小盘”等模糊描述**
 
-### 步骤1：概念排名TOP15（从Lconcepts.json提取）
+### 步骤1：概念排名TOP15（从 astock query block rank --type concept 提取）
 
 | 概念名 | 涨停数 | 代表标的 |
 |---------|--------|----------|
 | [XX概念] | [X只] | [A/B/C...] |
 
-### 步骤2：核心涨停股明细（从 limit-up-YYYYMMDD.json 提取）
+### 步骤2：核心涨停股明细（从 astock query limit --date YYYYMMDD 提取）
 
 > 对每个主线方向，列出全部涨停股的**实际数据**
 
