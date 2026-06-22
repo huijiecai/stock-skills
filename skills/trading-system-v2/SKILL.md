@@ -22,7 +22,6 @@ description: 预期驱动交易系统 v2。执行每日盘前分析、模拟看�
 |------|------|---------|
 | `system/核心框架.md` | 预期交易的世界观和判断体系 | 做分析/判断时 |
 | `system/买卖规则.md` | 买什么·卖什么·怎么管·约束内嵌 | 做买卖决策时 |
-| `system/数据验证.md` | astock数据获取+验证操作手册 | 引用任何行情数据时 |
 
 ### 操作层（operations/）—— 可执行工作流
 
@@ -32,6 +31,7 @@ description: 预期驱动交易系统 v2。执行每日盘前分析、模拟看�
 | `operations/模拟看盘.md` | 五阶段回放流程+决策训练+复盘 | 执行模拟看盘时 |
 | `operations/真实看盘.md` | 快扫+深析循环+状态管理+归档 | 进入真实看盘时 |
 | `operations/预期研究.md` | 行业+公司深度分析（任何操作按需触发） | 遇到未知方向时 |
+| `operations/数据验证.md` | astock数据获取+验证操作手册 | 引用任何行情数据时 |
 
 ### 参考层（reference/）—— 输出格式模板，按需加载
 
@@ -76,7 +76,8 @@ description: 预期驱动交易系统 v2。执行每日盘前分析、模拟看�
 
 ### 底层支撑
 
-- **system层**（被所有操作引用）：核心框架 + 买卖规则 + 数据验证
+- **system层**（被所有操作引用）：核心框架 + 买卖规则
+- **operations/数据验证.md**（被所有操作引用）：astock数据获取方法
 - **进化闭环**：操作中发现规则漏洞 → lessons.md → 盘后迭代买卖规则
 
 **闭环说明**：盘前分析产出预案 → 真实看盘执行预案 → 盘后归档更新state → 次日盘前分析消费昨日产出，形成每日闭环。
@@ -115,7 +116,7 @@ description: 预期驱动交易系统 v2。执行每日盘前分析、模拟看�
 | 卖出触发 | 兑现必走 / 失效必走 | 买卖规则.md §4.2-4.3 |
 | 卖出判断 | 不机械 / 不因大盘打折 / 感知≠追涨 | 买卖规则.md §4.5-4.7 |
 | 仓位约束 | 多主题并发 / 产业链相关性 | 买卖规则.md §3.1 |
-| 数据验证 | 四类强制验证 / 分析五步法 | 数据验证.md §二-§三 |
+| 数据验证 | 数据获取（按类型）+ 强制验证 + 分析五步法 | operations/数据验证.md §二-§四 |
 
 ---
 
@@ -133,27 +134,4 @@ description: 预期驱动交易系统 v2。执行每日盘前分析、模拟看�
 
 ## 七、数据采集工具
 
-**astock是唯一行情数据入口**，详见 `system/数据验证.md`。
-
-### 常用命令速查
-
-```bash
-# === 数据同步（盘前必做）===
-astock sync all --all --days 1 --skip-info --skip-finance --skip-xdxr --skip-minute
-
-# === 实时查询（盘中）===
-astock live quote 600519                         # 个股报价
-astock live minute 600519                        # 分时数据
-astock live block rank --type concept --limit 30  # 概念排名
-astock live block members <板块代码> --json       # 板块成分股
-
-# === 历史查询（盘前/盘后）===
-astock query market                              # 三大指数/涨跌停/成交额
-astock query limit YYYYMMDD --exclude-st         # 涨停统计
-astock query limit ladder                        # 连板天梯
-astock query kline <code> --date YYYYMMDD --limit 30  # 日K线
-astock query meta                                # 股票代码搜索
-
-# === 实时监控 ===
-watch -n 300 './astock live quote 002407 002463 ...'
-```
+**astock是唯一行情数据入口**。数据获取方法、验证规范、命令速查 → `operations/数据验证.md`。

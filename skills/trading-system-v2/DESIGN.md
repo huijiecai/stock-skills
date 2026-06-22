@@ -36,12 +36,13 @@ trading-system-v2/
 ├── SKILL.md                          # 入口索引（~200行）
 ├── system/                            # 系统知识层（被引用，不被执行）
 │   ├── 核心框架.md                     # 世界观+判断体系（~150行）
-│   ├── 买卖规则.md                     # 决策规则+内嵌约束（~250行）
-│   └── 数据验证.md                     # astock操作指南（~100行）
+│   └── 买卖规则.md                     # 决策规则+内嵌约束（~250行）
 ├── operations/                         # 操作流程层（被执行的工作流）
 │   ├── 盘前分析.md                     # 八维扫描+方向评估+预案（~150行）
 │   ├── 模拟看盘.md                     # 五阶段回放+决策训练（~120行）
-│   └── 真实看盘.md                     # 快扫+深析循环机制（~150行）
+│   ├── 真实看盘.md                     # 快扫+深析循环机制（~150行）
+│   ├── 预期研究.md                     # 行业+公司深度分析（按需触发）
+│   └── 数据验证.md                     # astock操作指南（~100行）
 ├── reference/                          # 参考层（输出格式模板，按需加载）
 │   ├── 每日文档模板.md                    # 盘前/看盘/复盘文档格式
 │   ├── 行业分析模板.md                  # 产业链分析输出格式
@@ -50,7 +51,7 @@ trading-system-v2/
 │   ├── state.md                         # 系统当前状态（持仓+现金+预期追踪+运行状态）
 │   ├── daily/                           # 每日日志（按月归档，只增不改）
 │   │   └── YYYY-MM/DD-*.md
-│   ├── research/                        # 深度研究（产业链+公司，长期有效）
+│   ├── research/                        # 预期研究（产业链+公司，长期有效）
 │   │   ├── <产业链>产业链分析.md
 │   │   └── companies/<公司>.md
 │   └── lessons.md                       # 教训候补区（验证后毕业进system/）
@@ -61,13 +62,14 @@ trading-system-v2/
 ```
 系统层（system/）—— 独立自洽的知识库，仅被引用
   ├── 核心框架.md    "什么是预期？怎么看？"
-  ├── 买卖规则.md    "满足什么条件买/卖？买多少？"
-  └── 数据验证.md    "怎么用astock拿准确数据？"
+  └── 买卖规则.md    "满足什么条件买/卖？买多少？"
 
 操作层（operations/）—— 可执行工作流，遇到决策时索引系统层
-  ├── 盘前分析.md    "催化扫描 → 方向评估 → 预案 → 深度研究"
+  ├── 盘前分析.md    "催化扫描 → 方向评估 → 预案"
   ├── 模拟看盘.md    "五阶段回放 → 决策训练 → 复盘"
-  └── 真实看盘.md    "快扫+深析循环 → 决策落盘 → 归档"
+  ├── 真实看盘.md    "快扫+深析循环 → 决策落盘 → 归档"
+  ├── 预期研究.md    "行业+公司深度分析（按需触发）"
+  └── 数据验证.md    "怎么用astock拿准确数据？"
 
 参考层（reference/）—— 输出格式模板，写文件时按需加载
   ├── 每日文档模板.md        "盘前/看盘/复盘文档格式"
@@ -101,7 +103,7 @@ trading-system-v2/
 | **核心框架.md** | 预期交易的世界观和判断体系 | 做分析/判断时 | trading-system.md §零+§零之二+§一+§六 |
 | **买卖规则.md** | 买什么·卖什么·怎么管·约束内嵌 | 做买卖决策时 | trading-system.md §二 + R1-R11内嵌 |
 | **数据验证.md** | astock数据获取+验证操作手册 | 引用任何行情数据时 | 新增 + 原R12/R13 |
-| **盘前分析.md** | 催化扫描+方向评估+预案+深度研究步骤 | 执行盘前分析时 | trading-system.md §三 + SKILL.md任务A |
+| **盘前分析.md** | 催化扫描+方向评估+预案 | 执行盘前分析时 | trading-system.md §三 + SKILL.md任务A |
 | **模拟看盘.md** | 五阶段回放流程+决策训练+复盘 | 执行模拟看盘时 | SKILL.md任务B |
 | **真实看盘.md** | 快扫+深析循环+状态管理+落盘+归档 | 进入真实看盘时 | real-trading.md精简 |
 | **reference/每日文档模板.md** | 盘前/看盘/复盘文档输出格式 | 写每日文件时 | v1 templates.md |
@@ -117,7 +119,7 @@ trading-system-v2/
 | 模拟看盘 | SKILL.md + 模拟看盘.md + 买卖规则.md + 核心框架.md + state.md | reference/每日文档模板.md + 数据验证.md |
 | 真实看盘 | SKILL.md + 真实看盘.md + 买卖规则.md + state.md | 核心框架.md + 数据验证.md + 盘前分析.md（三维确认方法§3.4） |
 | 盘中买卖决策 | 买卖规则.md + 数据验证.md + state.md | 核心框架.md（如需判断阶段） |
-| 行业/公司研究 | 盘前分析.md(深度研究步骤) + 核心框架.md | reference/行业or公司分析模板 + 数据验证.md |
+| 行业/公司研究 | 预期研究.md + 核心框架.md | reference/行业or公司分析模板 + 数据验证.md |
 
 ---
 
@@ -156,8 +158,7 @@ description: 预期驱动交易系统 v2...
   - 任务D：盘后复盘 → 在各操作文件的复盘环节中
 
 ## 六、数据采集工具
-  - astock是唯一数据入口（指向system/数据验证.md）
-  - 常用命令速查（5-10条最高频命令）
+  - astock是唯一数据入口，指向operations/数据验证.md
 ```
 
 ### 3.2 核心框架.md（世界观+判断，~120行）
@@ -268,71 +269,37 @@ description: 预期驱动交易系统 v2...
   4.7 盘中感知 ≠ 追涨
 ```
 
-### 3.4 数据验证.md（astock操作指南，~100行）
+### 3.4 数据验证.md（astock操作指南，~120行）
 
 ```
 # 数据验证与astock操作指南
 
 ## 一、核心原则
   - astock是唯一行情数据入口
-  - 所有数据必须经astock验证，禁止凭记忆/印象
+  - 禁止凭记忆引用数据 / 禁止curl直读数据库 / WebSearch只用于消息面
 
-## 二、四类强制验证
-  | 类型 | 何时执行 | astock命令 | 典型错误 |
-  | 代码验证 | 查询个股前 | query meta / WebSearch | 中船特气688626→688146 |
-  | 同步验证 | 查询特定日期前 | stats 或 kline --limit 1 | 用6/18数据当6/22 |
-  | 涨停验证 | 引用涨停数时 | query limit YYYYMMDD | 磷概念12涨停(实际4) |
-  | K线验证 | 引用涨跌/连板时 | query kline <code> | 直接采信consecutive_days |
+## 二、数据获取（按数据类型）
+  2.1 市场概览数据（三大指数/涨跌停/成交额）
+      astock query market / query limit YYYYMMDD / query limit ladder
+  2.2 个股数据（代码/报价/K线/分时）
+      astock query meta / query kline / live quote / live minute
+  2.3 板块数据（概念排名/成分股/联动）
+      astock query block rank / live block rank / live block members
+  2.4 数据同步（查询前必须同步）
+      astock sync all / sync kline + stats验证
+  2.5 实时监控
+      watch -n 300
 
-## 三、分析准确性五步法
-  3.1 预期是什么（必须说出具体催化）
-  3.2 资金在炒什么（WebSearch/astock验证，禁止直接采信概念标签）
-  3.3 个股归因（每只涨停股追问实际催化，每只只归入一个方向）
-  3.4 正宗龙头验证（龙头不响应=方向不达标）
-  3.5 标的列表按产业链排序（直接受益→相关→不相关，禁止从涨停清单倒推）
+## 三、强制验证（引用数据前必做）
+  | 代码验证 | 同步验证 | 涨停验证 | K线验证 | 典型错误 |
 
-## 四、常用命令速查
-  ### 数据同步
-  astock sync all --all --days 1 --skip-info --skip-finance --skip-xdxr --skip-minute
-  astock sync all --code 600487,002463 --days 1 --skip-info --skip-finance --skip-xdxr
-  astock sync kline --code 603893 --freq 1m --days 1
+## 四、分析准确性五步法
+  预期是什么 → 资金在炒什么 → 个股归因 → 龙头验证 → 产业链排序
 
-  ### 实时查询（直连TDX）
-  astock live quote 600519                     # 个股报价
-  astock live minute 600519                    # 分时数据
-  astock live block rank --type concept --limit 30  # 概念排名
-  astock live block members <板块代码> --json    # 板块成分股
-
-  ### 历史查询（ClickHouse）
-  astock query kline 000630 --date YYYYMMDD --limit 30
-  astock query kline 600487 --freq 1m --date YYYYMMDD --limit 240
-  astock query limit YYYYMMDD --exclude-st
-  astock query limit ladder                    # 连板天梯
-  astock query block rank --date YYYYMMDD --type concept --limit 30
-  astock query market                          # 三大指数/涨跌停/成交额
-  astock query meta                            # 股票代码搜索
-
-  ### 实时监控
-  watch -n 300 './astock live quote 002407 002463 ...'
-
-## 五、典型错误案例
-  ### 6/22教训（4类错误集中爆发）
-  ① 数据未同步→用6/18数据当6/22→黄河旋风+5.34%(实际涨停+9.99%)
-  ② 代码错误→中船特气688626(错)→688146(对)→涨跌全反
-  ③ 涨停数凭记忆→磷概念12涨停(实际4)
-  ④ 概念标签直接归因→氟概念10涨停(实际3)
-
-  ### 违反分析五步法的典型表现
-  ① 多氟多挂氟概念→归入电子特气，但实际驱动是六氟磷酸锂(锂电池)
-  ② 磷化工归因为磷矿石涨价，实际是磷酸铁锂价格翻倍
-  ③ 和远气体/康强电子/百合花不是电子特气却列入标的
-  ④ 中船特气（正宗龙头）不在标的列表中
-
-## 六、注意事项
-  - WebSearch只用于消息面（政策/公告/研报/外盘），禁止替代行情查询
-  - 禁止curl直读ClickHouse/PostgreSQL
-  - 连板数据必须K线逐日验证，consecutive_days=区间涨停总天数≠连续天数
-  - astock缺命令/字段→补到astock里，不要绕开
+## 五、典型错误与注意事项
+  - 数据错误案例（未同步/代码错/涨停数凭记忆/概念标签归因）
+  - 违反五步法的典型表现
+  - 注意事项（连板/龙虎榜/astock缺命令）
 ```
 
 ### 3.5 数据层结构
@@ -419,16 +386,8 @@ description: 预期驱动交易系统 v2...
   4.1 if-then + 买点 + 仓位（→买卖规则.md §2.1）
   4.2 周五持仓评估（仅限高位持仓）
 
-## 五、深度研究步骤（按需触发）
-  5.1 何时触发：发现新方向且需要深入理解产业链/标的时
-  5.2 行业分析流程：
-      - 按reference/行业分析模板.md格式
-      - 产业链全景 → 核心驱动 → A股标的 → 确认/失效信号
-      - 产出：data/research/<产业链>产业链分析.md
-  5.3 公司分析流程：
-      - 按reference/公司分析模板.md格式
-      - 基础身份 → 财务健康 → 业务结构 → 产业链位置
-      - 产出：data/research/companies/<公司>.md
+## 五、预期研究（按需触发）
+  → operations/预期研究.md
 
 ## 六、输出
   - data/daily/YYYY-MM/DD-盘前分析.md（按reference/每日文档模板.md格式）
@@ -445,7 +404,7 @@ description: 预期驱动交易系统 v2...
 ## 一、定位与工具
   - 本文件 = 模拟看盘工作流（五阶段回放）
   - 系统知识引用：核心框架.md（判断）、买卖规则.md（决策）、数据验证.md（数据）
-  - 数据源：astock query（历史数据），不用实时数据
+  - 数据源：astock历史数据 → operations/数据验证.md
 
 ## 二、五阶段流程
   阶段1：加载盘前分析 → 提取催化清单(C1/C2/...)
