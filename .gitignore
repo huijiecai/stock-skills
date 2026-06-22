@@ -32,6 +32,7 @@
 __pycache__/
 build/
 data/
+!skills/trading-system-v2/data/
 develop-eggs/
 dist/
 downloads/
