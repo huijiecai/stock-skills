@@ -245,7 +245,7 @@ WITH joined AS (
     AND k.trade_date <= toDate('%s')
     AND k.trade_date >= toDate('%s') - INTERVAL 60 DAY
 )
-SELECT code, trade_date,
+SELECT DISTINCT code, trade_date,
        (close = floor(pre_close * (1 + pct_limit) * 100 + 0.5) / 100 AND close = high AND pre_close > 0) AS is_lu
 FROM joined
 ORDER BY code ASC, trade_date DESC`,
