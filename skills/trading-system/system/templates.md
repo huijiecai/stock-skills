@@ -4,7 +4,7 @@
 > 文件放在 `daily/YYYY-MM/DD/` 下
 > 所有文件基于交易系统 v3.10 规则
 > **首板核心筛选**：见 SKILL.md「首板核心筛选方法论」
-> **预期追踪面板**：盘前分析/模拟看盘前必须先读 `expectations/tracker.md`
+> **预期追踪面板**：盘前分析/模拟看盘前必须先读 `expectations/tracker.md`（索引）+ `expectations/active/` 下持仓方向文件
 
 ---
 
@@ -34,7 +34,7 @@
 
 ## 一、预期追踪面板回顾
 
-> 从 expectations/tracker.md 提取当前活跃预期
+> 从 expectations/tracker.md 索引 + expectations/active/ 提取当前活跃预期
 
 | 预期方向 | 当前阶段 | 关键锚点最新值 | 是否接近确认？ | 今日关注优先级 |
 |---------|---------|-------------|-------------|-------------|
@@ -187,7 +187,7 @@
 
 ## 盘前准备：今日重点监控方向
 
-> 从 expectations/tracker.md 提取今日"接近确认"的预期及其预研标的
+> 从 expectations/tracker.md 索引 + expectations/active/ 提取今日"接近确认"的预期及其预研标的
 
 | 方向 | 核心标的 | 确认信号 | 当前锚点 | 监控要点 |
 |------|---------|---------|---------|---------|

@@ -9,7 +9,7 @@
 
 | 层级 | 文件 | 回答的问题 |
 |------|------|----------|
-| 预期层 | `expectations/tracker.md` →【P1·持仓】MLCC — 博迁新材 | MLCC涨价周期+AI服务器结构性需求，Day4重新确认 |
+| 预期层 | `expectations/tracker.md`索引 → `active/持仓-MLCC-博迁新材.md` | MLCC涨价周期+AI服务器结构性需求，Day4重新确认 |
 | 产业链层 | 本文档 | MLCC链怎么赚钱？正宗标的是谁？确认/失效信号？ |
 | 标的层 | `companies/博迁新材.md`（待建） | 博迁新材能不能买？买点是什么？ |
 

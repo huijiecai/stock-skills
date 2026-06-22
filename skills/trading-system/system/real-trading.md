@@ -76,7 +76,7 @@ AI 在以下情况主动暂停循环、等用户回应：
 ```
 □ 1. 读 daily/YYYY-MM/DD/盘前分析.md → 加载今日预案（P1/P2/P3 方向 + 八维催化清单 + 持仓应对）
      ⚠️ 如果该文件不存在 → 先执行 SKILL.md §四任务A（盘前分析），使用 templates.md 盘前分析模板生成
-□ 2. 读 expectations/tracker.md → 加载活跃预期阶段
+□ 2. 读 expectations/tracker.md（索引）→ 按需加载 expectations/active/ 下的方向文件
 □ 3. 读 account/portfolio.md → 加载持仓状态 + 止损止盈位
 □ 4. 读 system/real-trading.md §四§五 → 加载执行规则（快扫+深析+执行链+硬拒绝）
 □ 5. 调 astock live quote 拉持仓 N 只现状 → 与 portfolio 对照
@@ -421,7 +421,7 @@ last_round: HH:MM:SS
    - 盘中决策回顾：买/卖/加仓/止损 → 是对是错？
    - 盘中感知复盘：发现了什么？遗漏了什么？
    - 经验教训：≥2 条写入 lessons/learned.md
-□ 5. 更新 expectations/tracker.md：预期阶段调整
+□ 5. 更新 expectations/active/ 下的对应方向文件 + expectations/tracker.md 索引统计
 □ 6. 写 daily/YYYY-MM/DD/次日预案.md → 滚到次日盘前分析的种子
 ```
 
@@ -435,7 +435,8 @@ last_round: HH:MM:SS
 |---|---|
 | `system/trading-system.md` | **唯一规则源头**：三维确认 §2.1 / L038 路径B §零之二 / R8 §2.1 / 八维催化 §三盘前 / 纪律红线 §五 全部直接适用 |
 | `system/templates.md` | 盘前分析模板两种模式共用；模拟看盘模板真实看盘不复用（避免事后回放节奏污染盘中实战） |
-| `expectations/tracker.md` | 启动序列读取，盘中观察期间不写（避免污染），收盘归档时统一更新 |
+| `expectations/tracker.md` | 索引文件：启动序列读取，盘中不写，收盘归档时更新统计 |
+| `expectations/active/` | 各方向独立文件（持仓5+观察18），收盘归档时更新对应文件 |
 | `account/portfolio.md` | 实时更新（每笔成交 + 节点快照） |
 | `lessons/learned.md` | 收盘复盘补充 |
 
@@ -456,7 +457,7 @@ last_round: HH:MM:SS
 □ live block rank 测试通过（~10s 返回 50 板块）
 □ daily/YYYY-MM/DD/盘前分析.md 已就绪
 □ account/portfolio.md 反映上一交易日收盘状态
-□ expectations/tracker.md 已加载活跃预期
+□ expectations/tracker.md 索引 + active/ 下持仓方向文件已加载
 □ daily/YYYY-MM/DD/盘中观察/ 目录已创建（事件来了再生成对应 MD，不预创建空文件）
 ```
 

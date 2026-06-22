@@ -202,7 +202,7 @@ astock query block rank 的概念标签是数据输入，不是分析结论。�
 ### 任务A：盘前分析（9:00前完成）
 
 ```
-□ 读取 expectations/tracker.md → 了解活跃预期（阶段+锚点+预研标的）
+□ 读取 expectations/tracker.md（索引）→ 按需加载 expectations/active/ 下持仓方向文件（阶段+锚点+预研标的）
 □ 读取 account/portfolio.md → 了解当前持仓+止损止盈红线
 □ 读取 system/templates.md → 获取八维扫描规范+输出模板
 □ 执行 astock query limit --date YYYYMM(DD-1) → 前一日涨停数据（先行信号参考）
@@ -223,7 +223,7 @@ astock query block rank 的概念标签是数据输入，不是分析结论。�
 #### 阶段一：数据准备
 
 ```
-□ 读取 expectations/tracker.md → 当前跟踪的所有预期及核心标的
+□ 读取 expectations/tracker.md（索引）→ 当前跟踪的所有预期及核心标的
 □ 执行 astock query limit --date YYYYMMDD → 全部涨停股明细
 □ 执行 astock query block rank --type concept → 概念排名TOP15
 □ 执行 astock query limit --date YYYYMM(DD-1) → T-1先行信号
@@ -347,7 +347,7 @@ astock query block rank 的概念标签是数据输入，不是分析结论。�
 
 ## 六、Tracker更新规则
 
-> 文件：`expectations/tracker.md`
+> 文件：`expectations/tracker.md`（索引）+ `expectations/active/`（各方向独立文件）
 
 | 时机 | 更新内容 |
 |------|---------|
@@ -430,7 +430,7 @@ astock query block rank 的概念标签是数据输入，不是分析结论。�
 | `system/trading-system.md` | 完整规则（v3.10） | 查规则细节时 |
 | `system/templates.md` | 文件模板+八维扫描+数据核验 | 写任何每日文件前 |
 | `system/real-trading.md` | 真实看盘循环模式（v2.0） | 进入盘中实战前必读 |
-| `expectations/tracker.md` | 预期追踪面板 | 盘前/模拟看盘前必读 |
+| `expectations/tracker.md` + `active/` | 预期追踪面板（索引+各方向独立文件） | 盘前/模拟看盘前必读 |
 | `account/portfolio.md` | 虚拟交易账户 | 涉及持仓/买卖时 |
 | `daily/YYYY-MM/DD/盘前分析.md` | 当日盘前分析 | 写模拟看盘时 |
 | `astock query limit --date YYYYMMDD` | 涨停数据 | 写模拟看盘时 |
