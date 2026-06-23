@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --color-surface: #f5f6fa;
+  --color-surface-raised: #ffffff;
+  --color-surface-overlay: #eef1f6;
+  --color-border-dim: #dfe4ed;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-profit: #059669;
+  --color-profit-dim: #d1fae5;
+  --color-loss: #dc2626;
+  --color-loss-dim: #fee2e2;
+  --color-accent-cyan: #0891b2;
+  --color-accent-amber: #d97706;
+  --color-accent-purple: #7c3aed;
+  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  --font-display: 'Inter', 'SF Pro Display', system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-display);
+    background: var(--color-surface);
+    color: var(--color-text-primary);
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-surface-raised border border-border-dim rounded-xl p-5;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.04);
+  }
+  .card-hover:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08), 0 2px 4px rgba(0,0,0,0.04);
+  }
+  .metric-value {
+    @apply font-mono text-2xl font-bold tracking-tight;
+  }
+  .tag {
+    @apply inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium;
+  }
+  .pulse-dot {
+    @apply w-2 h-2 rounded-full;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+:root {
+  font-size: 14px;
+  color-scheme: light;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+}
