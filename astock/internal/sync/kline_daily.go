@@ -70,6 +70,33 @@ func syncDailyOne(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code stri
 		return 0, nil
 	}
 
+	// 查询 ClickHouse 中该 code 已有的 trade_date，防止重复写入。
+	// ReplacingMergeTree 只在后台 merge 时去重，查询时重复行全部可见，
+	// 因此必须在写入侧保证幂等：已有日期的 bar 跳过不插。
+	var minDate, maxDate time.Time
+	row := ch.Conn().QueryRow(ctx,
+		fmt.Sprintf(`SELECT min(trade_date), max(trade_date) FROM %s.kline_daily FINAL WHERE code = ? AND type = ?`, ch.DB()),
+		code, string(dataType))
+	_ = row.Scan(&minDate, &maxDate) // 无数据时保持零值
+
+	// 过滤掉已有日期的 bar，但允许覆盖最新日期（maxDate）。
+	// 原因：盘中 sync 可能写入不完整的竞价/盘中数据（close=open、volume极小），
+	// 收盘后再次 sync 时必须用正确的收盘数据覆盖最新日期。
+	// ReplacingMergeTree 在 merge 时保留最后插入行，自动去重。
+	// 历史日期（<maxDate）严格跳过，防止重复。
+	filtered := make([]*model.Bar, 0, len(bars))
+	for _, b := range bars {
+		td, _ := time.Parse("2006-01-02", b.TradeDate)
+		if !td.IsZero() && !minDate.IsZero() && !maxDate.IsZero() && td.Before(maxDate) && !td.Before(minDate) {
+			continue // 日期在 [minDate, maxDate) 范围内，跳过
+		}
+		filtered = append(filtered, b)
+	}
+	bars = filtered
+	if len(bars) == 0 {
+		return 0, nil
+	}
+
 	// 首根 pre_close 兜底：TDX 单根/孤根请求场景下首根 PreClose=0，
 	// 查 ClickHouse 上一交易日 close 反填，避免 query block rank 等下游公式被短路成 0%。
 	// 适用 stock/index/block 全部 type；前提是 CH 已存有上一交易日数据，否则容忍首根为 0。

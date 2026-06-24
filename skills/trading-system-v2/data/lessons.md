@@ -279,12 +279,20 @@
 
 ---
 
-### L029: Day2信号触发后越早执行越好——午后走弱验证
+### L029: kline_daily重复行导致衍生命令数据失真——query kline是唯一黄金标准
 
 - **日期**：2026-06-24
-- **问题**：Day2信号在13:57确认，14:00执行减仓。此后沪电从-4.5%继续下杀至-5.14%，亨通从-2.6%扩大至-2.96%
-- **验证**：如果延迟到14:30执行，沪电价格从139→137.40，每股多亏1.6元；亨通从117→116.27，每股多亏0.73元
-- **强化**：Day2失效信号一旦确认，立即执行。午后市场通常进一步走弱，拖延只会增加损失
+- **问题**：syncDailyOne不做幂等检查，多次sync产生重复行。query block members的INNER JOIN拉出全部重复行，其中一条是正确收盘价，另一条是用open值填充的错误行。前session基于错误数据判定Day2触发→执行了博迁清仓+沪电亨通减仓50%，实际涨停已恢复→Day2不触发
+- **根因**：ReplacingMergeTree只在后台merge时去重，查询时重复行全部可见。衍生命令(block members/limit/block rank)未做去重处理
+- **影响**：错误的Day2卖出决策（博迁清仓+沪电亨通各减50%），总资产从¥117,549误报为¥116,872
+- **修复**：
+  1. syncDailyOne写入前查CH已有trade_date范围，跳过[minDate, maxDate)内的bar，允许覆盖maxDate（防止竞价快照滞留）
+  2. OPTIMIZE TABLE kline_daily FINAL全表去重
+  3. 重新sync持仓获取正确6/24收盘数据，重写看盘.md为模拟看盘
+- **修正规则**：
+  1. query block members/limit/block rank等衍生命令的数据必须与query kline交叉验证关键个股
+  2. 当衍生命令与live数据矛盾时，以live TDX数据为准（live直连TDX，不经CH）
+  3. query kline是TDX黄金标准数据源，任何矛盾以kline为准
 
 ## 淘汰记录（已写入系统规则或已解决，不再单独维护）
 
