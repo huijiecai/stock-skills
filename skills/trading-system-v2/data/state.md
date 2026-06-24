@@ -46,7 +46,7 @@
 | PCB(沪电) | 加速期 | 143.35(+3.50%) | 6/24恢复4涨停 | [详情](research/expectations/PCB-沪电.md) |
 | 光通信(亨通) | 加速期 | 119.02(+1.46%) | 6/24实测3涨停 | [详情](research/expectations/光通信-亨通.md) |
 | MLCC(博迁) | 加速期 | 224.50(+0.22%) | 6/24恢复1涨停 | [详情](research/expectations/MLCC-博迁.md) |
-| 电子特气(昊华) | 确认期 | 67.15(+1.22%) | 距失效线+6.9% | [详情](research/expectations/电子特气-昊华.md) |
+| 电子特气(昊华) | 确认期 | 67.15(+1.22%) | 纯预期止损·预期未失效 | [详情](research/expectations/电子特气-昊华.md) |
 | 磷化工(云天化) | 加速期 | 34.12(+6.43%) | 日内新高 | [详情](research/expectations/磷化工-云天化.md) |
 | 培育钻石/金刚石散热 | 出现期(观察) | — | 6/22发现 | [详情](research/expectations/AI硬件-钻石散热.md) |
 | 稀缺资源/钨 | 加速期(观察) | — | 6/22观察 | [详情](research/expectations/资源-稀缺资源.md) |
