@@ -69,7 +69,7 @@ description: 预期驱动交易系统 v2。执行每日盘前分析、模拟看�
 
 | 环节 | 做什么 | 输入 | 产出 |
 |------|--------|------|------|
-| 盘前分析 | 八维催化扫描+方向评估+预案 | state.md + WebSearch + astock历史数据 | daily/盘前分析.md + state.md更新 |
+| 盘前分析 | 八维催化扫描+方向评估+预案+每日更新全部预期 | state.md + WebSearch + astock历史数据 | daily/盘前分析.md + state.md更新 + research/expectations/每日跟踪日志 |
 | 真实看盘 | 快扫+深析循环+买卖执行 | state.md + 盘前预案 + astock实时数据 | daily/真实看盘.md + state.md+trades.md更新 |
 | 盘后归档 | state全量更新+逐股扫描+交易记录同步 | 当日看盘结果 | state.md+trades.md更新 + 逐股扫描结果 |
 | 模拟看盘 | 五阶段回放+决策训练 | state.md + 预案 + astock历史K线 | daily/模拟看盘.md |
