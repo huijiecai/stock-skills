@@ -38,7 +38,7 @@
 
 ## 四、预期追踪
 
-> 详细逻辑链见 data/research/expectations/<方向>.md
+> 详细逻辑链见 data/research/expectations/<方向>.md（已归档见 archive/）
 
 ### 活跃预期
 
