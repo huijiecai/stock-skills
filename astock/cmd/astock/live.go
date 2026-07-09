@@ -124,8 +124,11 @@ func newLiveCmd() *cobra.Command {
 			defer tc.Close()
 
 			dataType := model.TypeStock
-			// 判断为“纯指数/板块”才走指数路由；避免 000xxx、000001 这种深圳股票被误判为上证指数。
-			if tdx.IsBlockOrPureIndex(args[0]) {
+			// --type 显式指定优先；否则自动判断纯指数/板块代码
+			typeFlag, _ := cmd.Flags().GetString("type")
+			if typeFlag == "index" || typeFlag == "block" {
+				dataType = model.TypeIndex
+			} else if tdx.IsBlockOrPureIndex(args[0]) {
 				dataType = model.TypeIndex
 			}
 			ticks, err := tc.GetMinute(args[0], dataType)
@@ -150,6 +153,7 @@ func newLiveCmd() *cobra.Command {
 			return nil
 		},
 	}
+	minuteCmd.Flags().String("type", "", "标的类型: stock(默认)/index/block；解决000001等代码歧义")
 	liveCmd.AddCommand(minuteCmd)
 
 	// live block rank / live block stocks（直拉 TDX 板块/成分股实时报价，不落库）
