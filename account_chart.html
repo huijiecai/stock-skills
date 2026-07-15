@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>账户资产曲线</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: #0f1117;
+    color: #e0e0e0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  .header {
+    text-align: center;
+    margin-bottom: 16px;
+  }
+  .header h1 {
+    font-size: 22px;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 4px;
+  }
+  .header .subtitle {
+    font-size: 13px;
+    color: #888;
+  }
+  .stats-bar {
+    display: flex;
+    gap: 24px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .stat-card {
+    background: #1a1d27;
+    border: 1px solid #2a2d37;
+    border-radius: 8px;
+    padding: 12px 20px;
+    text-align: center;
+    min-width: 120px;
+  }
+  .stat-card .label {
+    font-size: 11px;
+    color: #888;
+    margin-bottom: 4px;
+  }
+  .stat-card .value {
+    font-size: 20px;
+    font-weight: 700;
+  }
+  .stat-card .value.green { color: #00d68f; }
+  .stat-card .value.red { color: #ff5252; }
+  .stat-card .value.white { color: #fff; }
+  .chart-container {
+    width: 100%;
+    max-width: 1200px;
+    background: #1a1d27;
+    border: 1px solid #2a2d37;
+    border-radius: 12px;
+    padding: 20px;
+    position: relative;
+    height: 480px;
+  }
+  .footer {
+    margin-top: 12px;
+    font-size: 11px;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>账户资产曲线</h1>
+  <div class="subtitle">2026-03-26 ~ 2026-07-15 · 初始资金 ¥100,000</div>
+</div>
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="label">当前总资产</div>
+    <div class="value green">¥119,014</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">累计收益</div>
+    <div class="value green">+¥19,014</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">累计收益率</div>
+    <div class="value green">+19.01%</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">最高资产</div>
+    <div class="value white">¥122,112</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">最低资产</div>
+    <div class="value red">¥100,000</div>
+  </div>
+  <div class="stat-card">
+    <div class="label">交易天数</div>
+    <div class="value white">72</div>
+  </div>
+</div>
+<div class="chart-container">
+  <canvas id="accountChart"></canvas>
+</div>
+<div class="footer">数据来源：trades.md每日盈亏汇总 · backfill_daily_pnl.py精算（astock日K收盘价+偏差修正）</div>
+
+<script>
+const data = [
+  {date:'03-26',value:100000.00},
+  {date:'03-27',value:100000.00},
+  {date:'04-01',value:100000.00},
+  {date:'04-02',value:100000.00},
+  {date:'04-03',value:100000.00},
+  {date:'04-07',value:100000.00},
+  {date:'04-08',value:100051.00},
+  {date:'04-09',value:100600.00},
+  {date:'04-10',value:102503.00},
+  {date:'04-13',value:103169.00},
+  {date:'04-14',value:104877.00},
+  {date:'04-15',value:103865.00},
+  {date:'04-16',value:104793.00},
+  {date:'04-17',value:103433.00},
+  {date:'04-20',value:103098.00},
+  {date:'04-21',value:102825.50},
+  {date:'04-22',value:102638.00},
+  {date:'04-23',value:102638.00},
+  {date:'04-24',value:102638.00},
+  {date:'04-27',value:102638.00},
+  {date:'04-28',value:102638.00},
+  {date:'04-29',value:103898.00},
+  {date:'04-30',value:106153.00},
+  {date:'05-06',value:106944.00},
+  {date:'05-07',value:106205.00},
+  {date:'05-08',value:103096.00},
+  {date:'05-11',value:106555.00},
+  {date:'05-12',value:104436.50},
+  {date:'05-13',value:103749.00},
+  {date:'05-14',value:102451.50},
+  {date:'05-15',value:102499.30},
+  {date:'05-18',value:102853.00},
+  {date:'05-19',value:102691.00},
+  {date:'05-20',value:103687.30},
+  {date:'05-21',value:103719.70},
+  {date:'05-22',value:104637.00},
+  {date:'05-25',value:105522.05},
+  {date:'05-26',value:106407.80},
+  {date:'05-27',value:105823.40},
+  {date:'05-28',value:108400.40},
+  {date:'05-29',value:107784.40},
+  {date:'06-01',value:103295.40},
+  {date:'06-02',value:104144.40},
+  {date:'06-03',value:104519.40},
+  {date:'06-04',value:107547.40},
+  {date:'06-05',value:106265.40},
+  {date:'06-08',value:106448.40},
+  {date:'06-09',value:109713.40},
+  {date:'06-10',value:109222.40},
+  {date:'06-11',value:107512.40},
+  {date:'06-12',value:105724.40},
+  {date:'06-15',value:107527.40},
+  {date:'06-16',value:112503.40},
+  {date:'06-17',value:113869.40},
+  {date:'06-18',value:116110.40},
+  {date:'06-22',value:120246.40},
+  {date:'06-23',value:115622.40},
+  {date:'06-24',value:117450.40},
+  {date:'06-25',value:122112.40},
+  {date:'06-26',value:117778.40},
+  {date:'06-29',value:119154.40},
+  {date:'06-30',value:120779.40},
+  {date:'07-01',value:119117.40},
+  {date:'07-02',value:113050.90},
+  {date:'07-03',value:111540.90},
+  {date:'07-06',value:111540.90},
+  {date:'07-08',value:111794.90},
+  {date:'07-09',value:114328.90},
+  {date:'07-10',value:119215.40},
+  {date:'07-13',value:118456.40},
+  {date:'07-14',value:119153.90},
+  {date:'07-15',value:119014.40},
+];
+
+// 计算收益率
+const returnRates = data.map(d => ((d.value - 100000) / 100000 * 100));
+
+const ctx = document.getElementById('accountChart').getContext('2d');
+
+// 渐变色
+const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+gradient.addColorStop(0, 'rgba(0, 214, 143, 0.25)');
+gradient.addColorStop(1, 'rgba(0, 214, 143, 0)');
+
+// 找最高点
+const maxValue = Math.max(...data.map(d => d.value));
+const maxIndex = data.findIndex(d => d.value === maxValue);
+
+const chart = new Chart(ctx, {
+  type: 'line',
+  data: {
+    labels: data.map(d => d.date),
+    datasets: [{
+      label: '总资产',
+      data: data.map(d => d.value),
+      borderColor: '#00d68f',
+      backgroundColor: gradient,
+      borderWidth: 2,
+      fill: true,
+      tension: 0.3,
+      pointRadius: data.map((d, i) => i === maxIndex ? 6 : 0),
+      pointBackgroundColor: '#ffcc00',
+      pointBorderColor: '#ffcc00',
+      pointHoverRadius: 5,
+      pointHoverBackgroundColor: '#fff',
+      pointHoverBorderColor: '#00d68f',
+    }]
+  },
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+      mode: 'index',
+      intersect: false,
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(26, 29, 39, 0.95)',
+        borderColor: '#2a2d37',
+        borderWidth: 1,
+        titleColor: '#fff',
+        bodyColor: '#e0e0e0',
+        padding: 12,
+        cornerRadius: 8,
+        callbacks: {
+          title: (items) => '日期: ' + items[0].label,
+          label: (item) => {
+            const val = item.parsed.y;
+            const ret = ((val - 100000) / 100000 * 100).toFixed(2);
+            return [
+              '总资产: ¥' + val.toLocaleString('zh-CN', {minimumFractionDigits: 2, maximumFractionDigits: 2}),
+              '收益率: ' + (ret >= 0 ? '+' : '') + ret + '%'
+            ];
+          }
+        }
+      },
+      annotation: {
+        annotations: {
+          baseline: {
+            type: 'line',
+            yMin: 100000,
+            yMax: 100000,
+            borderColor: 'rgba(255, 82, 82, 0.4)',
+            borderWidth: 1,
+            borderDash: [6, 4],
+            label: {
+              display: true,
+              content: '初始资金 ¥100,000',
+              position: 'start',
+              color: 'rgba(255, 82, 82, 0.7)',
+              font: { size: 10 },
+              backgroundColor: 'transparent',
+            }
+          },
+          peak: {
+            type: 'point',
+            xValue: maxIndex,
+            yValue: maxValue,
+            backgroundColor: 'rgba(255, 204, 0, 0.8)',
+            borderColor: '#ffcc00',
+            borderWidth: 2,
+            radius: 6,
+          },
+          peakLabel: {
+            type: 'label',
+            xValue: maxIndex,
+            yValue: maxValue,
+            content: ['最高点', '¥' + maxValue.toLocaleString('zh-CN')],
+            color: '#ffcc00',
+            font: { size: 11, weight: 'bold' },
+            position: { x: 'center', y: 'end' },
+            yAdjust: -20,
+            backgroundColor: 'transparent',
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(255,255,255,0.05)', drawTicks: false },
+        ticks: {
+          color: '#666',
+          font: { size: 10 },
+          maxRotation: 45,
+          minRotation: 45,
+          autoSkip: true,
+          maxTicksLimit: 20,
+        }
+      },
+      y: {
+        grid: { color: 'rgba(255,255,255,0.05)' },
+        ticks: {
+          color: '#666',
+          font: { size: 11 },
+          callback: (val) => '¥' + val.toLocaleString('zh-CN')
+        },
+        min: 98000,
+        max: 126000,
+      }
+    }
+  }
+});
+</script>
+</body>
+</html>
