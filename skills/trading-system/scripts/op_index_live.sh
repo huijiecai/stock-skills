@@ -15,7 +15,13 @@
 
 set -euo pipefail
 
-ASTOCK="${ASTOCK_BIN:-./astock/astock}"
+# 查找 astock 二进制：优先 ASTOCK_BIN，其次脚本相对路径
+ASTOCK="${ASTOCK_BIN:-}"
+if [ -z "$ASTOCK" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+    ASTOCK="$PROJECT_ROOT/astock/astock"
+fi
 
 # 指数代码:名称:type参数
 # 000001/000688 需 --type index 解决代码歧义
