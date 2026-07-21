@@ -97,16 +97,19 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 
 // LimitStock 涨/跌停清单中的一只股票。
 type LimitStock struct {
-	Code         string   `json:"code"`
-	Name         string   `json:"name"`
-	Board        string   `json:"board"`              // main/growth/star/beijing/st
-	PctLimit     float64  `json:"pct_limit"`          // 涨幅上限（小数）
-	Close        float64  `json:"close"`              // 收盘价
-	LimitPrice   float64  `json:"limit_price"`        // 涨停价/跌停价
-	ChangePct    float64  `json:"change_pct"`         // 涨跌幅 %
-	Amount       float64  `json:"amount"`             // 成交额（元）
-	ConsecDays   int      `json:"consecutive_days"`   // 连板数（含当日，>=1）
-	Concepts     []string `json:"concepts,omitempty"` // 概念标签 top3
+	Code       string   `json:"code"`
+	Name       string   `json:"name"`
+	Industry   string   `json:"industry,omitempty"`
+	Sector     string   `json:"sector,omitempty"`
+	Business   string   `json:"business,omitempty"`
+	Board      string   `json:"board"`              // main/growth/star/beijing/st
+	PctLimit   float64  `json:"pct_limit"`          // 涨幅上限（小数）
+	Close      float64  `json:"close"`              // 收盘价
+	LimitPrice float64  `json:"limit_price"`        // 涨停价/跌停价
+	ChangePct  float64  `json:"change_pct"`         // 涨跌幅 %
+	Amount     float64  `json:"amount"`             // 成交额（元）
+	ConsecDays int      `json:"consecutive_days"`   // 连板数（含当日，>=1）
+	Concepts   []string `json:"concepts,omitempty"` // 概念标签 top3
 }
 
 // queryLimitList 派生当日涨停（或跌停）清单。
@@ -144,6 +147,9 @@ WITH joined AS (
     k.low AS low,
     k.amount AS amount,
     s.name AS name,
+	s.industry AS industry,
+	s.sector AS sector,
+	s.business AS business,
     multiIf(
       s.name LIKE '%%ST%%' OR s.name LIKE 'S%%ST%%', 'st',
       k.code LIKE '688%%' OR k.code LIKE '689%%', 'star',
@@ -158,16 +164,24 @@ WITH joined AS (
       k.code LIKE '43%%' OR k.code LIKE '83%%' OR k.code LIKE '87%%' OR k.code LIKE '88%%' OR k.code LIKE '920%%', 0.30,
       0.10
     ) AS pct_limit
-  FROM %s.kline_daily AS k
-  INNER JOIN %s.securities AS s ON k.code = s.code AND s.type = 'stock'
-  WHERE k.type='stock' AND k.trade_date = toDate('%s') %s
+  FROM (
+    SELECT code, close, pre_close, high, low, amount
+    FROM %s.kline_daily FINAL
+    WHERE type='stock' AND trade_date = toDate('%s')
+  ) AS k
+  INNER JOIN (
+    SELECT code, name, industry, sector, business
+    FROM %s.securities FINAL
+    WHERE type = 'stock'
+  ) AS s ON k.code = s.code
+  WHERE 1=1 %s
 )
-SELECT code, name, board, pct_limit, close, %s AS limit_price,
+SELECT code, name, industry, sector, business, board, pct_limit, close, %s AS limit_price,
        (close - pre_close) / pre_close * 100 AS change_pct, amount
 FROM joined
 WHERE %s
 ORDER BY amount DESC`,
-		ch.DB(), ch.DB(), formatDate(date), stFilter, limitPriceExpr, hitExpr)
+		ch.DB(), formatDate(date), ch.DB(), stFilter, limitPriceExpr, hitExpr)
 
 	rows, err := ch.Conn().Query(ctx, sql1)
 	if err != nil {
@@ -179,11 +193,19 @@ ORDER BY amount DESC`,
 	codeSet := make(map[string]*LimitStock)
 	for rows.Next() {
 		var s LimitStock
-		if err := rows.Scan(&s.Code, &s.Name, &s.Board, &s.PctLimit, &s.Close,
+		if err := rows.Scan(&s.Code, &s.Name, &s.Industry, &s.Sector, &s.Business,
+			&s.Board, &s.PctLimit, &s.Close,
 			&s.LimitPrice, &s.ChangePct, &s.Amount); err != nil {
 			return nil, err
 		}
 		s.ConsecDays = 1 // 当日涨停默认 1，下面跨日反查会更新
+		if existing := codeSet[s.Code]; existing != nil {
+			// SQL 已使用 FINAL；这里继续按 code 去重，防止上游异常污染交易信号。
+			if s.Amount > existing.Amount {
+				*existing = s
+			}
+			continue
+		}
 		list = append(list, &s)
 		codeSet[s.Code] = &s
 	}
@@ -238,8 +260,8 @@ WITH joined AS (
       k.code LIKE '43%%' OR k.code LIKE '83%%' OR k.code LIKE '87%%' OR k.code LIKE '88%%' OR k.code LIKE '920%%', 0.30,
       0.10
     ) AS pct_limit
-  FROM %s.kline_daily AS k
-  INNER JOIN %s.securities AS s ON k.code = s.code AND s.type = 'stock'
+  FROM %s.kline_daily AS k FINAL
+  INNER JOIN %s.securities AS s FINAL ON k.code = s.code AND s.type = 'stock'
   WHERE k.type='stock'
     AND k.code IN (%s)
     AND k.trade_date <= toDate('%s')
@@ -309,9 +331,14 @@ func fillConcepts(ctx context.Context, ch *dwh.Client, list []*LimitStock, codeS
 	// 取所有目标股的所有 concept 板块（不限制 top3，在 Go 层裁剪）
 	sql := fmt.Sprintf(`
 SELECT bc.stock_code, b.name, b.stock_count
-FROM %s.block_constituents AS bc
-INNER JOIN %s.blocks AS b ON bc.block_code = b.code
-WHERE b.type = 'concept' AND bc.stock_code IN (%s)
+FROM (
+  SELECT block_code, stock_code FROM %s.block_constituents FINAL
+) AS bc
+INNER JOIN (
+  SELECT code, name, stock_count FROM %s.blocks FINAL WHERE type = 'concept'
+) AS b ON bc.block_code = b.code
+WHERE bc.stock_code IN (%s)
+GROUP BY bc.stock_code, b.name, b.stock_count
 ORDER BY bc.stock_code, b.stock_count ASC`, ch.DB(), ch.DB(), codeIn)
 
 	rows, err := ch.Conn().Query(ctx, sql)
@@ -338,13 +365,17 @@ ORDER BY bc.stock_code, b.stock_count ASC`, ch.DB(), ch.DB(), codeIn)
 		blks := codeBlocks[s.Code]
 		// 按 stock_count ASC 排序（取最具体的概念）
 		sort.Slice(blks, func(i, j int) bool { return blks[i].count < blks[j].count })
-		// 取 top3
-		if len(blks) > 3 {
-			blks = blks[:3]
-		}
-		s.Concepts = make([]string, 0, len(blks))
+		s.Concepts = make([]string, 0, 3)
+		seen := make(map[string]struct{}, len(blks))
 		for _, b := range blks {
+			if _, exists := seen[b.name]; exists {
+				continue
+			}
+			seen[b.name] = struct{}{}
 			s.Concepts = append(s.Concepts, b.name)
+			if len(s.Concepts) == 3 {
+				break
+			}
 		}
 	}
 	return nil

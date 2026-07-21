@@ -1,7 +1,6 @@
 #!/bin/bash
-# op_scan_live.sh — 一键3步快扫（真实看盘）
-# 合并 op_index_live + op_holdings_live + op_sector_rank_live 为1次Bash调用
-# 设计目的：解决"超预算调用工具"——1次调用完成3步快扫
+# op_scan_live.sh — 一键4步快扫（真实看盘）
+# 合并指数、持仓、无方向异动候选、板块强度为1次Bash调用
 #
 # 用法: op_scan_live.sh <holdings_codes>
 # 示例: op_scan_live.sh 002185
@@ -23,7 +22,11 @@ echo "--- ② 持仓 ---"
 bash "$SCRIPT_DIR/op_holdings_live.sh" "$CODES" 2>/dev/null || echo "持仓数据获取失败"
 echo ""
 
-echo "--- ③ 板块 ---"
+echo "--- ③ 无方向异动候选 ---"
+bash "$SCRIPT_DIR/op_market_candidates_live.sh" 2>/dev/null || echo "全主板异动候选获取失败"
+echo ""
+
+echo "--- ④ 板块 ---"
 bash "$SCRIPT_DIR/op_sector_rank_live.sh" 2>/dev/null || echo "板块数据获取失败"
 echo ""
 

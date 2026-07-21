@@ -10,6 +10,10 @@
   python3 scripts/audit_account.py                  # 默认7/13收盘价
   python3 scripts/audit_account.py --close 002185=24.13  # 指定收盘价
   python3 scripts/audit_account.py --date 0709       # 计算到指定日期为止
+  python3 scripts/audit_account.py --trades-file replay.md \
+    --opening-cash 37640.40 \
+    --opening-holding=000829:天音控股:1400:9.02 \
+    --opening-realized=18263.40 --no-adjustments
 """
 
 import re
@@ -52,7 +56,15 @@ def parse_trades_md(filepath):
     return trades
 
 
-def run_audit(close_prices=None, cutoff_date=None):
+def run_audit(
+    close_prices=None,
+    cutoff_date=None,
+    trades_file=TRADES_FILE,
+    opening_cash=INITIAL_CASH,
+    opening_holdings=None,
+    opening_realized_pnl=0.0,
+    adjustments=None,
+):
     """
     逐笔精算
     close_prices: {code: price} 收盘价字典
@@ -61,22 +73,24 @@ def run_audit(close_prices=None, cutoff_date=None):
     if close_prices is None:
         close_prices = {"002185": 24.13}  # 默认7/13收盘
     
-    trades = parse_trades_md(TRADES_FILE)
+    trades = parse_trades_md(trades_file)
     
     if cutoff_date:
         trades = [t for t in trades if t[1] <= cutoff_date]
     
-    cash = INITIAL_CASH
-    holdings = {}  # code -> {name, shares, total_cost}
-    realized_pnl = 0.0
+    cash = opening_cash
+    holdings = {
+        code: dict(holding) for code, holding in (opening_holdings or {}).items()
+    }
+    realized_pnl = opening_realized_pnl
     realized_pnl_by_stock = {}  # code -> [(date, name, qty, price, avg_before, pnl)]
     
     # 记录关键节点
     snapshots = {}
     
     print("=" * 130)
-    print(f"  初始资金: ¥{INITIAL_CASH:,.2f}")
-    print(f"  交易记录: {TRADES_FILE}")
+    print(f"  开始现金: ¥{opening_cash:,.2f}")
+    print(f"  交易记录: {trades_file}")
     print(f"  交易笔数: {len(trades)}")
     print("=" * 130)
     header = f"{'#':>3} {'日期':>6} {'操作':>4} {'名称':>8} {'代码':>8} {'价格':>10} {'数量':>6} {'金额':>12} {'现金余额':>14} {'持仓均价':>10} {'本次盈亏':>12}"
@@ -159,7 +173,8 @@ def run_audit(close_prices=None, cutoff_date=None):
     print(f"  偏差修正（6/30审计发现的历史遗留）")
     print(f"{'=' * 130}")
     adj_total = 0
-    for desc, amount in ADJUSTMENTS.items():
+    applied_adjustments = ADJUSTMENTS if adjustments is None else adjustments
+    for desc, amount in applied_adjustments.items():
         cash += amount
         adj_total += amount
         print(f"  {desc}: ¥{amount:+,.2f} → 修正后现金: ¥{cash:,.2f}")
@@ -205,8 +220,10 @@ def run_audit(close_prices=None, cutoff_date=None):
     }
     
     # 重新跑一遍，在每个目标日期的最后一笔交易后记录快照
-    cash2 = INITIAL_CASH
-    holdings2 = {}
+    cash2 = opening_cash
+    holdings2 = {
+        code: dict(holding) for code, holding in (opening_holdings or {}).items()
+    }
     # 记录每个日期最后一笔交易的序号
     last_trade_per_date = {}
     for t in trades:
@@ -259,17 +276,70 @@ def run_audit(close_prices=None, cutoff_date=None):
 
 if __name__ == "__main__":
     close_prices = {"002185": 24.13}
+    cutoff_date = None
+    trades_file = TRADES_FILE
+    opening_cash = INITIAL_CASH
+    opening_holdings = {}
+    opening_realized_pnl = 0.0
+    adjustments = None
     
     # 解析命令行参数
-    for arg in sys.argv[1:]:
+    args = iter(sys.argv[1:])
+    for arg in args:
         if arg.startswith("--close="):
             # --close=002185=24.13,000938=35.44
             close_prices = {}
             for pair in arg[8:].split(","):
                 code, price = pair.split("=")
                 close_prices[code] = float(price)
+        elif arg == "--close":
+            close_prices = {}
+            for pair in next(args).split(","):
+                code, price = pair.split("=")
+                close_prices[code] = float(price)
         elif arg.startswith("--date="):
-            cutoff = arg[7:]
-            # TODO: 支持截止日期
+            cutoff_date = arg[7:]
+        elif arg == "--date":
+            cutoff_date = next(args)
+        elif arg.startswith("--trades-file="):
+            trades_file = Path(arg[14:]).resolve()
+        elif arg == "--trades-file":
+            trades_file = Path(next(args)).resolve()
+        elif arg.startswith("--opening-cash="):
+            opening_cash = float(arg[15:])
+        elif arg == "--opening-cash":
+            opening_cash = float(next(args))
+        elif arg.startswith("--opening-holding="):
+            raw_holding = arg[18:]
+            code, name, shares, avg = raw_holding.split(":")
+            opening_holdings[code] = {
+                "name": name,
+                "shares": int(shares),
+                "total_cost": int(shares) * float(avg),
+            }
+        elif arg == "--opening-holding":
+            code, name, shares, avg = next(args).split(":")
+            opening_holdings[code] = {
+                "name": name,
+                "shares": int(shares),
+                "total_cost": int(shares) * float(avg),
+            }
+        elif arg.startswith("--opening-realized="):
+            opening_realized_pnl = float(arg[19:])
+        elif arg == "--opening-realized":
+            opening_realized_pnl = float(next(args))
+        elif arg == "--no-adjustments":
+            adjustments = {}
+
+    if cutoff_date and len(cutoff_date) == 4 and cutoff_date.isdigit():
+        cutoff_date = f"{cutoff_date[:2]}-{cutoff_date[2:]}"
     
-    run_audit(close_prices=close_prices)
+    run_audit(
+        close_prices=close_prices,
+        cutoff_date=cutoff_date,
+        trades_file=trades_file,
+        opening_cash=opening_cash,
+        opening_holdings=opening_holdings,
+        opening_realized_pnl=opening_realized_pnl,
+        adjustments=adjustments,
+    )
