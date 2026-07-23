@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "signals": [
+    {
+      "id": "MLCC-A-20260723-01",
+      "direction": "MLCC/电子陶瓷",
+      "kind": "出口A",
+      "date": "20260723",
+      "fingerprint": "oxide-zirconia-to-boqian-nickel-copper-mapping-denied",
+      "status": "consumed",
+      "code": "605376",
+      "action": "sell-all",
+      "consumed_at": "2026-07-23 09:30"
+    },
+    {
+      "id": "STORAGE-B-20260723-01",
+      "direction": "存储芯片",
+      "kind": "出口B",
+      "date": "20260723",
+      "fingerprint": "core-support-disappeared-two-observations",
+      "status": "consumed",
+      "code": "000021",
+      "action": "reduce-300",
+      "consumed_at": "2026-07-23 10:10"
+    },
+    {
+      "id": "PCB-B-20260723-01",
+      "direction": "PCB/覆铜板",
+      "kind": "出口B",
+      "date": "20260723",
+      "fingerprint": "breadth-relative-strength-price-response-failed",
+      "status": "consumed",
+      "code": "001389",
+      "action": "sell-all",
+      "consumed_at": "2026-07-23 11:04"
+    }
+  ]
+}

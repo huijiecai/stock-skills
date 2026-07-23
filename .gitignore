@@ -33,6 +33,29 @@ __pycache__/
 build/
 data/
 !skills/trading-system-v2/data/
+# The trading-system runtime ledger, state, research, and daily evidence are
+# source artifacts rather than database exports and must be versioned.
+!skills/trading-system/data/
+!skills/trading-system/data/**/
+!skills/trading-system/data/**/*.md
+!skills/trading-system/data/**/*.json
+# Keep historical daily exports local; the active session's evidence is tracked.
+skills/trading-system/data/daily/
+!skills/trading-system/data/daily/
+skills/trading-system/data/daily/*
+!skills/trading-system/data/daily/2026-07/
+skills/trading-system/data/daily/2026-07/*
+!skills/trading-system/data/daily/2026-07/23/
+!skills/trading-system/data/daily/2026-07/23/*.md
+!skills/trading-system/data/daily/2026-07/24/
+!skills/trading-system/data/daily/2026-07/24/*.md
+# Keep archived and scratch research local; executable expectation files are tracked.
+skills/trading-system/data/research/archive/
+skills/trading-system/data/research/industry/
+skills/trading-system/data/research/*
+!skills/trading-system/data/research/expectations/
+!skills/trading-system/data/research/expectations/*.md
+!skills/trading-system/data/research/pools.json
 develop-eggs/
 dist/
 downloads/

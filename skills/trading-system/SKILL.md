@@ -145,5 +145,7 @@ description: 预期驱动交易系统 v2。执行每日盘前分析、模拟看�
 **astock是唯一行情数据入口**。数据获取方法、验证规范、命令速查 → `operations/数据验证.md`。
 
 - 真实看盘全主板异动入口：`astock live market --json`
+- 固定受益池唯一来源：`data/research/pools.json`；方向核验统一使用 `scripts/op_direction_live.py <pool_id>`，禁止临时手写池。池内非主板代码只可用于研究联动；买入评估必须加 `--mainboard-only`。
+- 交易信号唯一账本：`data/signal_ledger.json`；用 `scripts/signal_ledger.py` 注册、消费和查重，避免同一证据重复卖出。
 - 模拟候选池回放入口：`scripts/replay_minute_signals.py --date <YYYYMMDD>`
 - 两者输出的`CANDIDATE`都只是先导候选，不是龙头或买入指令。

@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "description": "Executable direct-benefit pools. One direction has one runtime pool; Markdown expectation tables explain the thesis, and historical subsets remain evidence only.",
+  "pools": {
+    "innovation_medicine": {
+      "direction": "创新药/医药",
+      "expectation_file": "创新药-医药.md",
+      "codes": ["603127", "002821", "603538", "002317", "300255", "002038", "002653"]
+    },
+    "storage": {
+      "direction": "存储芯片",
+      "expectation_file": "独立模拟-存储芯片.md",
+      "codes": ["300223", "603986", "000021", "688110", "688766", "688123", "002156", "600584"]
+    },
+    "cpo": {
+      "direction": "CPO/光模块",
+      "expectation_file": "独立模拟-CPO-光模块.md",
+      "codes": ["300308", "002281", "300548", "300502", "300394", "301205", "600487"]
+    },
+    "pcb": {
+      "direction": "PCB/覆铜板",
+      "expectation_file": "PCB-覆铜板.md",
+      "codes": ["600183", "002384", "002463", "001389", "603186", "002636", "002938", "688519"]
+    },
+    "mlcc": {
+      "direction": "MLCC/电子陶瓷",
+      "expectation_file": "独立模拟-MLCC-电子陶瓷.md",
+      "codes": ["300285", "300408", "605376", "000636", "603678"]
+    },
+    "high_temp_fire": {
+      "direction": "高温负荷/火电运营",
+      "expectation_file": "高温负荷-火电运营.md",
+      "codes": ["601991", "600578", "600027", "600011", "600795", "000539", "000543", "001896", "000767", "600744"]
+    },
+    "uhv_grid": {
+      "direction": "特高压/电网设备招标",
+      "expectation_file": "特高压-电网设备招标.md",
+      "codes": ["601179", "600312", "601700", "300510", "600089", "000400", "600406"]
+    },
+    "lithium": {
+      "direction": "锂盐价格反弹/业绩修复",
+      "expectation_file": "锂盐-价格反弹与业绩修复.md",
+      "codes": ["603399", "000688", "002240", "002738", "000155", "002756", "002192", "002497", "002460", "000792", "002466"]
+    },
+    "oilfield_services": {
+      "direction": "国际油价/油气勘探服务",
+      "expectation_file": "国际油价-油气勘探服务.md",
+      "codes": ["002353", "301158", "603727", "002278", "002554", "000852", "600583", "600871", "601808"]
+    },
+    "gold_miners": {
+      "direction": "国际金价反弹/黄金矿企",
+      "expectation_file": "国际金价-黄金矿企.md",
+      "codes": ["001337", "600988", "601899", "600489", "000506", "000975", "002155"]
+    },
+    "ai_server_mlcc": {
+      "direction": "AI服务器/高端MLCC",
+      "expectation_file": "AI服务器-高端MLCC.md",
+      "codes": ["000636", "300408", "605376", "603678", "603267"]
+    },
+    "liquid_cooling": {
+      "direction": "AI数据中心/液冷",
+      "expectation_file": "AI数据中心-液冷.md",
+      "codes": ["002536", "000811", "002837", "301018", "300499"]
+    },
+    "national_cloud": {
+      "direction": "国资云/信创",
+      "expectation_file": "国资云-信创.md",
+      "codes": ["000938", "000066", "000977", "002152", "600602", "603881", "301165", "002268"]
+    },
+    "semiconductor_packaging": {
+      "direction": "半导体封测/材料",
+      "expectation_file": "半导体封测-材料.md",
+      "codes": ["002185", "600584", "600206", "688432", "002137", "002077", "600360", "600246"]
+    },
+    "ai_phone_pc": {
+      "direction": "AI手机PC/消费电子",
+      "expectation_file": "AI手机PC-消费电子.md",
+      "codes": ["300968", "002632", "603327", "603341", "300496", "688036"]
+    }
+  }
+}

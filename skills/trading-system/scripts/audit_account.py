@@ -7,7 +7,7 @@
 - 输出关键节点总资产回溯
 
 用法：
-  python3 scripts/audit_account.py                  # 默认7/13收盘价
+  python3 scripts/audit_account.py                  # 默认读取state.md当前持仓收盘价
   python3 scripts/audit_account.py --close 002185=24.13  # 指定收盘价
   python3 scripts/audit_account.py --date 0709       # 计算到指定日期为止
   python3 scripts/audit_account.py --trades-file replay.md \
@@ -23,6 +23,7 @@ from pathlib import Path
 
 INITIAL_CASH = 100000.0
 TRADES_FILE = Path(__file__).resolve().parent.parent / "data" / "trades.md"
+STATE_FILE = Path(__file__).resolve().parent.parent / "data" / "state.md"
 
 # 历史遗留偏差修正（6/30审计发现）
 # 1. 05-22 博迁实际买入价153.30（记录153.00，多花¥30）
@@ -56,6 +57,19 @@ def parse_trades_md(filepath):
     return trades
 
 
+def load_state_close_prices(filepath=STATE_FILE):
+    """Read current prices from the state holding table when no override is supplied."""
+    content = filepath.read_text(encoding="utf-8")
+    pattern = re.compile(
+        r"^\|\s*(\d{6})\s*\|\s*[^|]+\|\s*[^|]+\|\s*([0-9]+(?:\.[0-9]+)?)\s*\|",
+        re.MULTILINE,
+    )
+    prices = {code: float(price) for code, price in pattern.findall(content)}
+    if not prices:
+        raise SystemExit(f"state file has no current holding prices: {filepath}")
+    return prices
+
+
 def run_audit(
     close_prices=None,
     cutoff_date=None,
@@ -71,7 +85,7 @@ def run_audit(
     cutoff_date: "MM-DD" 截止日期（只处理到该日期为止的交易）
     """
     if close_prices is None:
-        close_prices = {"002185": 24.13}  # 默认7/13收盘
+        close_prices = load_state_close_prices()
     
     trades = parse_trades_md(trades_file)
     
@@ -186,13 +200,21 @@ def run_audit(
     print(f"{'=' * 130}")
     print(f"  修正后现金:   ¥{cash:,.2f}")
     
+    missing_close = [
+        code for code, holding in holdings.items()
+        if holding["shares"] > 0 and not close_prices.get(code)
+    ]
+    if missing_close:
+        raise SystemExit(
+            "missing close price for holding(s): "
+            + ", ".join(missing_close)
+            + ". Supply --close CODE=PRICE before using the account result."
+        )
+
     holdings_value = 0
     for code, h in holdings.items():
         if h["shares"] > 0:
             close = close_prices.get(code, 0)
-            if close == 0:
-                print(f"  ⚠️ {h['name']}({code}) 无收盘价，请用 --close {code}=XX.XX 指定")
-                continue
             mv = close * h["shares"]
             holdings_value += mv
             unrealized = mv - h["total_cost"]
@@ -275,7 +297,7 @@ def run_audit(
 
 
 if __name__ == "__main__":
-    close_prices = {"002185": 24.13}
+    close_prices = None
     cutoff_date = None
     trades_file = TRADES_FILE
     opening_cash = INITIAL_CASH
