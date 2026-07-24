@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -40,3 +40,28 @@ class AstockHealth(BaseModel):
     version: str | None = None
     latency_ms: int | None = Field(default=None, ge=0)
     error: str | None = None
+
+
+class MinuteBar(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    time: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int = Field(ge=0)
+    amount: float = Field(ge=0)
+
+
+class ReplayRun(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    trading_date: date
+    codes: tuple[str, ...]
+    current_time: datetime
+    status: Literal["running", "paused", "completed", "failed"]
+    created_at: datetime
+    updated_at: datetime

@@ -1,6 +1,6 @@
 # Trading Engine 分阶段实施路线
 
-> 状态：Phase 0 已完成，下一步 Phase 1
+> 状态：Phase 1 已完成，下一步 Phase 2
 > 创建日期：2026-07-24
 > 目标：将模拟看盘逐步迁移为可测试、可恢复的独立交易引擎，再复用同一核心接入真实看盘。
 > 相关设计：`docs/2026-07-14-langgraph-trading-engine-design.md`
@@ -37,7 +37,7 @@ stock/
 | Phase | 名称 | 核心结果 | 状态 |
 |------|------|---------|------|
 | 0 | 工程骨架 | 可安装、可测试的 `trader` CLI | 已完成 |
-| 1 | 可控历史回放 | 按模拟时钟读取历史数据并断点恢复 | 未开始 |
+| 1 | 可控历史回放 | 按模拟时钟读取历史数据并断点恢复 | 已完成 |
 | 2 | 只读 AI 判断 | 产生结构化交易提案，不修改账户 | 未开始 |
 | 3 | 模拟交易闭环 | 风险校验、模拟成交、账户和报告闭环 | 未开始 |
 | 4 | 完整研究工作流 | 归因、预期研究、三维确认和账户级排序 | 未开始 |
@@ -107,7 +107,7 @@ uv run --project trading_engine pytest trading_engine/tests
 ### 交付物
 
 ```bash
-trader replay --date 20260723 --until 10:30
+trader replay --date 20260723 --code 603127 --until 10:30
 trader replay resume
 trader status
 ```
@@ -126,6 +126,36 @@ trader status
 - 不判断买卖。
 - 不维护虚拟账户。
 - 不搜索实时网页新闻。
+
+### 数据契约与验收记录
+
+完成日期：2026-07-24
+
+- 测试标的：昭衍新药 `603127`
+- 测试日期：2026-07-23
+- astock返回240根分钟K线。
+- 分钟时间为K线结束时刻：`09:31-11:30`、`13:01-15:00`。
+- `09:30`是回放初始化时刻，不对应分钟K线；第一步推进到`09:31`。
+- 日K提供回放计算所需的`pre_close`。
+- Phase 1 查询始终携带`--no-sync`，缺失数据直接失败，不在回放中修改行情仓库。
+
+验收流程：
+
+```bash
+./trader replay --date 20260723 --code 603127 --until 10:30
+./trader status
+./trader replay resume --until 10:31
+./trader replay resume --until 15:00
+```
+
+验收结果：
+
+- `10:30` checkpoint只包含前60根K线。
+- 恢复到`10:31`后包含61根K线，没有重复处理`10:30`。
+- 收盘状态为`completed`，包含240根K线。
+- 全日共241个唯一checkpoint：1个初始化checkpoint和240个分钟checkpoint。
+- SQLite事务同时写入checkpoint并更新run进度，重复时间会被唯一约束拒绝。
+- 12个`trading_engine`测试全部通过。
 
 ## 六、Phase 2：只读 AI 判断
 
@@ -250,6 +280,6 @@ trader watch stop
 
 ## 十二、当前下一步
 
-Phase 0 已完成。下一步只实施 Phase 1，不提前实现后续阶段。
+Phase 0和Phase 1已完成。下一步只实施 Phase 2，不提前实现后续阶段。
 
-Phase 1 完成并验收后，在本文中将其状态改为 `已完成`，记录验收命令和结果，再开始 Phase 2。
+Phase 2 完成并验收后，在本文中将其状态改为 `已完成`，记录验收命令和结果，再开始 Phase 3。

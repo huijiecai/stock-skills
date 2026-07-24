@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
 from trading_engine.errors import AstockError
 from trading_engine.models import AstockHealth
@@ -63,6 +65,15 @@ class AstockClient:
                 f"astock exited with status {result.returncode}: {detail}"
             )
         return result.stdout
+
+    def run_json(self, *arguments: str) -> Any:
+        raw = self.run(*arguments, "--json")
+        try:
+            return json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise AstockError(
+                f"astock returned invalid JSON for: {' '.join(arguments)}"
+            ) from exc
 
 
 def _elapsed_ms(started: float) -> int:
