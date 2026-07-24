@@ -33,6 +33,18 @@
       "code": "001389",
       "action": "sell-all",
       "consumed_at": "2026-07-23 11:04"
+    },
+    {
+      "id": "出口B-20260724-01",
+      "direction": "创新药/医药",
+      "kind": "出口B",
+      "date": "20260724",
+      "fingerprint": "breadth-zero-relative-strength-lost-rebound-failed",
+      "fingerprint_hash": "227f69b34a",
+      "status": "consumed",
+      "code": "603127",
+      "action": "reduce-300",
+      "consumed_at": "2026-07-24 14:23"
     }
   ]
 }

@@ -36,6 +36,13 @@ for CODE in "${CODE_ARRAY[@]}"; do
     PRICE=$(echo "$JSON" | jq -r '.[0].price // 0' 2>/dev/null)
     PCT=$(echo "$JSON" | jq -r '.[0].change_pct // 0' 2>/dev/null)
 
+    # TDX returns zero prices before the call auction starts. Zero is missing
+    # market data, not a real -100% move and must not trigger a sell review.
+    if awk -v price="$PRICE" 'BEGIN { exit !(price <= 0) }'; then
+        printf "%-8s %10s %8s %6s\n" "$CODE" "无有效报价" "-" "-"
+        continue
+    fi
+
     # 判断是否 |涨跌幅| > 2%
     FLAG=$(awk -v pct="$PCT" 'BEGIN {
         if (pct > 2 || pct < -2) print "⚠️是"

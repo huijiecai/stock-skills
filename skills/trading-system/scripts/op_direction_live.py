@@ -54,7 +54,10 @@ def main() -> int:
     unknown = sorted(set(candidates) - set(codes))
     if unknown:
         raise SystemExit(f"candidate outside registered pool: {', '.join(unknown)}")
-    quotes = quote(codes)
+    raw_quotes = quote(codes)
+    # TDX emits placeholder rows with price=0 before a valid auction quote.
+    # Treat them as missing so they cannot become false -100% direction votes.
+    quotes = [item for item in raw_quotes if float(item.get("price") or 0) > 0]
     returned = {str(item.get("code")) for item in quotes}
     missing = [code for code in codes if code not in returned]
     output = {
