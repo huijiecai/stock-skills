@@ -1,0 +1,8 @@
+#!/bin/sh
+set -eu
+
+REPO_ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+UV_CACHE_DIR=${UV_CACHE_DIR:-"$REPO_ROOT/trading_engine/.uv-cache"}
+export UV_CACHE_DIR
+
+exec uv --project "$REPO_ROOT/trading_engine" run trader "$@"
