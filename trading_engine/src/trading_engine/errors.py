@@ -20,3 +20,7 @@ class StorageError(TradingEngineError):
 
 class LiveDataError(TradingEngineError):
     """Raised when a real-time market snapshot is missing or inconsistent."""
+
+
+class JudgmentError(TradingEngineError):
+    """Raised when a read-only judgment cannot be produced safely."""

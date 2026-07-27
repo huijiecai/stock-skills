@@ -1,0 +1,138 @@
+from __future__ import annotations
+
+from typing import Protocol
+
+from trading_engine.errors import JudgmentError
+from trading_engine.models import (
+    JudgmentContext,
+    JudgmentProposal,
+    JudgmentRecord,
+    JudgmentReport,
+    LiveSnapshotRecord,
+)
+from trading_engine.storage import ReplayStore
+
+
+class JudgmentProvider(Protocol):
+    name: str
+    model: str
+
+    def judge(self, context: JudgmentContext) -> JudgmentReport:
+        """Return a structured proposal without executing any action."""
+
+
+class ConservativeShadowProvider:
+    """Deterministic fallback until an external LLM adapter is configured."""
+
+    name = "shadow-rules"
+    model = "conservative-v1"
+
+    def judge(self, context: JudgmentContext) -> JudgmentReport:
+        proposals = []
+        for quote in context.quotes:
+            if abs(quote.change_pct) >= 5:
+                action = "RESEARCH"
+                confidence = 0.35
+                reason = (
+                    f"涨跌幅 {quote.change_pct:+.2f}% 达到观察阈值；仅凭价格不能确认"
+                    "预期、板块联动或资金撤退，需要补充证据。"
+                )
+                evidence = (f"price_change_pct={quote.change_pct:+.2f}",)
+            else:
+                action = "WAIT"
+                confidence = 0.2
+                reason = "当前快照没有足够的方向、催化和资金证据，保持只读观察。"
+                evidence = (f"price_change_pct={quote.change_pct:+.2f}",)
+            proposals.append(
+                JudgmentProposal(
+                    code=quote.code,
+                    action=action,
+                    confidence=confidence,
+                    reason=reason,
+                    evidence=evidence,
+                )
+            )
+
+        return JudgmentReport(
+            snapshot_id=context.snapshot_id,
+            as_of=context.as_of,
+            provider=self.name,
+            model=self.model,
+            proposals=tuple(proposals),
+            limitations=(
+                "本轮只消费实时价格快照，未读取板块、催化、持仓预期或账户风险数据。",
+                "BUY/SELL 必须等待后续证据节点和代码校验，本节点不会执行交易。",
+            ),
+        )
+
+
+class ReadOnlyAnalyzer:
+    def __init__(
+        self,
+        store: ReplayStore,
+        provider: JudgmentProvider | None = None,
+        max_attempts: int = 2,
+    ) -> None:
+        if max_attempts < 1:
+            raise JudgmentError("max_attempts must be at least 1")
+        self.store = store
+        self.provider = provider or ConservativeShadowProvider()
+        self.max_attempts = max_attempts
+
+    def analyze(self, snapshot_record: LiveSnapshotRecord) -> JudgmentRecord:
+        quotes = tuple(
+            snapshot_record.snapshot.payload.get("quotes", [])
+        )
+        try:
+            context = JudgmentContext(
+                snapshot_id=snapshot_record.id,
+                as_of=snapshot_record.snapshot.as_of,
+                source=snapshot_record.snapshot.source,
+                quotes=quotes,
+            )
+        except Exception as exc:
+            raise JudgmentError(f"invalid judgment input: {exc}") from exc
+
+        last_error: Exception | None = None
+        for attempt in range(1, self.max_attempts + 1):
+            try:
+                provider_output = self.provider.judge(context)
+                report = JudgmentReport.model_validate(
+                    provider_output.model_dump()
+                    if isinstance(provider_output, JudgmentReport)
+                    else provider_output
+                )
+                if report.snapshot_id != snapshot_record.id:
+                    raise JudgmentError("judgment output snapshot_id does not match input")
+                if report.provider != self.provider.name or report.model != self.provider.model:
+                    raise JudgmentError("judgment output provider metadata does not match")
+                if report.as_of != context.as_of:
+                    raise JudgmentError("judgment output timestamp does not match input")
+                input_codes = [quote.code for quote in context.quotes]
+                output_codes = [proposal.code for proposal in report.proposals]
+                if len(output_codes) != len(set(output_codes)):
+                    raise JudgmentError("judgment output contains duplicate stock codes")
+                if set(output_codes) != set(input_codes):
+                    raise JudgmentError(
+                        "judgment output stock codes do not match input snapshot"
+                    )
+                return self.store.record_judgment(
+                    snapshot_record.id,
+                    context,
+                    report,
+                    self.provider.name,
+                    self.provider.model,
+                    attempt,
+                )
+            except Exception as exc:
+                last_error = exc
+
+        message = str(last_error or "judgment provider failed")
+        return self.store.record_failed_judgment(
+            snapshot_record.id,
+            context,
+            self.provider.name,
+            self.provider.model,
+            self.max_attempts,
+            message,
+        )

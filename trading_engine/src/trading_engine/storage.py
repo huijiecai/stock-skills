@@ -8,7 +8,14 @@ from typing import Any, Iterable
 from uuid import uuid4
 
 from trading_engine.errors import StorageError
-from trading_engine.models import LiveSnapshotRecord, MarketSnapshot, ReplayRun
+from trading_engine.models import (
+    JudgmentContext,
+    JudgmentRecord,
+    JudgmentReport,
+    LiveSnapshotRecord,
+    MarketSnapshot,
+    ReplayRun,
+)
 
 
 class ReplayStore:
@@ -164,6 +171,118 @@ class ReplayStore:
             snapshot=MarketSnapshot.model_validate_json(row["snapshot_json"]),
         )
 
+    def record_judgment(
+        self,
+        snapshot_id: str,
+        context: JudgmentContext,
+        report: JudgmentReport,
+        provider: str,
+        model: str,
+        attempts: int,
+    ) -> JudgmentRecord:
+        judgment_id = uuid4().hex
+        created_at = datetime.now().astimezone()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO judgments (
+                    id, snapshot_id, provider, model, status, attempts,
+                    input_json, output_json, error, created_at
+                ) VALUES (?, ?, ?, ?, 'completed', ?, ?, ?, NULL, ?)
+                """,
+                (
+                    judgment_id,
+                    snapshot_id,
+                    provider,
+                    model,
+                    attempts,
+                    context.model_dump_json(),
+                    report.model_dump_json(),
+                    created_at.isoformat(),
+                ),
+            )
+        return JudgmentRecord(
+            id=judgment_id,
+            snapshot_id=snapshot_id,
+            provider=provider,
+            model=model,
+            status="completed",
+            attempts=attempts,
+            input_context=context,
+            report=report,
+            created_at=created_at,
+        )
+
+    def record_failed_judgment(
+        self,
+        snapshot_id: str,
+        context: JudgmentContext,
+        provider: str,
+        model: str,
+        attempts: int,
+        error: str,
+    ) -> JudgmentRecord:
+        judgment_id = uuid4().hex
+        created_at = datetime.now().astimezone()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO judgments (
+                    id, snapshot_id, provider, model, status, attempts,
+                    input_json, output_json, error, created_at
+                ) VALUES (?, ?, ?, ?, 'failed', ?, ?, NULL, ?, ?)
+                """,
+                (
+                    judgment_id,
+                    snapshot_id,
+                    provider,
+                    model,
+                    attempts,
+                    context.model_dump_json(),
+                    error,
+                    created_at.isoformat(),
+                ),
+            )
+        return JudgmentRecord(
+            id=judgment_id,
+            snapshot_id=snapshot_id,
+            provider=provider,
+            model=model,
+            status="failed",
+            attempts=attempts,
+            input_context=context,
+            error=error,
+            created_at=created_at,
+        )
+
+    def latest_judgment(self) -> JudgmentRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT * FROM judgments
+                ORDER BY created_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if row is None:
+            return None
+        return JudgmentRecord(
+            id=row["id"],
+            snapshot_id=row["snapshot_id"],
+            provider=row["provider"],
+            model=row["model"],
+            status=row["status"],
+            attempts=row["attempts"],
+            input_context=JudgmentContext.model_validate_json(row["input_json"]),
+            report=(
+                JudgmentReport.model_validate_json(row["output_json"])
+                if row["output_json"]
+                else None
+            ),
+            error=row["error"],
+            created_at=datetime.fromisoformat(row["created_at"]),
+        )
+
     def _initialize(self) -> None:
         with self._connect() as connection:
             existing_columns = {
@@ -202,6 +321,19 @@ class ReplayStore:
                     observed_at TEXT NOT NULL,
                     codes_json TEXT NOT NULL,
                     snapshot_json TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS judgments (
+                    id TEXT PRIMARY KEY,
+                    snapshot_id TEXT NOT NULL REFERENCES live_snapshots(id),
+                    provider TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (status IN ('completed', 'failed')),
+                    attempts INTEGER NOT NULL CHECK (attempts >= 1),
+                    input_json TEXT NOT NULL,
+                    output_json TEXT,
+                    error TEXT,
+                    created_at TEXT NOT NULL
                 );
                 """
             )

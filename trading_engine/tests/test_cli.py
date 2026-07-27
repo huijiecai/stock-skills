@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from trading_engine.cli import app
 from trading_engine.config import TraderSettings
 from trading_engine.models import MarketSnapshot, ReplayRun
+from trading_engine.storage import ReplayStore
 
 
 runner = CliRunner()
@@ -143,3 +144,49 @@ def test_watch_prints_readable_shadow_snapshot(tmp_path: Path, monkeypatch) -> N
     assert "模式：只读影子，不执行交易" in result.stdout
     assert "603127" in result.stdout
     assert "49.79" in result.stdout
+
+
+def test_analyze_latest_prints_read_only_proposals(tmp_path: Path, monkeypatch) -> None:
+    observed_at = datetime(
+        2026, 7, 27, 11, 30, tzinfo=ZoneInfo("Asia/Shanghai")
+    )
+    settings = TraderSettings(
+        repo_root=tmp_path,
+        astock_binary=tmp_path / "astock",
+        data_dir=tmp_path / "data",
+    )
+    store = ReplayStore(settings.data_dir / "trader.db")
+    store.record_live_snapshot(
+        MarketSnapshot(
+            as_of=observed_at,
+            source="astock-live",
+            payload={
+                "mode": "shadow",
+                "quotes": [
+                    {
+                        "code": "603127",
+                        "price": 49.79,
+                        "pre_close": 45.26,
+                        "change_pct": 10.0088,
+                        "volume": 1,
+                        "amount": 1,
+                        "open": 45.26,
+                        "high": 49.79,
+                        "low": 45.26,
+                    }
+                ],
+            },
+        )
+    )
+    monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
+
+    result = runner.invoke(app, ["analyze", "latest"])
+
+    assert result.exit_code == 0
+    assert "只读提案，不执行交易" in result.stdout
+    assert "603127" in result.stdout
+    assert "RESEARCH" in result.stdout
+
+    show_result = runner.invoke(app, ["analyze", "show", "--json"])
+    assert show_result.exit_code == 0
+    assert json.loads(show_result.stdout)["snapshot_id"] == store.latest_live_snapshot().id

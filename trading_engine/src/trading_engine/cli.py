@@ -6,11 +6,12 @@ from datetime import date, datetime
 import typer
 
 from trading_engine import __version__
+from trading_engine.analysis import ReadOnlyAnalyzer
 from trading_engine.astock import AstockClient
 from trading_engine.config import TraderSettings
 from trading_engine.errors import ReplayError, TradingEngineError
 from trading_engine.live import LiveMarketData
-from trading_engine.models import LiveQuote, LiveSnapshotRecord
+from trading_engine.models import JudgmentRecord, LiveQuote, LiveSnapshotRecord
 from trading_engine.replay import (
     ReplayEngine,
     ReplayMarketData,
@@ -21,7 +22,7 @@ from trading_engine.storage import ReplayStore
 
 app = typer.Typer(
     name="trader",
-    help="Replay-first AI trading engine.",
+    help="Real-time-first AI trading engine with deterministic replay.",
     no_args_is_help=True,
     invoke_without_command=True,
 )
@@ -35,10 +36,14 @@ watch_app = typer.Typer(
     help="Capture validated real-time market snapshots in shadow mode.",
     invoke_without_command=True,
 )
+analyze_app = typer.Typer(
+    help="Generate auditable read-only judgments from persisted snapshots."
+)
 app.add_typer(config_app, name="config")
 app.add_typer(astock_app, name="astock")
 app.add_typer(replay_app, name="replay")
 app.add_typer(watch_app, name="watch")
+app.add_typer(analyze_app, name="analyze")
 
 
 @app.callback()
@@ -207,6 +212,64 @@ def watch_latest(
     _print_live_snapshot(record, json_output)
 
 
+@analyze_app.command("latest")
+def analyze_latest(
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the persisted judgment as JSON.",
+    ),
+    attempts: int = typer.Option(
+        2,
+        "--attempts",
+        min=1,
+        max=5,
+        help="Maximum provider attempts before recording a failure.",
+    ),
+) -> None:
+    """Analyze the latest real-time snapshot without executing trades."""
+    try:
+        settings = TraderSettings.load()
+        store = ReplayStore(settings.data_dir / "trader.db")
+        snapshot = store.latest_live_snapshot()
+        if snapshot is None:
+            raise TradingEngineError(
+                "no live shadow snapshot exists; run `trader watch --code ...` first"
+            )
+        record = ReadOnlyAnalyzer(store, max_attempts=attempts).analyze(snapshot)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_judgment(record, json_output)
+    if record.status == "failed":
+        raise typer.Exit(code=1)
+
+
+@analyze_app.command("show")
+def analyze_show(
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the latest persisted judgment as JSON.",
+    ),
+) -> None:
+    """Show the latest persisted judgment without running the provider."""
+    try:
+        settings = TraderSettings.load()
+        record = ReplayStore(
+            settings.data_dir / "trader.db"
+        ).latest_judgment()
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if record is None:
+        typer.echo("no read-only judgment exists", err=True)
+        raise typer.Exit(code=1)
+    _print_judgment(record, json_output)
+    if record.status == "failed":
+        raise typer.Exit(code=1)
+
+
 def _replay_engine() -> ReplayEngine:
     settings = TraderSettings.load()
     client = AstockClient(settings.astock_binary)
@@ -258,3 +321,33 @@ def _print_live_snapshot(
             f"{quote.code:<8} {quote.price:>10.2f} {quote.pre_close:>10.2f} "
             f"{quote.change_pct:>+8.2f}% {quote.amount / 1e8:>12.2f}"
         )
+
+
+def _print_judgment(record: JudgmentRecord, json_output: bool) -> None:
+    if json_output:
+        typer.echo(record.model_dump_json(indent=2))
+        return
+    typer.echo(
+        f"只读AI判断 {record.created_at.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"id={record.id} snapshot={record.snapshot_id}"
+    )
+    typer.echo(
+        f"状态：{record.status}  provider={record.provider} "
+        f"model={record.model} attempts={record.attempts}"
+    )
+    if record.status == "failed":
+        typer.echo(f"错误：{record.error}")
+        return
+    typer.echo("模式：只读提案，不执行交易")
+    typer.echo("")
+    typer.echo(f"{'代码':<8} {'动作':<10} {'置信度':>8}  理由")
+    assert record.report is not None
+    for proposal in record.report.proposals:
+        typer.echo(
+            f"{proposal.code:<8} {proposal.action:<10} "
+            f"{proposal.confidence:>7.0%}  {proposal.reason}"
+        )
+    typer.echo("")
+    typer.echo("限制：")
+    for limitation in record.report.limitations:
+        typer.echo(f"- {limitation}")

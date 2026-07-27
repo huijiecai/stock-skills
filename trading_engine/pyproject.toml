@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "stock-trading-engine"
 version = "0.1.0"
-description = "Replay-first AI trading engine for the stock workspace"
+description = "Real-time-first AI trading engine with deterministic replay"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.11,<3",

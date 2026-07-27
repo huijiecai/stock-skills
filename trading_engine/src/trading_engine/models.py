@@ -86,3 +86,49 @@ class LiveSnapshotRecord(BaseModel):
 
     id: str
     snapshot: MarketSnapshot
+
+
+class JudgmentContext(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    snapshot_id: str
+    as_of: datetime
+    source: str
+    quotes: tuple[LiveQuote, ...] = Field(min_length=1)
+    policy: str = "read-only-shadow-v1"
+
+
+class JudgmentProposal(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    code: str = Field(pattern=r"^\d{6}$")
+    action: Literal["WAIT", "RESEARCH", "BUY", "SELL"]
+    confidence: float = Field(ge=0, le=1)
+    reason: str = Field(min_length=1)
+    evidence: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class JudgmentReport(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    snapshot_id: str
+    as_of: datetime
+    provider: str
+    model: str
+    proposals: tuple[JudgmentProposal, ...] = Field(min_length=1)
+    limitations: tuple[str, ...] = Field(default_factory=tuple)
+
+
+class JudgmentRecord(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    snapshot_id: str
+    provider: str
+    model: str
+    status: Literal["completed", "failed"]
+    attempts: int = Field(ge=1)
+    input_context: JudgmentContext
+    report: JudgmentReport | None = None
+    error: str | None = None
+    created_at: datetime
