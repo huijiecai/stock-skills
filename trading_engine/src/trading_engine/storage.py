@@ -311,22 +311,16 @@ class ReplayStore:
             ).fetchone()
         if row is None:
             return None
-        return JudgmentRecord(
-            id=row["id"],
-            snapshot_id=row["snapshot_id"],
-            provider=row["provider"],
-            model=row["model"],
-            status=row["status"],
-            attempts=row["attempts"],
-            input_context=JudgmentContext.model_validate_json(row["input_json"]),
-            report=(
-                JudgmentReport.model_validate_json(row["output_json"])
-                if row["output_json"]
-                else None
-            ),
-            error=row["error"],
-            created_at=datetime.fromisoformat(row["created_at"]),
-        )
+        return _judgment_from_row(row)
+
+    def get_judgment(self, judgment_id: str) -> JudgmentRecord:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM judgments WHERE id = ?", (judgment_id,)
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"judgment does not exist: {judgment_id}")
+        return _judgment_from_row(row)
 
     def create_account(
         self,
@@ -1080,6 +1074,25 @@ def _run_from_row(row: sqlite3.Row) -> ReplayRun:
         status=row["status"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _judgment_from_row(row: sqlite3.Row) -> JudgmentRecord:
+    return JudgmentRecord(
+        id=row["id"],
+        snapshot_id=row["snapshot_id"],
+        provider=row["provider"],
+        model=row["model"],
+        status=row["status"],
+        attempts=row["attempts"],
+        input_context=JudgmentContext.model_validate_json(row["input_json"]),
+        report=(
+            JudgmentReport.model_validate_json(row["output_json"])
+            if row["output_json"]
+            else None
+        ),
+        error=row["error"],
+        created_at=datetime.fromisoformat(row["created_at"]),
     )
 
 

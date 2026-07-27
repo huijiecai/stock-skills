@@ -107,9 +107,18 @@ class JudgmentProposal(BaseModel):
 
     code: str = Field(pattern=r"^\d{6}$")
     action: Literal["WAIT", "RESEARCH", "BUY", "SELL"]
+    quantity: int | None = Field(default=None, gt=0)
     confidence: float = Field(ge=0, le=1)
     reason: str = Field(min_length=1)
     evidence: tuple[str, ...] = Field(default_factory=tuple)
+
+    @model_validator(mode="after")
+    def validate_trade_quantity(self) -> "JudgmentProposal":
+        if self.action in {"BUY", "SELL"} and self.quantity is None:
+            raise ValueError("BUY/SELL proposals require quantity")
+        if self.action in {"WAIT", "RESEARCH"} and self.quantity is not None:
+            raise ValueError("WAIT/RESEARCH proposals cannot include quantity")
+        return self
 
 
 class JudgmentReport(BaseModel):

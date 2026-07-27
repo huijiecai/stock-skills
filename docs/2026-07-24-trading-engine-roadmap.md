@@ -286,6 +286,24 @@ Phase 3尚未完成。剩余工作：
 
 ## 八、Phase 4：模拟交易闭环
 
+### Phase 4进度：已完成
+
+完成日期：2026-07-27
+
+- `JudgmentProposal`新增可选交易数量，`BUY/SELL`必须提供正整数数量，`WAIT/RESEARCH`禁止携带数量。
+- 新增`PaperBroker`，只消费已持久化、通过校验且带完整`DecisionContext`的判断；不能通过CLI直接伪造订单。
+- 默认执行账户为独立的`paper`账户，判断上下文和执行账户必须一致，不会修改用于真实看盘参照的`default`账户。
+- SQLite新增模拟执行批次、订单、逐条规则检查、成交和决策事件表；每笔成交均关联判断、上下文和行情快照。
+- 同一判断批次的事件、订单、成交、现金和持仓更新使用一个`BEGIN IMMEDIATE`事务，故障时整体回滚。
+- `(账户, 判断)`和`(账户, 判断, 提案序号)`均有唯一约束；中断后重复执行会恢复原执行结果，不会重复成交。
+- 硬规则覆盖重复信号、主板买入范围、100股买入单位、冷静期、固定池可交易标记、现金、单股仓位、总仓位、命名风险敞口、持仓存在性和T+1可卖数量。
+- 新增`trader paper settle`显式执行交易日T+1结算；卖出仅允许使用已结算的`sellable_quantity`。
+- 新增`trader paper execute/orders/fills/events/audit/report`命令。
+- 订单审计独立核对规则、订单与成交，账户审计核对现金链、持仓数量链及当前SQLite状态，能发现成交后的人工篡改。
+- 从SQLite原子生成`trading_engine/data/reports/<account>/state.md`、`trades.md`和每日影子报告，不读取或修改旧Skill报告。
+- 使用本地确定性测试provider完成买入、同日卖出拒绝、隔日结算卖出、无交易提案、硬规则拒绝、幂等恢复、故障回滚、审计和报告闭环。
+- 61个`trading_engine`测试和4个旧回放信号测试全部通过。
+
 ### 范围
 
 - 实现Paper Broker。
@@ -363,6 +381,6 @@ Phase 3尚未完成。剩余工作：
 
 ## 十二、当前下一步
 
-Phase 0、Phase 1和Phase 2已完成；Phase 3除外部LLM provider外均已完成并通过自动化与手工验收。按当前计划停在这里，不提前实现Phase 4模拟执行。
+Phase 0、Phase 1、Phase 2和Phase 4已完成；Phase 3除外部LLM provider外均已完成并通过自动化与隔离验收。当前交付目标内只剩单个外部LLM provider。
 
-下一步仅接入单个外部LLM provider。接入并验收后，将Phase 3状态改为`已完成`，再开始Phase 4。
+下一步先复盘当前整体状态，再决定外部LLM provider的供应商、模型、凭证和失败策略。Phase 5完整研究工作流与Phase 6实时连续执行仍属于后续路线图，不在本轮“Phase 4 + LLM”的完成边界内。

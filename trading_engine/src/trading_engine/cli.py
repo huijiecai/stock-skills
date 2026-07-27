@@ -25,6 +25,7 @@ from trading_engine.models import (
     WatchPoolMember,
     WatchPoolState,
 )
+from trading_engine.paper_cli import paper_app
 from trading_engine.replay import (
     ReplayEngine,
     ReplayMarketData,
@@ -69,6 +70,7 @@ app.add_typer(pool_app, name="pool")
 app.add_typer(risk_app, name="risk")
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(context_app, name="context")
+app.add_typer(paper_app, name="paper")
 
 
 @app.callback()

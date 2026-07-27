@@ -171,6 +171,15 @@ class ContextStore:
             ).fetchone()
         return _context_record_from_row(row) if row is not None else None
 
+    def get_context(self, context_id: str) -> DecisionContextRecord:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM context_snapshots WHERE id = ?", (context_id,)
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"decision context does not exist: {context_id}")
+        return _context_record_from_row(row)
+
     def _initialize(self) -> None:
         with self._connect() as connection:
             connection.executescript(

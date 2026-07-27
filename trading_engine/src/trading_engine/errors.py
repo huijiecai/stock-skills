@@ -32,3 +32,7 @@ class PortfolioError(TradingEngineError):
 
 class ContextError(TradingEngineError):
     """Raised when an auditable decision context cannot be built safely."""
+
+
+class PaperTradingError(TradingEngineError):
+    """Raised when a simulated execution cannot be completed safely."""
