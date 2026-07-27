@@ -16,3 +16,7 @@ class ReplayError(TradingEngineError):
 
 class StorageError(TradingEngineError):
     """Raised when persisted engine state is missing or inconsistent."""
+
+
+class LiveDataError(TradingEngineError):
+    """Raised when a real-time market snapshot is missing or inconsistent."""

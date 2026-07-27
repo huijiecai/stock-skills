@@ -6,7 +6,8 @@ from zoneinfo import ZoneInfo
 from typer.testing import CliRunner
 
 from trading_engine.cli import app
-from trading_engine.models import ReplayRun
+from trading_engine.config import TraderSettings
+from trading_engine.models import MarketSnapshot, ReplayRun
 
 
 runner = CliRunner()
@@ -14,7 +15,7 @@ runner = CliRunner()
 
 def _workspace(tmp_path: Path) -> tuple[Path, Path]:
     (tmp_path / "skills").mkdir()
-    binary = tmp_path / "astock" / "build" / "astock"
+    binary = tmp_path / "astock" / "astock"
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\necho 'astock version test'\n", encoding="utf-8")
     binary.chmod(0o755)
@@ -94,3 +95,51 @@ def test_replay_command_parses_date_codes_and_until(monkeypatch) -> None:
     assert result.exit_code == 0
     assert calls == [(date(2026, 7, 23), ("603127",), time(10, 30))]
     assert json.loads(result.stdout)["status"] == "paused"
+
+
+def test_watch_prints_readable_shadow_snapshot(tmp_path: Path, monkeypatch) -> None:
+    observed_at = datetime(
+        2026, 7, 27, 11, 30, tzinfo=ZoneInfo("Asia/Shanghai")
+    )
+    snapshot = MarketSnapshot(
+        as_of=observed_at,
+        source="astock-live",
+        payload={
+            "mode": "shadow",
+            "quotes": [
+                {
+                    "code": "603127",
+                    "price": 49.79,
+                    "pre_close": 45.26,
+                    "change_pct": 10.0088,
+                    "volume": 493871,
+                    "amount": 2389605632,
+                    "open": 44.4,
+                    "high": 49.79,
+                    "low": 44.4,
+                }
+            ],
+        },
+    )
+    settings = TraderSettings(
+        repo_root=tmp_path,
+        astock_binary=tmp_path / "astock",
+        data_dir=tmp_path / "data",
+    )
+
+    class StubLiveMarketData:
+        def __init__(self, _client, codes) -> None:
+            assert codes == ("603127",)
+
+        def snapshot(self):
+            return snapshot
+
+    monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
+    monkeypatch.setattr("trading_engine.cli.LiveMarketData", StubLiveMarketData)
+
+    result = runner.invoke(app, ["watch", "--code", "603127"])
+
+    assert result.exit_code == 0
+    assert "模式：只读影子，不执行交易" in result.stdout
+    assert "603127" in result.stdout
+    assert "49.79" in result.stdout

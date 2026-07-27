@@ -8,7 +8,7 @@ from typing import Any, Iterable
 from uuid import uuid4
 
 from trading_engine.errors import StorageError
-from trading_engine.models import ReplayRun
+from trading_engine.models import LiveSnapshotRecord, MarketSnapshot, ReplayRun
 
 
 class ReplayStore:
@@ -128,6 +128,42 @@ class ReplayStore:
             ).fetchone()
         return int(row["count"])
 
+    def record_live_snapshot(self, snapshot: MarketSnapshot) -> LiveSnapshotRecord:
+        snapshot_id = uuid4().hex
+        codes = [row["code"] for row in snapshot.payload.get("quotes", [])]
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO live_snapshots (
+                    id, observed_at, codes_json, snapshot_json
+                ) VALUES (?, ?, ?, ?)
+                """,
+                (
+                    snapshot_id,
+                    snapshot.as_of.isoformat(),
+                    json.dumps(codes),
+                    snapshot.model_dump_json(),
+                ),
+            )
+        return LiveSnapshotRecord(id=snapshot_id, snapshot=snapshot)
+
+    def latest_live_snapshot(self) -> LiveSnapshotRecord | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, snapshot_json
+                FROM live_snapshots
+                ORDER BY observed_at DESC
+                LIMIT 1
+                """
+            ).fetchone()
+        if row is None:
+            return None
+        return LiveSnapshotRecord(
+            id=row["id"],
+            snapshot=MarketSnapshot.model_validate_json(row["snapshot_json"]),
+        )
+
     def _initialize(self) -> None:
         with self._connect() as connection:
             existing_columns = {
@@ -159,6 +195,13 @@ class ReplayStore:
                     state_json TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     UNIQUE (run_id, replay_time)
+                );
+
+                CREATE TABLE IF NOT EXISTS live_snapshots (
+                    id TEXT PRIMARY KEY,
+                    observed_at TEXT NOT NULL,
+                    codes_json TEXT NOT NULL,
+                    snapshot_json TEXT NOT NULL
                 );
                 """
             )

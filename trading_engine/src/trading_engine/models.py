@@ -65,3 +65,24 @@ class ReplayRun(BaseModel):
     status: Literal["running", "paused", "completed", "failed"]
     created_at: datetime
     updated_at: datetime
+
+
+class LiveQuote(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    code: str
+    price: float = Field(gt=0)
+    pre_close: float = Field(gt=0)
+    change_pct: float
+    volume: int = Field(ge=0)
+    amount: float = Field(ge=0)
+    open: float = Field(ge=0)
+    high: float = Field(ge=0)
+    low: float = Field(ge=0)
+
+
+class LiveSnapshotRecord(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    id: str
+    snapshot: MarketSnapshot

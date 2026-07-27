@@ -11,7 +11,7 @@ from trading_engine.models import AstockHealth
 
 
 class AstockClient:
-    def __init__(self, binary: Path, timeout_seconds: float = 10.0) -> None:
+    def __init__(self, binary: Path, timeout_seconds: float = 20.0) -> None:
         self.binary = binary
         self.timeout_seconds = timeout_seconds
 

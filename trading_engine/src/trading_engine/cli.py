@@ -9,6 +9,8 @@ from trading_engine import __version__
 from trading_engine.astock import AstockClient
 from trading_engine.config import TraderSettings
 from trading_engine.errors import ReplayError, TradingEngineError
+from trading_engine.live import LiveMarketData
+from trading_engine.models import LiveQuote, LiveSnapshotRecord
 from trading_engine.replay import (
     ReplayEngine,
     ReplayMarketData,
@@ -29,9 +31,14 @@ replay_app = typer.Typer(
     help="Run deterministic historical market replay.",
     invoke_without_command=True,
 )
+watch_app = typer.Typer(
+    help="Capture validated real-time market snapshots in shadow mode.",
+    invoke_without_command=True,
+)
 app.add_typer(config_app, name="config")
 app.add_typer(astock_app, name="astock")
 app.add_typer(replay_app, name="replay")
+app.add_typer(watch_app, name="watch")
 
 
 @app.callback()
@@ -150,6 +157,56 @@ def replay_status() -> None:
     typer.echo(run.model_dump_json(indent=2))
 
 
+@watch_app.callback()
+def watch_snapshot(
+    context: typer.Context,
+    codes: list[str] | None = typer.Option(
+        None,
+        "--code",
+        help="Stock code to observe; repeat for multiple stocks.",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the persisted snapshot as JSON.",
+    ),
+) -> None:
+    if context.invoked_subcommand is not None:
+        return
+    try:
+        normalized_codes = _normalize_codes(codes or [])
+        settings = TraderSettings.load()
+        snapshot = LiveMarketData(
+            AstockClient(settings.astock_binary), normalized_codes
+        ).snapshot()
+        record = ReplayStore(
+            settings.data_dir / "trader.db"
+        ).record_live_snapshot(snapshot)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_live_snapshot(record, json_output)
+
+
+@watch_app.command("latest")
+def watch_latest(
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        help="Print the persisted snapshot as JSON.",
+    ),
+) -> None:
+    """Show the latest persisted real-time shadow snapshot."""
+    settings = TraderSettings.load()
+    record = ReplayStore(
+        settings.data_dir / "trader.db"
+    ).latest_live_snapshot()
+    if record is None:
+        typer.echo("no live shadow snapshot exists", err=True)
+        raise typer.Exit(code=1)
+    _print_live_snapshot(record, json_output)
+
+
 def _replay_engine() -> ReplayEngine:
     settings = TraderSettings.load()
     client = AstockClient(settings.astock_binary)
@@ -175,3 +232,29 @@ def _normalize_codes(values: list[str]) -> tuple[str, ...]:
     if invalid:
         raise ReplayError(f"invalid stock code: {', '.join(invalid)}")
     return normalized
+
+
+def _print_live_snapshot(
+    record: LiveSnapshotRecord, json_output: bool
+) -> None:
+    if json_output:
+        typer.echo(record.model_dump_json(indent=2))
+        return
+
+    snapshot = record.snapshot
+    typer.echo(
+        f"实时影子快照 {snapshot.as_of.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"id={record.id}"
+    )
+    typer.echo("模式：只读影子，不执行交易")
+    typer.echo("")
+    typer.echo(
+        f"{'代码':<8} {'现价':>10} {'昨收':>10} "
+        f"{'涨跌%':>9} {'成交额(亿)':>12}"
+    )
+    for raw_quote in snapshot.payload["quotes"]:
+        quote = LiveQuote.model_validate(raw_quote)
+        typer.echo(
+            f"{quote.code:<8} {quote.price:>10.2f} {quote.pre_close:>10.2f} "
+            f"{quote.change_pct:>+8.2f}% {quote.amount / 1e8:>12.2f}"
+        )

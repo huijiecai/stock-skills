@@ -25,11 +25,10 @@ class TraderSettings(BaseModel):
         )
 
         astock_value = os.environ.get("TRADER_ASTOCK_BINARY")
-        astock_binary = (
-            Path(astock_value).expanduser().resolve()
-            if astock_value
-            else repo_root / "astock" / "build" / "astock"
-        )
+        if astock_value:
+            astock_binary = Path(astock_value).expanduser().resolve()
+        else:
+            astock_binary = repo_root / "astock" / "astock"
 
         data_dir_value = os.environ.get("TRADER_DATA_DIR")
         data_dir = (
