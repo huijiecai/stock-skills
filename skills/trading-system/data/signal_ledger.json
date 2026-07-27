@@ -45,6 +45,30 @@
       "code": "603127",
       "action": "reduce-300",
       "consumed_at": "2026-07-24 14:23"
+    },
+    {
+      "id": "BUY-20260727-01",
+      "direction": "兵装集团重组",
+      "kind": "BUY",
+      "date": "20260727",
+      "fingerprint": "csgc-pool-4of6-greatwall-tradable-disagreement-relead",
+      "fingerprint_hash": "ab08382c82",
+      "status": "consumed",
+      "code": "601606",
+      "action": "BUY",
+      "consumed_at": "2026-07-27 09:46"
+    },
+    {
+      "id": "BUY-20260727-02",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "BUY",
+      "date": "20260727",
+      "fingerprint": "full-pool-5of5-fenghua-intraday-disagreement-reconfirm",
+      "fingerprint_hash": "fa714cebbb",
+      "status": "consumed",
+      "code": "000636",
+      "action": "BUY",
+      "consumed_at": "2026-07-27 09:56"
     }
   ]
 }
