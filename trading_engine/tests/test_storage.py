@@ -117,3 +117,75 @@ def test_account_and_position_validation_fails_closed(tmp_path: Path) -> None:
             Decimal("55.68"),
             date(2026, 7, 16),
         )
+
+
+def test_independent_research_context_round_trip(tmp_path: Path) -> None:
+    store = ReplayStore(tmp_path / "trader.db")
+    store.create_account("default", Decimal("100000"))
+    store.upsert_position(
+        "default",
+        "603127",
+        "昭衍新药",
+        300,
+        300,
+        Decimal("55.68"),
+        date(2026, 7, 16),
+    )
+
+    thesis = store.upsert_thesis(
+        "innovation_medicine",
+        "创新药",
+        "active",
+        "海外授权与研发需求改善",
+        "订单和板块表现完成定价",
+        "需求被否定且直接受益池持续转弱",
+    )
+    thesis_link = store.link_position_thesis(
+        "default", "603127", "innovation_medicine"
+    )
+    pool = store.upsert_watch_pool(
+        "innovation_pool", "创新药直接受益池", thesis.key
+    )
+    direct = store.set_watch_pool_member(
+        pool.key, "603127", "direct", True
+    )
+    research = store.set_watch_pool_member(
+        pool.key, "300255", "research", False
+    )
+    factor = store.upsert_risk_factor(
+        "growth", "成长风格", Decimal("60.00")
+    )
+    risk_link = store.link_position_risk_factor(
+        "default", "603127", factor.key
+    )
+
+    assert thesis_link.thesis_id == thesis.id
+    assert store.list_position_theses("default", "603127") == (thesis_link,)
+    assert store.get_watch_pool(pool.key).thesis_id == thesis.id
+    assert store.list_watch_pool_members(pool.key) == (research, direct)
+    assert factor.max_exposure_pct == Decimal("60")
+    assert store.list_position_risk_factors("default", "603127") == (risk_link,)
+
+
+def test_research_context_relationships_fail_closed(tmp_path: Path) -> None:
+    store = ReplayStore(tmp_path / "trader.db")
+    store.upsert_thesis(
+        "innovation_medicine",
+        "创新药",
+        "active",
+        "summary",
+        "realization",
+        "invalidation",
+    )
+    store.upsert_watch_pool("innovation_pool", "创新药池")
+
+    with pytest.raises(StorageError, match="position does not exist"):
+        store.link_position_thesis(
+            "default", "603127", "innovation_medicine"
+        )
+    with pytest.raises(StorageError, match="cannot be tradable"):
+        store.set_watch_pool_member(
+            "innovation_pool", "300255", "research", True
+        )
+    with pytest.raises(StorageError, match="between 0 and 100"):
+        store.upsert_risk_factor("growth", "成长风格", Decimal("100.01"))

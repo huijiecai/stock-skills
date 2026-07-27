@@ -17,8 +17,25 @@ from trading_engine.models import (
     LiveSnapshotRecord,
     MarketSnapshot,
     PositionState,
+    PositionRiskLink,
+    PositionThesisLink,
     ReplayRun,
+    RiskFactorState,
+    ThesisState,
+    WatchPoolMember,
+    WatchPoolState,
 )
+
+
+THESIS_STATUSES = {
+    "draft",
+    "active",
+    "watch",
+    "realized",
+    "invalidated",
+    "archived",
+}
+POOL_MEMBER_ROLES = {"direct", "research"}
 
 
 class ReplayStore:
@@ -450,6 +467,418 @@ class ReplayStore:
             ).fetchall()
         return tuple(_position_from_row(row) for row in rows)
 
+    def upsert_thesis(
+        self,
+        key: str,
+        title: str,
+        status: str,
+        summary: str,
+        realization_condition: str,
+        invalidation_condition: str,
+    ) -> ThesisState:
+        normalized_key = _normalize_key(key)
+        if status not in THESIS_STATUSES:
+            raise StorageError(f"invalid thesis status: {status}")
+        values = {
+            "title": title.strip(),
+            "summary": summary.strip(),
+            "realization_condition": realization_condition.strip(),
+            "invalidation_condition": invalidation_condition.strip(),
+        }
+        empty_fields = [name for name, value in values.items() if not value]
+        if empty_fields:
+            raise StorageError(
+                f"thesis fields cannot be empty: {', '.join(empty_fields)}"
+            )
+        thesis_id = uuid4().hex
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO theses (
+                    id, key, title, status, summary, realization_condition,
+                    invalidation_condition, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    title = excluded.title,
+                    status = excluded.status,
+                    summary = excluded.summary,
+                    realization_condition = excluded.realization_condition,
+                    invalidation_condition = excluded.invalidation_condition,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    thesis_id,
+                    normalized_key,
+                    values["title"],
+                    status,
+                    values["summary"],
+                    values["realization_condition"],
+                    values["invalidation_condition"],
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+        return self.get_thesis(normalized_key)
+
+    def get_thesis(self, key: str) -> ThesisState:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM theses WHERE key = ?", (_normalize_key(key),)
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"thesis does not exist: {key.strip()}")
+        return _thesis_from_row(row)
+
+    def list_theses(self) -> tuple[ThesisState, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM theses ORDER BY key"
+            ).fetchall()
+        return tuple(_thesis_from_row(row) for row in rows)
+
+    def link_position_thesis(
+        self, account_name: str, code: str, thesis_key: str
+    ) -> PositionThesisLink:
+        normalized_code = _validate_code(code)
+        normalized_key = _normalize_key(thesis_key)
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            position = connection.execute(
+                """
+                SELECT positions.account_id
+                FROM positions
+                JOIN accounts ON accounts.id = positions.account_id
+                WHERE accounts.name = ? AND positions.code = ?
+                """,
+                (account_name.strip(), normalized_code),
+            ).fetchone()
+            if position is None:
+                raise StorageError(
+                    f"position does not exist: {account_name.strip()}/{normalized_code}"
+                )
+            thesis = connection.execute(
+                "SELECT id FROM theses WHERE key = ?", (normalized_key,)
+            ).fetchone()
+            if thesis is None:
+                raise StorageError(f"thesis does not exist: {normalized_key}")
+            connection.execute(
+                """
+                INSERT INTO position_theses (
+                    account_id, code, thesis_id, created_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(account_id, code, thesis_id) DO NOTHING
+                """,
+                (
+                    position["account_id"],
+                    normalized_code,
+                    thesis["id"],
+                    now.isoformat(),
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT position_theses.*, theses.key AS thesis_key
+                FROM position_theses
+                JOIN theses ON theses.id = position_theses.thesis_id
+                WHERE position_theses.account_id = ?
+                  AND position_theses.code = ?
+                  AND position_theses.thesis_id = ?
+                """,
+                (position["account_id"], normalized_code, thesis["id"]),
+            ).fetchone()
+        return _position_thesis_link_from_row(row)
+
+    def list_position_theses(
+        self, account_name: str, code: str
+    ) -> tuple[PositionThesisLink, ...]:
+        account = self.get_account(account_name)
+        normalized_code = _validate_code(code)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT position_theses.*, theses.key AS thesis_key
+                FROM position_theses
+                JOIN theses ON theses.id = position_theses.thesis_id
+                WHERE position_theses.account_id = ?
+                  AND position_theses.code = ?
+                ORDER BY theses.key
+                """,
+                (account.id, normalized_code),
+            ).fetchall()
+        return tuple(_position_thesis_link_from_row(row) for row in rows)
+
+    def upsert_watch_pool(
+        self,
+        key: str,
+        name: str,
+        thesis_key: str | None = None,
+        active: bool = True,
+    ) -> WatchPoolState:
+        normalized_key = _normalize_key(key)
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise StorageError("watch pool name cannot be empty")
+        pool_id = uuid4().hex
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            thesis_id = None
+            if thesis_key is not None:
+                thesis = connection.execute(
+                    "SELECT id FROM theses WHERE key = ?",
+                    (_normalize_key(thesis_key),),
+                ).fetchone()
+                if thesis is None:
+                    raise StorageError(f"thesis does not exist: {thesis_key.strip()}")
+                thesis_id = thesis["id"]
+            connection.execute(
+                """
+                INSERT INTO watch_pools (
+                    id, key, name, thesis_id, active, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    name = excluded.name,
+                    thesis_id = excluded.thesis_id,
+                    active = excluded.active,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    pool_id,
+                    normalized_key,
+                    normalized_name,
+                    thesis_id,
+                    int(active),
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+        return self.get_watch_pool(normalized_key)
+
+    def get_watch_pool(self, key: str) -> WatchPoolState:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT watch_pools.*, theses.key AS thesis_key
+                FROM watch_pools
+                LEFT JOIN theses ON theses.id = watch_pools.thesis_id
+                WHERE watch_pools.key = ?
+                """,
+                (_normalize_key(key),),
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"watch pool does not exist: {key.strip()}")
+        return _watch_pool_from_row(row)
+
+    def list_watch_pools(self) -> tuple[WatchPoolState, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT watch_pools.*, theses.key AS thesis_key
+                FROM watch_pools
+                LEFT JOIN theses ON theses.id = watch_pools.thesis_id
+                ORDER BY watch_pools.key
+                """
+            ).fetchall()
+        return tuple(_watch_pool_from_row(row) for row in rows)
+
+    def set_watch_pool_member(
+        self,
+        pool_key: str,
+        code: str,
+        role: str,
+        tradable: bool,
+    ) -> WatchPoolMember:
+        normalized_key = _normalize_key(pool_key)
+        normalized_code = _validate_code(code)
+        if role not in POOL_MEMBER_ROLES:
+            raise StorageError(f"invalid pool member role: {role}")
+        if role == "research" and tradable:
+            raise StorageError("research pool members cannot be tradable")
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            pool = connection.execute(
+                "SELECT id FROM watch_pools WHERE key = ?", (normalized_key,)
+            ).fetchone()
+            if pool is None:
+                raise StorageError(f"watch pool does not exist: {normalized_key}")
+            connection.execute(
+                """
+                INSERT INTO watch_pool_members (
+                    pool_id, code, role, tradable, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(pool_id, code) DO UPDATE SET
+                    role = excluded.role,
+                    tradable = excluded.tradable,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    pool["id"],
+                    normalized_code,
+                    role,
+                    int(tradable),
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT watch_pool_members.*, watch_pools.key AS pool_key
+                FROM watch_pool_members
+                JOIN watch_pools ON watch_pools.id = watch_pool_members.pool_id
+                WHERE watch_pool_members.pool_id = ?
+                  AND watch_pool_members.code = ?
+                """,
+                (pool["id"], normalized_code),
+            ).fetchone()
+        return _watch_pool_member_from_row(row)
+
+    def list_watch_pool_members(
+        self, pool_key: str
+    ) -> tuple[WatchPoolMember, ...]:
+        pool = self.get_watch_pool(pool_key)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT watch_pool_members.*, watch_pools.key AS pool_key
+                FROM watch_pool_members
+                JOIN watch_pools ON watch_pools.id = watch_pool_members.pool_id
+                WHERE watch_pool_members.pool_id = ?
+                ORDER BY watch_pool_members.code
+                """,
+                (pool.id,),
+            ).fetchall()
+        return tuple(_watch_pool_member_from_row(row) for row in rows)
+
+    def upsert_risk_factor(
+        self,
+        key: str,
+        name: str,
+        max_exposure_pct: Decimal,
+        active: bool = True,
+    ) -> RiskFactorState:
+        normalized_key = _normalize_key(key)
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise StorageError("risk factor name cannot be empty")
+        max_exposure_bps = _percentage_to_bps(max_exposure_pct)
+        factor_id = uuid4().hex
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO risk_factors (
+                    id, key, name, max_exposure_bps, active,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    name = excluded.name,
+                    max_exposure_bps = excluded.max_exposure_bps,
+                    active = excluded.active,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    factor_id,
+                    normalized_key,
+                    normalized_name,
+                    max_exposure_bps,
+                    int(active),
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+        return self.get_risk_factor(normalized_key)
+
+    def get_risk_factor(self, key: str) -> RiskFactorState:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM risk_factors WHERE key = ?", (_normalize_key(key),)
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"risk factor does not exist: {key.strip()}")
+        return _risk_factor_from_row(row)
+
+    def list_risk_factors(self) -> tuple[RiskFactorState, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM risk_factors ORDER BY key"
+            ).fetchall()
+        return tuple(_risk_factor_from_row(row) for row in rows)
+
+    def link_position_risk_factor(
+        self, account_name: str, code: str, risk_factor_key: str
+    ) -> PositionRiskLink:
+        normalized_code = _validate_code(code)
+        normalized_key = _normalize_key(risk_factor_key)
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            position = connection.execute(
+                """
+                SELECT positions.account_id
+                FROM positions
+                JOIN accounts ON accounts.id = positions.account_id
+                WHERE accounts.name = ? AND positions.code = ?
+                """,
+                (account_name.strip(), normalized_code),
+            ).fetchone()
+            if position is None:
+                raise StorageError(
+                    f"position does not exist: {account_name.strip()}/{normalized_code}"
+                )
+            factor = connection.execute(
+                "SELECT id FROM risk_factors WHERE key = ?", (normalized_key,)
+            ).fetchone()
+            if factor is None:
+                raise StorageError(f"risk factor does not exist: {normalized_key}")
+            connection.execute(
+                """
+                INSERT INTO position_risk_factors (
+                    account_id, code, risk_factor_id, created_at
+                ) VALUES (?, ?, ?, ?)
+                ON CONFLICT(account_id, code, risk_factor_id) DO NOTHING
+                """,
+                (
+                    position["account_id"],
+                    normalized_code,
+                    factor["id"],
+                    now.isoformat(),
+                ),
+            )
+            row = connection.execute(
+                """
+                SELECT position_risk_factors.*,
+                       risk_factors.key AS risk_factor_key
+                FROM position_risk_factors
+                JOIN risk_factors
+                  ON risk_factors.id = position_risk_factors.risk_factor_id
+                WHERE position_risk_factors.account_id = ?
+                  AND position_risk_factors.code = ?
+                  AND position_risk_factors.risk_factor_id = ?
+                """,
+                (position["account_id"], normalized_code, factor["id"]),
+            ).fetchone()
+        return _position_risk_link_from_row(row)
+
+    def list_position_risk_factors(
+        self, account_name: str, code: str
+    ) -> tuple[PositionRiskLink, ...]:
+        account = self.get_account(account_name)
+        normalized_code = _validate_code(code)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT position_risk_factors.*,
+                       risk_factors.key AS risk_factor_key
+                FROM position_risk_factors
+                JOIN risk_factors
+                  ON risk_factors.id = position_risk_factors.risk_factor_id
+                WHERE position_risk_factors.account_id = ?
+                  AND position_risk_factors.code = ?
+                ORDER BY risk_factors.key
+                """,
+                (account.id, normalized_code),
+            ).fetchall()
+        return tuple(_position_risk_link_from_row(row) for row in rows)
+
     def _initialize(self) -> None:
         with self._connect() as connection:
             existing_columns = {
@@ -535,6 +964,78 @@ class ReplayStore:
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY (account_id, code)
                 );
+
+                CREATE TABLE IF NOT EXISTS theses (
+                    id TEXT PRIMARY KEY,
+                    key TEXT NOT NULL UNIQUE,
+                    title TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (
+                        status IN (
+                            'draft', 'active', 'watch', 'realized',
+                            'invalidated', 'archived'
+                        )
+                    ),
+                    summary TEXT NOT NULL,
+                    realization_condition TEXT NOT NULL,
+                    invalidation_condition TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS position_theses (
+                    account_id TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    thesis_id TEXT NOT NULL REFERENCES theses(id),
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (account_id, code, thesis_id),
+                    FOREIGN KEY (account_id, code)
+                        REFERENCES positions(account_id, code)
+                );
+
+                CREATE TABLE IF NOT EXISTS watch_pools (
+                    id TEXT PRIMARY KEY,
+                    key TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    thesis_id TEXT REFERENCES theses(id),
+                    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS watch_pool_members (
+                    pool_id TEXT NOT NULL REFERENCES watch_pools(id),
+                    code TEXT NOT NULL CHECK (
+                        length(code) = 6 AND code NOT GLOB '*[^0-9]*'
+                    ),
+                    role TEXT NOT NULL CHECK (role IN ('direct', 'research')),
+                    tradable INTEGER NOT NULL CHECK (tradable IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (pool_id, code),
+                    CHECK (role != 'research' OR tradable = 0)
+                );
+
+                CREATE TABLE IF NOT EXISTS risk_factors (
+                    id TEXT PRIMARY KEY,
+                    key TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    max_exposure_bps INTEGER NOT NULL CHECK (
+                        max_exposure_bps >= 0 AND max_exposure_bps <= 10000
+                    ),
+                    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS position_risk_factors (
+                    account_id TEXT NOT NULL,
+                    code TEXT NOT NULL,
+                    risk_factor_id TEXT NOT NULL REFERENCES risk_factors(id),
+                    created_at TEXT NOT NULL,
+                    PRIMARY KEY (account_id, code, risk_factor_id),
+                    FOREIGN KEY (account_id, code)
+                        REFERENCES positions(account_id, code)
+                );
                 """
             )
 
@@ -572,6 +1073,39 @@ def _money_to_cents(
     return result
 
 
+def _percentage_to_bps(value: Decimal) -> int:
+    if not value.is_finite():
+        raise StorageError("max_exposure must be a finite percentage")
+    basis_points = value * 100
+    if basis_points != basis_points.to_integral_value():
+        raise StorageError("max_exposure must have at most two decimal places")
+    result = int(basis_points)
+    if result < 0 or result > 10000:
+        raise StorageError("max_exposure must be between 0 and 100")
+    return result
+
+
+def _normalize_key(value: str) -> str:
+    normalized = value.strip().lower()
+    allowed = set("abcdefghijklmnopqrstuvwxyz0123456789_-")
+    if (
+        not normalized
+        or not normalized[0].isalnum()
+        or any(character not in allowed for character in normalized)
+    ):
+        raise StorageError(
+            "key must start with a letter or digit and use only a-z, 0-9, _ or -"
+        )
+    return normalized
+
+
+def _validate_code(value: str) -> str:
+    normalized = value.strip()
+    if len(normalized) != 6 or not normalized.isdigit():
+        raise StorageError(f"invalid stock code: {normalized}")
+    return normalized
+
+
 def _account_from_row(row: sqlite3.Row) -> AccountState:
     return AccountState(
         id=row["id"],
@@ -595,4 +1129,75 @@ def _position_from_row(row: sqlite3.Row) -> PositionState:
         bought_on=date.fromisoformat(row["bought_on"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _thesis_from_row(row: sqlite3.Row) -> ThesisState:
+    return ThesisState(
+        id=row["id"],
+        key=row["key"],
+        title=row["title"],
+        status=row["status"],
+        summary=row["summary"],
+        realization_condition=row["realization_condition"],
+        invalidation_condition=row["invalidation_condition"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _position_thesis_link_from_row(row: sqlite3.Row) -> PositionThesisLink:
+    return PositionThesisLink(
+        account_id=row["account_id"],
+        code=row["code"],
+        thesis_id=row["thesis_id"],
+        thesis_key=row["thesis_key"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+    )
+
+
+def _watch_pool_from_row(row: sqlite3.Row) -> WatchPoolState:
+    return WatchPoolState(
+        id=row["id"],
+        key=row["key"],
+        name=row["name"],
+        thesis_id=row["thesis_id"],
+        thesis_key=row["thesis_key"],
+        active=bool(row["active"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _watch_pool_member_from_row(row: sqlite3.Row) -> WatchPoolMember:
+    return WatchPoolMember(
+        pool_id=row["pool_id"],
+        pool_key=row["pool_key"],
+        code=row["code"],
+        role=row["role"],
+        tradable=bool(row["tradable"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _risk_factor_from_row(row: sqlite3.Row) -> RiskFactorState:
+    return RiskFactorState(
+        id=row["id"],
+        key=row["key"],
+        name=row["name"],
+        max_exposure_pct=Decimal(row["max_exposure_bps"]) / 100,
+        active=bool(row["active"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _position_risk_link_from_row(row: sqlite3.Row) -> PositionRiskLink:
+    return PositionRiskLink(
+        account_id=row["account_id"],
+        code=row["code"],
+        risk_factor_id=row["risk_factor_id"],
+        risk_factor_key=row["risk_factor_key"],
+        created_at=datetime.fromisoformat(row["created_at"]),
     )

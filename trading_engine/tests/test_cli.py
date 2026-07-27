@@ -273,3 +273,114 @@ def test_position_cli_rejects_invalid_sellable_quantity(
 
     assert result.exit_code == 1
     assert "sellable quantity must be between zero" in result.stderr
+
+
+def test_independent_research_context_cli(tmp_path: Path, monkeypatch) -> None:
+    settings = TraderSettings(
+        repo_root=tmp_path,
+        astock_binary=tmp_path / "astock",
+        data_dir=tmp_path / "data",
+    )
+    monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
+    runner.invoke(app, ["account", "init", "--cash", "100000"])
+    runner.invoke(
+        app,
+        [
+            "position",
+            "set",
+            "--code",
+            "603127",
+            "--name",
+            "昭衍新药",
+            "--quantity",
+            "300",
+            "--sellable",
+            "300",
+            "--cost",
+            "55.68",
+            "--bought-on",
+            "2026-07-16",
+        ],
+    )
+
+    thesis_result = runner.invoke(
+        app,
+        [
+            "thesis",
+            "set",
+            "--key",
+            "innovation_medicine",
+            "--title",
+            "创新药",
+            "--status",
+            "active",
+            "--summary",
+            "海外授权与研发需求改善",
+            "--realization",
+            "完成定价",
+            "--invalidation",
+            "需求被否定",
+        ],
+    )
+    link_result = runner.invoke(
+        app,
+        [
+            "thesis",
+            "link",
+            "--key",
+            "innovation_medicine",
+            "--code",
+            "603127",
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "pool",
+            "set",
+            "--key",
+            "innovation_pool",
+            "--name",
+            "创新药直接受益池",
+            "--thesis",
+            "innovation_medicine",
+        ],
+    )
+    runner.invoke(
+        app,
+        [
+            "pool",
+            "member",
+            "--pool",
+            "innovation_pool",
+            "--code",
+            "603127",
+        ],
+    )
+    pool_result = runner.invoke(
+        app, ["pool", "show", "--key", "innovation_pool", "--json"]
+    )
+    risk_result = runner.invoke(
+        app,
+        [
+            "risk",
+            "set",
+            "--key",
+            "growth",
+            "--name",
+            "成长风格",
+            "--max-exposure",
+            "60",
+            "--json",
+        ],
+    )
+    risk_link_result = runner.invoke(
+        app,
+        ["risk", "link", "--key", "growth", "--code", "603127"],
+    )
+
+    assert thesis_result.exit_code == 0
+    assert link_result.exit_code == 0
+    assert json.loads(pool_result.stdout)["members"][0]["code"] == "603127"
+    assert json.loads(risk_result.stdout)[0]["max_exposure_pct"] == "60"
+    assert risk_link_result.exit_code == 0

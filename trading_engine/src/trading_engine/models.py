@@ -165,3 +165,82 @@ class PositionState(BaseModel):
         if self.sellable_quantity > self.quantity:
             raise ValueError("sellable_quantity cannot exceed quantity")
         return self
+
+
+class ThesisState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    key: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    title: str = Field(min_length=1)
+    status: Literal[
+        "draft", "active", "watch", "realized", "invalidated", "archived"
+    ]
+    summary: str = Field(min_length=1)
+    realization_condition: str = Field(min_length=1)
+    invalidation_condition: str = Field(min_length=1)
+    created_at: datetime
+    updated_at: datetime
+
+
+class PositionThesisLink(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    account_id: str
+    code: str = Field(pattern=r"^\d{6}$")
+    thesis_id: str
+    thesis_key: str
+    created_at: datetime
+
+
+class WatchPoolState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    key: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    name: str = Field(min_length=1)
+    thesis_id: str | None = None
+    thesis_key: str | None = None
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class WatchPoolMember(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    pool_id: str
+    pool_key: str
+    code: str = Field(pattern=r"^\d{6}$")
+    role: Literal["direct", "research"]
+    tradable: bool
+    created_at: datetime
+    updated_at: datetime
+
+    @model_validator(mode="after")
+    def validate_research_member(self) -> "WatchPoolMember":
+        if self.role == "research" and self.tradable:
+            raise ValueError("research pool members cannot be tradable")
+        return self
+
+
+class RiskFactorState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    key: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    name: str = Field(min_length=1)
+    max_exposure_pct: Decimal = Field(ge=0, le=100, decimal_places=2)
+    active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class PositionRiskLink(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    account_id: str
+    code: str = Field(pattern=r"^\d{6}$")
+    risk_factor_id: str
+    risk_factor_key: str
+    created_at: datetime

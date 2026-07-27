@@ -228,9 +228,22 @@ trader status
 - 仓库根目录发现由`astock + trading_engine`确定，不再要求存在`skills/`目录。
 - 29个`trading_engine`测试和4个旧回放信号测试全部通过。
 
+### Phase 3B-2进度：独立研究状态
+
+完成日期：2026-07-27
+
+- SQLite新增`theses`、`watch_pools`、`watch_pool_members`和`risk_factors`表。
+- 新增持仓与预期、持仓与风险因子的多对多关联表；关联目标不存在时严格失败。
+- 预期使用稳定ASCII key和明确状态，保存摘要、兑现条件与失效条件。
+- 固定池成员区分`direct`和`research`；`research`成员由模型和SQLite双重约束为不可交易。
+- 风险上限以基点保存，限制在0%至100%且最多两位小数。
+- 新增`trader thesis set/list/link`、`trader pool set/member/show`和`trader risk set/list/link`命令。
+- 所有研究状态均由新Agent独立创建，不导入或引用旧Skill文件。
+- 32个`trading_engine`测试和4个旧回放信号测试全部通过。
+
 Phase 3尚未完成。剩余工作：
 
-- 在自身SQLite中建立持仓预期、固定池、催化证据和账户风险因子。
+- 在自身SQLite中建立带来源和观察时间的催化证据。
 - 将独立账户、研究状态和行情组合成带时间边界的上下文快照。
 - 将同一判断节点接到Phase 1历史快照，完成无未来数据的回归验证。
 - 最后接入单个外部LLM provider，并使用同一Pydantic输出契约。
@@ -336,6 +349,6 @@ Phase 3尚未完成。剩余工作：
 
 ## 十二、当前下一步
 
-Phase 0、Phase 1和Phase 2已完成，Phase 3A和Phase 3B-1已完成。下一步继续Phase 3B-2，在新Agent自己的SQLite中建立预期、固定池和风险因子，不提前接入LLM或实现Phase 4。
+Phase 0、Phase 1和Phase 2已完成，Phase 3A、Phase 3B-1和Phase 3B-2已完成。下一步继续Phase 3B-3，建立催化证据和带时间边界的综合上下文快照，不提前接入LLM或实现Phase 4。
 
 Phase 3完成并验收后，在本文中将其状态改为`已完成`，记录验收命令和结果，再开始Phase 4。

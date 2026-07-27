@@ -18,6 +18,10 @@ from trading_engine.models import (
     LiveQuote,
     LiveSnapshotRecord,
     PositionState,
+    RiskFactorState,
+    ThesisState,
+    WatchPoolMember,
+    WatchPoolState,
 )
 from trading_engine.replay import (
     ReplayEngine,
@@ -48,6 +52,9 @@ analyze_app = typer.Typer(
 )
 account_app = typer.Typer(help="Manage the engine's independent SQLite account.")
 position_app = typer.Typer(help="Manage positions in the independent account.")
+thesis_app = typer.Typer(help="Manage independent investment theses.")
+pool_app = typer.Typer(help="Manage independent fixed watch pools.")
+risk_app = typer.Typer(help="Manage independent portfolio risk factors.")
 app.add_typer(config_app, name="config")
 app.add_typer(astock_app, name="astock")
 app.add_typer(replay_app, name="replay")
@@ -55,6 +62,9 @@ app.add_typer(watch_app, name="watch")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(account_app, name="account")
 app.add_typer(position_app, name="position")
+app.add_typer(thesis_app, name="thesis")
+app.add_typer(pool_app, name="pool")
+app.add_typer(risk_app, name="risk")
 
 
 @app.callback()
@@ -398,6 +408,197 @@ def position_list(
     _print_positions(positions, json_output)
 
 
+@thesis_app.command("set")
+def thesis_set(
+    key: str = typer.Option(..., "--key", help="Stable ASCII thesis key."),
+    title: str = typer.Option(..., "--title", help="Human-readable title."),
+    status: str = typer.Option(
+        "draft",
+        "--status",
+        help="draft, active, watch, realized, invalidated, or archived.",
+    ),
+    summary: str = typer.Option(..., "--summary", help="Testable thesis summary."),
+    realization: str = typer.Option(
+        ..., "--realization", help="Condition that realizes the thesis."
+    ),
+    invalidation: str = typer.Option(
+        ..., "--invalidation", help="Condition that invalidates the thesis."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Create or replace one thesis in the engine database."""
+    try:
+        thesis = _store().upsert_thesis(
+            key, title, status, summary, realization, invalidation
+        )
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_theses((thesis,), json_output)
+
+
+@thesis_app.command("list")
+def thesis_list(
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """List theses stored by the independent engine."""
+    try:
+        theses = _store().list_theses()
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_theses(theses, json_output)
+
+
+@thesis_app.command("link")
+def thesis_link(
+    key: str = typer.Option(..., "--key", help="Thesis key."),
+    code: str = typer.Option(..., "--code", help="Position stock code."),
+    account_name: str = typer.Option(
+        "default", "--account", help="Account name."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Link an existing position to an existing thesis."""
+    try:
+        link = _store().link_position_thesis(account_name, code, key)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if json_output:
+        typer.echo(link.model_dump_json(indent=2))
+    else:
+        typer.echo(f"已关联持仓 {link.code} -> 预期 {link.thesis_key}")
+
+
+@pool_app.command("set")
+def pool_set(
+    key: str = typer.Option(..., "--key", help="Stable ASCII pool key."),
+    name: str = typer.Option(..., "--name", help="Human-readable pool name."),
+    thesis_key: str | None = typer.Option(
+        None, "--thesis", help="Optional existing thesis key."
+    ),
+    active: bool = typer.Option(
+        True, "--active/--inactive", help="Set pool activity state."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Create or replace a fixed watch pool."""
+    try:
+        pool = _store().upsert_watch_pool(key, name, thesis_key, active)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_watch_pool(pool, (), json_output)
+
+
+@pool_app.command("member")
+def pool_member(
+    pool_key: str = typer.Option(..., "--pool", help="Watch pool key."),
+    code: str = typer.Option(..., "--code", help="Six-digit stock code."),
+    role: str = typer.Option(
+        "direct", "--role", help="Member role: direct or research."
+    ),
+    tradable: bool = typer.Option(
+        True,
+        "--tradable/--research-only",
+        help="Whether the member is eligible for trading.",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Create or replace one member of a fixed watch pool."""
+    try:
+        member = _store().set_watch_pool_member(
+            pool_key, code, role, tradable
+        )
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if json_output:
+        typer.echo(member.model_dump_json(indent=2))
+    else:
+        typer.echo(
+            f"已保存固定池成员 {member.pool_key}/{member.code} "
+            f"role={member.role} tradable={str(member.tradable).lower()}"
+        )
+
+
+@pool_app.command("show")
+def pool_show(
+    key: str = typer.Option(..., "--key", help="Watch pool key."),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Show one fixed watch pool and all registered members."""
+    try:
+        store = _store()
+        pool = store.get_watch_pool(key)
+        members = store.list_watch_pool_members(key)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_watch_pool(pool, members, json_output)
+
+
+@risk_app.command("set")
+def risk_set(
+    key: str = typer.Option(..., "--key", help="Stable ASCII risk key."),
+    name: str = typer.Option(..., "--name", help="Human-readable risk name."),
+    max_exposure: str = typer.Option(
+        ..., "--max-exposure", help="Maximum portfolio exposure percent."
+    ),
+    active: bool = typer.Option(
+        True, "--active/--inactive", help="Set risk factor activity state."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Create or replace one portfolio risk factor."""
+    try:
+        factor = _store().upsert_risk_factor(
+            key,
+            name,
+            _parse_decimal(max_exposure, "max-exposure"),
+            active,
+        )
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_risk_factors((factor,), json_output)
+
+
+@risk_app.command("list")
+def risk_list(
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """List risk factors stored by the independent engine."""
+    try:
+        factors = _store().list_risk_factors()
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_risk_factors(factors, json_output)
+
+
+@risk_app.command("link")
+def risk_link(
+    key: str = typer.Option(..., "--key", help="Risk factor key."),
+    code: str = typer.Option(..., "--code", help="Position stock code."),
+    account_name: str = typer.Option(
+        "default", "--account", help="Account name."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Link an existing position to an existing risk factor."""
+    try:
+        link = _store().link_position_risk_factor(account_name, code, key)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if json_output:
+        typer.echo(link.model_dump_json(indent=2))
+    else:
+        typer.echo(f"已关联持仓 {link.code} -> 风险因子 {link.risk_factor_key}")
+
+
 def _replay_engine() -> ReplayEngine:
     settings = TraderSettings.load()
     client = AstockClient(settings.astock_binary)
@@ -430,10 +631,14 @@ def _parse_iso_date(value: str) -> date:
 
 
 def _parse_money(value: str) -> Decimal:
+    return _parse_decimal(value, "money amount")
+
+
+def _parse_decimal(value: str, label: str) -> Decimal:
     try:
         return Decimal(value)
     except InvalidOperation as exc:
-        raise PortfolioError(f"invalid money amount: {value}") from exc
+        raise PortfolioError(f"invalid {label}: {value}") from exc
 
 
 def _normalize_codes(values: list[str]) -> tuple[str, ...]:
@@ -532,4 +737,74 @@ def _print_positions(
             f"{position.code:<8} {position.name:<10} {position.quantity:>8} "
             f"{position.sellable_quantity:>8} {position.average_cost:>10.2f} "
             f"{position.bought_on.isoformat():>12}"
+        )
+
+
+def _print_theses(
+    theses: tuple[ThesisState, ...], json_output: bool
+) -> None:
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [thesis.model_dump(mode="json") for thesis in theses],
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    typer.echo("独立预期")
+    typer.echo(f"{'KEY':<24} {'状态':<12} 标题")
+    for thesis in theses:
+        typer.echo(f"{thesis.key:<24} {thesis.status:<12} {thesis.title}")
+
+
+def _print_watch_pool(
+    pool: WatchPoolState,
+    members: tuple[WatchPoolMember, ...],
+    json_output: bool,
+) -> None:
+    if json_output:
+        typer.echo(
+            json.dumps(
+                {
+                    "pool": pool.model_dump(mode="json"),
+                    "members": [
+                        member.model_dump(mode="json") for member in members
+                    ],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    typer.echo(
+        f"固定池 {pool.key}  name={pool.name} "
+        f"active={str(pool.active).lower()} thesis={pool.thesis_key or '-'}"
+    )
+    typer.echo(f"{'代码':<8} {'角色':<10} {'可交易':<8}")
+    for member in members:
+        typer.echo(
+            f"{member.code:<8} {member.role:<10} "
+            f"{str(member.tradable).lower():<8}"
+        )
+
+
+def _print_risk_factors(
+    factors: tuple[RiskFactorState, ...], json_output: bool
+) -> None:
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [factor.model_dump(mode="json") for factor in factors],
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    typer.echo("独立风险因子")
+    typer.echo(f"{'KEY':<24} {'上限%':>10} {'启用':<8} 名称")
+    for factor in factors:
+        typer.echo(
+            f"{factor.key:<24} {factor.max_exposure_pct:>10.2f} "
+            f"{str(factor.active).lower():<8} {factor.name}"
         )
