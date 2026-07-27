@@ -16,14 +16,13 @@
 6. 先实现普通 Python 节点；节点边界稳定后再引入 LangGraph 编排。
 7. SQLite 保存少量运行状态、账户、订单和决策事件；Markdown 作为面向人的报告。
 8. AI判断先在实时影子模式运行，不修改账户；同一节点必须能够使用历史回放数据测试。
+9. `trading_engine`是完全独立的新Agent；不读取、不写入、也不要求存在原`trading-system` Skill。旧Skill只作为设计阶段的规则参考。
 
 ## 二、目标目录
 
 ```text
 stock/
 ├── astock/
-├── skills/
-├── web/
 └── trading_engine/
     ├── pyproject.toml
     ├── src/trading_engine/
@@ -31,7 +30,7 @@ stock/
     └── data/                 # 本地运行数据，不提交 Git
 ```
 
-`trading-system` Skill 继续作为用户入口和领域规则载体。`trading_engine` 负责可持续运行的流程、状态和执行。
+`trading_engine`自行负责规则、上下文、状态和执行。运行时业务依赖只包括`astock`行情接口和自己的SQLite数据库。
 
 ## 三、阶段总览
 
@@ -217,11 +216,24 @@ trader status
 - 已使用五只实际持仓的13:42真实快照完成端到端分析和审计记录恢复。
 - 24个`trading_engine`测试和4个旧回放信号测试全部通过。
 
+### Phase 3B-1进度：独立账户与持仓
+
+完成日期：2026-07-27
+
+- SQLite新增`accounts`和`positions`表，完全由新Agent独立维护。
+- 金额统一以整数分保存，CLI使用字符串转`Decimal`，禁止浮点金额和超过两位小数的输入。
+- 持仓显式保存总数量、可卖数量、平均成本和最近变动日期；可卖数量不得超过总数量。
+- 新增`trader account init/show/update`和`trader position set/list`命令。
+- 账户和持仓均不从旧Skill自动导入；初始化必须通过新CLI明确完成。
+- 仓库根目录发现由`astock + trading_engine`确定，不再要求存在`skills/`目录。
+- 29个`trading_engine`测试和4个旧回放信号测试全部通过。
+
 Phase 3尚未完成。剩余工作：
 
-- 接入单个外部LLM provider，并使用同一Pydantic输出契约。
-- 将持仓预期、固定池联动、催化证据和账户风险加入判断上下文。
+- 在自身SQLite中建立持仓预期、固定池、催化证据和账户风险因子。
+- 将独立账户、研究状态和行情组合成带时间边界的上下文快照。
 - 将同一判断节点接到Phase 1历史快照，完成无未来数据的回归验证。
+- 最后接入单个外部LLM provider，并使用同一Pydantic输出契约。
 
 ### 范围
 
@@ -315,14 +327,15 @@ Phase 3尚未完成。剩余工作：
 | 行情 | astock CLI | `trading_engine` 不感知 ClickHouse 或 TDX |
 | Agent运行状态 | SQLite | run、checkpoint、错误和恢复位置 |
 | 实时影子快照 | SQLite | 经过代码、价格和涨跌幅校验的只读行情 |
-| 虚拟账户 | SQLite（Phase 4起） | 现金、持仓、订单和成交 |
+| 独立账户 | SQLite（Phase 3B起） | 现金、持仓和上下文基础状态 |
+| 订单和成交 | SQLite（Phase 4起） | 经过规则校验的模拟执行记录 |
 | 决策审计 | SQLite | 输入摘要、AI提案、规则校验和执行结果 |
-| 研究知识 | `skills/trading-system/data/research/` | 继续按现有规则维护 |
+| 研究知识 | SQLite（Phase 3B起） | 独立维护预期、固定池、催化和风险因子 |
 | 人类可读报告 | Markdown | 从结构化状态生成或引用结构化记录 |
 | 密钥和凭证 | 环境变量或系统密钥存储 | 禁止写入 SQLite 和 Git |
 
 ## 十二、当前下一步
 
-Phase 0、Phase 1和Phase 2已完成，Phase 3A结构化只读判断节点已完成。下一步继续Phase 3，接入单个外部LLM provider和领域证据上下文，不提前实现Phase 4。
+Phase 0、Phase 1和Phase 2已完成，Phase 3A和Phase 3B-1已完成。下一步继续Phase 3B-2，在新Agent自己的SQLite中建立预期、固定池和风险因子，不提前接入LLM或实现Phase 4。
 
 Phase 3完成并验收后，在本文中将其状态改为`已完成`，记录验收命令和结果，再开始Phase 4。

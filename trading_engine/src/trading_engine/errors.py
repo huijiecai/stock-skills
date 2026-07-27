@@ -24,3 +24,7 @@ class LiveDataError(TradingEngineError):
 
 class JudgmentError(TradingEngineError):
     """Raised when a read-only judgment cannot be produced safely."""
+
+
+class PortfolioError(TradingEngineError):
+    """Raised when independent account or position input is invalid."""

@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class MarketSnapshot(BaseModel):
@@ -132,3 +133,35 @@ class JudgmentRecord(BaseModel):
     report: JudgmentReport | None = None
     error: str | None = None
     created_at: datetime
+
+
+class AccountState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    name: str = Field(min_length=1)
+    initial_cash: Decimal = Field(ge=0, decimal_places=2)
+    cash: Decimal = Field(ge=0, decimal_places=2)
+    cooldown: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class PositionState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    account_id: str
+    code: str = Field(pattern=r"^\d{6}$")
+    name: str = Field(min_length=1)
+    quantity: int = Field(gt=0)
+    sellable_quantity: int = Field(ge=0)
+    average_cost: Decimal = Field(gt=0, decimal_places=2)
+    bought_on: date
+    created_at: datetime
+    updated_at: datetime
+
+    @model_validator(mode="after")
+    def validate_sellable_quantity(self) -> "PositionState":
+        if self.sellable_quantity > self.quantity:
+            raise ValueError("sellable_quantity cannot exceed quantity")
+        return self

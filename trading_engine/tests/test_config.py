@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from trading_engine.config import TraderSettings
+from trading_engine.config import TraderSettings, _discover_repo_root
 
 
 def test_settings_resolve_workspace_paths(
@@ -31,3 +31,15 @@ def test_settings_do_not_fall_back_to_unverified_legacy_binary(
 
     assert settings.astock_binary == current_binary
     assert settings.astock_binary.exists() is False
+
+
+def test_repo_discovery_does_not_require_legacy_skill(
+    tmp_path: Path, monkeypatch
+) -> None:
+    (tmp_path / "astock").mkdir()
+    engine_dir = tmp_path / "trading_engine"
+    nested = engine_dir / "work"
+    nested.mkdir(parents=True)
+    monkeypatch.chdir(nested)
+
+    assert _discover_repo_root() == tmp_path

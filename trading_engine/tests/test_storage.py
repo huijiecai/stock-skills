@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -54,3 +55,65 @@ def test_live_snapshot_round_trips_through_sqlite(tmp_path: Path) -> None:
     assert loaded is not None
     assert loaded.id == created.id
     assert loaded.snapshot == snapshot
+
+
+def test_independent_account_and_positions_round_trip(tmp_path: Path) -> None:
+    store = ReplayStore(tmp_path / "trader.db")
+
+    account = store.create_account(
+        "default", Decimal("100000.00"), Decimal("20229.40")
+    )
+    position = store.upsert_position(
+        "default",
+        "603127",
+        "昭衍新药",
+        300,
+        300,
+        Decimal("55.68"),
+        date(2026, 7, 16),
+    )
+
+    assert account.initial_cash == Decimal("100000")
+    assert account.cash == Decimal("20229.4")
+    assert position.account_id == account.id
+    assert position.average_cost == Decimal("55.68")
+    assert store.list_positions("default") == (position,)
+
+    account = store.update_account(
+        "default", cash=Decimal("20000.00"), cooldown=True
+    )
+    assert account.cash == Decimal("20000")
+    assert account.cooldown is True
+
+    updated = store.upsert_position(
+        "default",
+        "603127",
+        "昭衍新药",
+        400,
+        100,
+        Decimal("54.00"),
+        date(2026, 7, 27),
+    )
+    assert updated.quantity == 400
+    assert updated.sellable_quantity == 100
+    assert len(store.list_positions("default")) == 1
+
+
+def test_account_and_position_validation_fails_closed(tmp_path: Path) -> None:
+    store = ReplayStore(tmp_path / "trader.db")
+    store.create_account("default", Decimal("100000"))
+
+    with pytest.raises(StorageError, match="already exists"):
+        store.create_account("default", Decimal("100000"))
+    with pytest.raises(StorageError, match="two decimal places"):
+        store.update_account("default", cash=Decimal("1.001"))
+    with pytest.raises(StorageError, match="between zero and total"):
+        store.upsert_position(
+            "default",
+            "603127",
+            "昭衍新药",
+            300,
+            301,
+            Decimal("55.68"),
+            date(2026, 7, 16),
+        )

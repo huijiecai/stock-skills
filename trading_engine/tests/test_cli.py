@@ -15,7 +15,7 @@ runner = CliRunner()
 
 
 def _workspace(tmp_path: Path) -> tuple[Path, Path]:
-    (tmp_path / "skills").mkdir()
+    (tmp_path / "trading_engine").mkdir()
     binary = tmp_path / "astock" / "astock"
     binary.parent.mkdir(parents=True)
     binary.write_text("#!/bin/sh\necho 'astock version test'\n", encoding="utf-8")
@@ -190,3 +190,86 @@ def test_analyze_latest_prints_read_only_proposals(tmp_path: Path, monkeypatch) 
     show_result = runner.invoke(app, ["analyze", "show", "--json"])
     assert show_result.exit_code == 0
     assert json.loads(show_result.stdout)["snapshot_id"] == store.latest_live_snapshot().id
+
+
+def test_independent_account_and_position_cli(tmp_path: Path, monkeypatch) -> None:
+    settings = TraderSettings(
+        repo_root=tmp_path,
+        astock_binary=tmp_path / "astock",
+        data_dir=tmp_path / "data",
+    )
+    monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
+
+    init_result = runner.invoke(
+        app,
+        [
+            "account",
+            "init",
+            "--initial-cash",
+            "100000",
+            "--cash",
+            "20229.40",
+        ],
+    )
+    position_result = runner.invoke(
+        app,
+        [
+            "position",
+            "set",
+            "--code",
+            "603127",
+            "--name",
+            "昭衍新药",
+            "--quantity",
+            "300",
+            "--sellable",
+            "300",
+            "--cost",
+            "55.68",
+            "--bought-on",
+            "2026-07-16",
+        ],
+    )
+    list_result = runner.invoke(app, ["position", "list", "--json"])
+
+    assert init_result.exit_code == 0
+    assert "独立账户 default" in init_result.stdout
+    assert position_result.exit_code == 0
+    positions = json.loads(list_result.stdout)
+    assert positions[0]["code"] == "603127"
+    assert positions[0]["average_cost"] == "55.68"
+
+
+def test_position_cli_rejects_invalid_sellable_quantity(
+    tmp_path: Path, monkeypatch
+) -> None:
+    settings = TraderSettings(
+        repo_root=tmp_path,
+        astock_binary=tmp_path / "astock",
+        data_dir=tmp_path / "data",
+    )
+    monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
+    runner.invoke(app, ["account", "init", "--cash", "100000"])
+
+    result = runner.invoke(
+        app,
+        [
+            "position",
+            "set",
+            "--code",
+            "603127",
+            "--name",
+            "昭衍新药",
+            "--quantity",
+            "300",
+            "--sellable",
+            "301",
+            "--cost",
+            "55.68",
+            "--bought-on",
+            "2026-07-16",
+        ],
+    )
+
+    assert result.exit_code == 1
+    assert "sellable quantity must be between zero" in result.stderr

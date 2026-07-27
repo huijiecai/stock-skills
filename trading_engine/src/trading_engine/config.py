@@ -55,7 +55,9 @@ def _discover_repo_root() -> Path:
         if resolved in seen:
             continue
         seen.add(resolved)
-        if (resolved / "astock").is_dir() and (resolved / "skills").is_dir():
+        if (resolved / "astock").is_dir() and (
+            resolved / "trading_engine"
+        ).is_dir():
             return resolved
 
     raise ConfigurationError(

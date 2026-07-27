@@ -3,17 +3,20 @@ from __future__ import annotations
 import json
 import sqlite3
 from datetime import date, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any, Iterable
 from uuid import uuid4
 
 from trading_engine.errors import StorageError
 from trading_engine.models import (
+    AccountState,
     JudgmentContext,
     JudgmentRecord,
     JudgmentReport,
     LiveSnapshotRecord,
     MarketSnapshot,
+    PositionState,
     ReplayRun,
 )
 
@@ -283,6 +286,170 @@ class ReplayStore:
             created_at=datetime.fromisoformat(row["created_at"]),
         )
 
+    def create_account(
+        self,
+        name: str,
+        initial_cash: Decimal,
+        cash: Decimal | None = None,
+    ) -> AccountState:
+        normalized_name = name.strip()
+        if not normalized_name:
+            raise StorageError("account name cannot be empty")
+        initial_cash_cents = _money_to_cents(initial_cash, "initial_cash")
+        cash_cents = _money_to_cents(
+            initial_cash if cash is None else cash, "cash"
+        )
+        account_id = uuid4().hex
+        now = datetime.now().astimezone()
+        try:
+            with self._connect() as connection:
+                connection.execute(
+                    """
+                    INSERT INTO accounts (
+                        id, name, initial_cash_cents, cash_cents, cooldown,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, 0, ?, ?)
+                    """,
+                    (
+                        account_id,
+                        normalized_name,
+                        initial_cash_cents,
+                        cash_cents,
+                        now.isoformat(),
+                        now.isoformat(),
+                    ),
+                )
+        except sqlite3.IntegrityError as exc:
+            raise StorageError(f"account already exists: {normalized_name}") from exc
+        return self.get_account(normalized_name)
+
+    def get_account(self, name: str) -> AccountState:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT * FROM accounts WHERE name = ?", (name.strip(),)
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"account does not exist: {name.strip()}")
+        return _account_from_row(row)
+
+    def update_account(
+        self,
+        name: str,
+        cash: Decimal | None = None,
+        cooldown: bool | None = None,
+    ) -> AccountState:
+        if cash is None and cooldown is None:
+            raise StorageError("account update requires --cash or a cooldown option")
+        assignments = []
+        parameters: list[Any] = []
+        if cash is not None:
+            assignments.append("cash_cents = ?")
+            parameters.append(_money_to_cents(cash, "cash"))
+        if cooldown is not None:
+            assignments.append("cooldown = ?")
+            parameters.append(int(cooldown))
+        assignments.append("updated_at = ?")
+        parameters.append(datetime.now().astimezone().isoformat())
+        parameters.append(name.strip())
+        with self._connect() as connection:
+            cursor = connection.execute(
+                f"UPDATE accounts SET {', '.join(assignments)} WHERE name = ?",
+                parameters,
+            )
+            if cursor.rowcount != 1:
+                raise StorageError(f"account does not exist: {name.strip()}")
+        return self.get_account(name)
+
+    def upsert_position(
+        self,
+        account_name: str,
+        code: str,
+        name: str,
+        quantity: int,
+        sellable_quantity: int,
+        average_cost: Decimal,
+        bought_on: date,
+    ) -> PositionState:
+        normalized_code = code.strip()
+        normalized_name = name.strip()
+        if len(normalized_code) != 6 or not normalized_code.isdigit():
+            raise StorageError(f"invalid stock code: {normalized_code}")
+        if not normalized_name:
+            raise StorageError("position name cannot be empty")
+        if quantity <= 0:
+            raise StorageError("position quantity must be greater than zero")
+        if sellable_quantity < 0 or sellable_quantity > quantity:
+            raise StorageError(
+                "sellable quantity must be between zero and total quantity"
+            )
+        average_cost_cents = _money_to_cents(
+            average_cost, "average_cost", allow_zero=False
+        )
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            account = connection.execute(
+                "SELECT id FROM accounts WHERE name = ?", (account_name.strip(),)
+            ).fetchone()
+            if account is None:
+                raise StorageError(f"account does not exist: {account_name.strip()}")
+            connection.execute(
+                """
+                INSERT INTO positions (
+                    account_id, code, name, quantity, sellable_quantity,
+                    average_cost_cents, bought_on, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(account_id, code) DO UPDATE SET
+                    name = excluded.name,
+                    quantity = excluded.quantity,
+                    sellable_quantity = excluded.sellable_quantity,
+                    average_cost_cents = excluded.average_cost_cents,
+                    bought_on = excluded.bought_on,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    account["id"],
+                    normalized_code,
+                    normalized_name,
+                    quantity,
+                    sellable_quantity,
+                    average_cost_cents,
+                    bought_on.isoformat(),
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+        return self.get_position(account_name, normalized_code)
+
+    def get_position(self, account_name: str, code: str) -> PositionState:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT positions.*
+                FROM positions
+                JOIN accounts ON accounts.id = positions.account_id
+                WHERE accounts.name = ? AND positions.code = ?
+                """,
+                (account_name.strip(), code.strip()),
+            ).fetchone()
+        if row is None:
+            raise StorageError(
+                f"position does not exist: {account_name.strip()}/{code.strip()}"
+            )
+        return _position_from_row(row)
+
+    def list_positions(self, account_name: str) -> tuple[PositionState, ...]:
+        account = self.get_account(account_name)
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM positions
+                WHERE account_id = ?
+                ORDER BY code
+                """,
+                (account.id,),
+            ).fetchall()
+        return tuple(_position_from_row(row) for row in rows)
+
     def _initialize(self) -> None:
         with self._connect() as connection:
             existing_columns = {
@@ -335,6 +502,39 @@ class ReplayStore:
                     error TEXT,
                     created_at TEXT NOT NULL
                 );
+
+                CREATE TABLE IF NOT EXISTS accounts (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE,
+                    initial_cash_cents INTEGER NOT NULL CHECK (
+                        initial_cash_cents >= 0
+                    ),
+                    cash_cents INTEGER NOT NULL CHECK (cash_cents >= 0),
+                    cooldown INTEGER NOT NULL DEFAULT 0 CHECK (
+                        cooldown IN (0, 1)
+                    ),
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS positions (
+                    account_id TEXT NOT NULL REFERENCES accounts(id),
+                    code TEXT NOT NULL CHECK (
+                        length(code) = 6 AND code NOT GLOB '*[^0-9]*'
+                    ),
+                    name TEXT NOT NULL,
+                    quantity INTEGER NOT NULL CHECK (quantity > 0),
+                    sellable_quantity INTEGER NOT NULL CHECK (
+                        sellable_quantity >= 0 AND sellable_quantity <= quantity
+                    ),
+                    average_cost_cents INTEGER NOT NULL CHECK (
+                        average_cost_cents > 0
+                    ),
+                    bought_on TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    PRIMARY KEY (account_id, code)
+                );
                 """
             )
 
@@ -352,6 +552,47 @@ def _run_from_row(row: sqlite3.Row) -> ReplayRun:
         codes=tuple(json.loads(row["codes_json"])),
         current_time=datetime.fromisoformat(row["replay_time"]),
         status=row["status"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _money_to_cents(
+    value: Decimal, field: str, allow_zero: bool = True
+) -> int:
+    if not value.is_finite():
+        raise StorageError(f"{field} must be a finite amount")
+    cents = value * 100
+    if cents != cents.to_integral_value():
+        raise StorageError(f"{field} must have at most two decimal places")
+    result = int(cents)
+    if result < 0 or (not allow_zero and result == 0):
+        comparator = "non-negative" if allow_zero else "greater than zero"
+        raise StorageError(f"{field} must be {comparator}")
+    return result
+
+
+def _account_from_row(row: sqlite3.Row) -> AccountState:
+    return AccountState(
+        id=row["id"],
+        name=row["name"],
+        initial_cash=Decimal(row["initial_cash_cents"]) / 100,
+        cash=Decimal(row["cash_cents"]) / 100,
+        cooldown=bool(row["cooldown"]),
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
+    )
+
+
+def _position_from_row(row: sqlite3.Row) -> PositionState:
+    return PositionState(
+        account_id=row["account_id"],
+        code=row["code"],
+        name=row["name"],
+        quantity=row["quantity"],
+        sellable_quantity=row["sellable_quantity"],
+        average_cost=Decimal(row["average_cost_cents"]) / 100,
+        bought_on=date.fromisoformat(row["bought_on"]),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
