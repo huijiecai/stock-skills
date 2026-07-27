@@ -174,6 +174,10 @@ class ReplayStore:
             )
         return LiveSnapshotRecord(id=snapshot_id, snapshot=snapshot)
 
+    def record_market_snapshot(self, snapshot: MarketSnapshot) -> LiveSnapshotRecord:
+        """Persist a validated live or replay market snapshot."""
+        return self.record_live_snapshot(snapshot)
+
     def latest_live_snapshot(self) -> LiveSnapshotRecord | None:
         with self._connect() as connection:
             row = connection.execute(
@@ -186,6 +190,27 @@ class ReplayStore:
             ).fetchone()
         if row is None:
             return None
+        return LiveSnapshotRecord(
+            id=row["id"],
+            snapshot=MarketSnapshot.model_validate_json(row["snapshot_json"]),
+        )
+
+    def latest_market_snapshot(self) -> LiveSnapshotRecord | None:
+        """Return the latest persisted live or replay market snapshot."""
+        return self.latest_live_snapshot()
+
+    def get_market_snapshot(self, snapshot_id: str) -> LiveSnapshotRecord:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT id, snapshot_json
+                FROM live_snapshots
+                WHERE id = ?
+                """,
+                (snapshot_id,),
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"market snapshot does not exist: {snapshot_id}")
         return LiveSnapshotRecord(
             id=row["id"],
             snapshot=MarketSnapshot.model_validate_json(row["snapshot_json"]),

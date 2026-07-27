@@ -10,6 +10,8 @@ from trading_engine import __version__
 from trading_engine.analysis import ReadOnlyAnalyzer
 from trading_engine.astock import AstockClient
 from trading_engine.config import TraderSettings
+from trading_engine.context_cli import context_app, evidence_app
+from trading_engine.context_store import ContextStore
 from trading_engine.errors import PortfolioError, ReplayError, TradingEngineError
 from trading_engine.live import LiveMarketData
 from trading_engine.models import (
@@ -65,6 +67,8 @@ app.add_typer(position_app, name="position")
 app.add_typer(thesis_app, name="thesis")
 app.add_typer(pool_app, name="pool")
 app.add_typer(risk_app, name="risk")
+app.add_typer(evidence_app, name="evidence")
+app.add_typer(context_app, name="context")
 
 
 @app.callback()
@@ -286,6 +290,44 @@ def analyze_show(
     if record is None:
         typer.echo("no read-only judgment exists", err=True)
         raise typer.Exit(code=1)
+    _print_judgment(record, json_output)
+    if record.status == "failed":
+        raise typer.Exit(code=1)
+
+
+@analyze_app.command("context")
+def analyze_context(
+    account_name: str = typer.Option(
+        "default", "--account", help="Account name."
+    ),
+    attempts: int = typer.Option(
+        2,
+        "--attempts",
+        min=1,
+        max=5,
+        help="Maximum provider attempts before recording a failure.",
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Analyze the latest complete decision context without executing trades."""
+    try:
+        settings = TraderSettings.load()
+        database = settings.data_dir / "trader.db"
+        store = ReplayStore(database)
+        context_record = ContextStore(database).latest_context(account_name)
+        if context_record is None:
+            raise TradingEngineError(
+                "no decision context exists; run `trader context capture` first"
+            )
+        market_record = store.get_market_snapshot(
+            context_record.context.market_snapshot_id
+        )
+        record = ReadOnlyAnalyzer(store, max_attempts=attempts).analyze(
+            market_record, context_record
+        )
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
     _print_judgment(record, json_output)
     if record.status == "failed":
         raise typer.Exit(code=1)
@@ -680,7 +722,7 @@ def _print_judgment(record: JudgmentRecord, json_output: bool) -> None:
         typer.echo(record.model_dump_json(indent=2))
         return
     typer.echo(
-        f"只读AI判断 {record.created_at.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"只读判断 {record.created_at.strftime('%Y-%m-%d %H:%M:%S')} "
         f"id={record.id} snapshot={record.snapshot_id}"
     )
     typer.echo(

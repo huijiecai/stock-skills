@@ -28,3 +28,7 @@ class JudgmentError(TradingEngineError):
 
 class PortfolioError(TradingEngineError):
     """Raised when independent account or position input is invalid."""
+
+
+class ContextError(TradingEngineError):
+    """Raised when an auditable decision context cannot be built safely."""

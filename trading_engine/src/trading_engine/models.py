@@ -96,6 +96,9 @@ class JudgmentContext(BaseModel):
     as_of: datetime
     source: str
     quotes: tuple[LiveQuote, ...] = Field(min_length=1)
+    decision_context_id: str | None = None
+    decision_context_fingerprint: str | None = None
+    domain_context: dict[str, Any] | None = None
     policy: str = "read-only-shadow-v1"
 
 
