@@ -72,6 +72,33 @@ func newLiveCmd() *cobra.Command {
 	}
 	liveCmd.AddCommand(quoteCmd)
 
+	indexCmd := &cobra.Command{
+		Use:   "index <code> [code2...]",
+		Short: "实时指数报价（显式指数语义）",
+		Args:  cobra.MinimumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			jsonOut := isJSON(cmd)
+			tc := tdx.New()
+			defer tc.Close()
+
+			quotes, err := tc.GetIndexQuotes(args)
+			if err != nil {
+				return err
+			}
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(quotes)
+			}
+			for _, q := range quotes {
+				fmt.Printf("%s  %.2f  %+.2f%%  成交额 %.0f\n",
+					q.Code, q.Price, q.ChangePct, q.Amount)
+			}
+			return nil
+		},
+	}
+	liveCmd.AddCommand(indexCmd)
+
 	tickCmd := &cobra.Command{
 		Use:   "tick <code>",
 		Short: "当日分笔成交（实时拉取，不落库）",

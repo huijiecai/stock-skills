@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal
@@ -73,7 +73,7 @@ class LiveQuote(BaseModel):
 
     code: str
     price: float = Field(gt=0)
-    pre_close: float = Field(gt=0)
+    pre_close: float = Field(ge=0)
     change_pct: float
     volume: int = Field(ge=0)
     amount: float = Field(ge=0)
@@ -191,6 +191,16 @@ class ThesisState(BaseModel):
     summary: str = Field(min_length=1)
     realization_condition: str = Field(min_length=1)
     invalidation_condition: str = Field(min_length=1)
+    thesis_type: Literal["continuous", "event", "realtime"] | None = None
+    stage: Literal[
+        "emerging", "confirmed", "accelerating", "realizing", "ended"
+    ] | None = None
+    catalyst_anchor: str | None = None
+    transmission_chain: str | None = None
+    linkage_conclusion: Literal[
+        "company", "sub_industry", "end_demand", "unresolved"
+    ] | None = None
+    confirmation_condition: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -214,6 +224,7 @@ class WatchPoolState(BaseModel):
     thesis_id: str | None = None
     thesis_key: str | None = None
     active: bool
+    monitoring_status: Literal["active", "dormant", "archived"] = "active"
     created_at: datetime
     updated_at: datetime
 
@@ -226,6 +237,9 @@ class WatchPoolMember(BaseModel):
     code: str = Field(pattern=r"^\d{6}$")
     role: Literal["direct", "research"]
     tradable: bool
+    relationship: Literal[
+        "direct", "volume", "adjacent", "cost_pressure", "research"
+    ] = "direct"
     created_at: datetime
     updated_at: datetime
 
@@ -233,6 +247,10 @@ class WatchPoolMember(BaseModel):
     def validate_research_member(self) -> "WatchPoolMember":
         if self.role == "research" and self.tradable:
             raise ValueError("research pool members cannot be tradable")
+        if self.relationship in {"adjacent", "cost_pressure", "research"} and self.tradable:
+            raise ValueError(
+                "adjacent, cost-pressure, and research members cannot be tradable"
+            )
         return self
 
 
@@ -256,3 +274,47 @@ class PositionRiskLink(BaseModel):
     risk_factor_id: str
     risk_factor_key: str
     created_at: datetime
+
+
+class TradePlanState(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    key: str = Field(pattern=r"^[a-z0-9][a-z0-9_-]*$")
+    trading_date: date
+    thesis_id: str
+    thesis_key: str
+    action: Literal["BUY", "SELL"]
+    target_code: str = Field(pattern=r"^\d{6}$")
+    target_name: str = Field(min_length=1)
+    quantity: int = Field(gt=0)
+    priority: int = Field(ge=0)
+    status: Literal["active", "triggered", "cancelled", "expired"]
+    buy_point_type: Literal["confirmation", "first_board", "pullback"] | None = None
+    exit_mode: Literal["expectation", "trade_confirmation"] | None = None
+    risk_factor_key: str | None = None
+    observation_times: tuple[time, ...] = Field(default_factory=tuple)
+    required_observations: int = Field(default=1, ge=1)
+    trigger_conditions: tuple[str, ...] = Field(min_length=1)
+    guard_conditions: tuple[str, ...] = Field(default_factory=tuple)
+    cancel_conditions: tuple[str, ...] = Field(default_factory=tuple)
+    ranking_notes: str = Field(min_length=1)
+    rationale: str = Field(min_length=1)
+    created_at: datetime
+    updated_at: datetime
+
+    @model_validator(mode="after")
+    def validate_plan_shape(self) -> "TradePlanState":
+        if self.action == "BUY" and self.buy_point_type is None:
+            raise ValueError("BUY plans require buy_point_type")
+        if self.action == "SELL" and self.exit_mode is None:
+            raise ValueError("SELL plans require exit_mode")
+        if self.quantity % 100 != 0:
+            raise ValueError("trade plan quantity must use 100-share board lots")
+        if self.observation_times and self.required_observations > len(
+            self.observation_times
+        ):
+            raise ValueError(
+                "required_observations cannot exceed configured observation times"
+            )
+        return self

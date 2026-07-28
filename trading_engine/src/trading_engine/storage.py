@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Iterable
@@ -22,6 +22,7 @@ from trading_engine.models import (
     ReplayRun,
     RiskFactorState,
     ThesisState,
+    TradePlanState,
     WatchPoolMember,
     WatchPoolState,
 )
@@ -36,6 +37,20 @@ THESIS_STATUSES = {
     "archived",
 }
 POOL_MEMBER_ROLES = {"direct", "research"}
+POOL_MONITORING_STATUSES = {"active", "dormant", "archived"}
+POOL_RELATIONSHIPS = {
+    "direct",
+    "volume",
+    "adjacent",
+    "cost_pressure",
+    "research",
+}
+THESIS_TYPES = {"continuous", "event", "realtime"}
+THESIS_STAGES = {"emerging", "confirmed", "accelerating", "realizing", "ended"}
+LINKAGE_CONCLUSIONS = {"company", "sub_industry", "end_demand", "unresolved"}
+TRADE_PLAN_STATUSES = {"active", "triggered", "cancelled", "expired"}
+BUY_POINT_TYPES = {"confirmation", "first_board", "pullback"}
+EXIT_MODES = {"expectation", "trade_confirmation"}
 
 
 class ReplayStore:
@@ -494,10 +509,27 @@ class ReplayStore:
         summary: str,
         realization_condition: str,
         invalidation_condition: str,
+        thesis_type: str | None = None,
+        stage: str | None = None,
+        catalyst_anchor: str | None = None,
+        transmission_chain: str | None = None,
+        linkage_conclusion: str | None = None,
+        confirmation_condition: str | None = None,
     ) -> ThesisState:
         normalized_key = _normalize_key(key)
         if status not in THESIS_STATUSES:
             raise StorageError(f"invalid thesis status: {status}")
+        if thesis_type is not None and thesis_type not in THESIS_TYPES:
+            raise StorageError(f"invalid thesis type: {thesis_type}")
+        if stage is not None and stage not in THESIS_STAGES:
+            raise StorageError(f"invalid thesis stage: {stage}")
+        if (
+            linkage_conclusion is not None
+            and linkage_conclusion not in LINKAGE_CONCLUSIONS
+        ):
+            raise StorageError(
+                f"invalid linkage conclusion: {linkage_conclusion}"
+            )
         values = {
             "title": title.strip(),
             "summary": summary.strip(),
@@ -516,14 +548,22 @@ class ReplayStore:
                 """
                 INSERT INTO theses (
                     id, key, title, status, summary, realization_condition,
-                    invalidation_condition, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    invalidation_condition, thesis_type, stage,
+                    catalyst_anchor, transmission_chain, linkage_conclusion,
+                    confirmation_condition, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(key) DO UPDATE SET
                     title = excluded.title,
                     status = excluded.status,
                     summary = excluded.summary,
                     realization_condition = excluded.realization_condition,
                     invalidation_condition = excluded.invalidation_condition,
+                    thesis_type = excluded.thesis_type,
+                    stage = excluded.stage,
+                    catalyst_anchor = excluded.catalyst_anchor,
+                    transmission_chain = excluded.transmission_chain,
+                    linkage_conclusion = excluded.linkage_conclusion,
+                    confirmation_condition = excluded.confirmation_condition,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -534,6 +574,12 @@ class ReplayStore:
                     values["summary"],
                     values["realization_condition"],
                     values["invalidation_condition"],
+                    thesis_type,
+                    stage,
+                    _optional_text(catalyst_anchor),
+                    _optional_text(transmission_chain),
+                    linkage_conclusion,
+                    _optional_text(confirmation_condition),
                     now.isoformat(),
                     now.isoformat(),
                 ),
@@ -633,11 +679,18 @@ class ReplayStore:
         name: str,
         thesis_key: str | None = None,
         active: bool = True,
+        monitoring_status: str | None = None,
     ) -> WatchPoolState:
         normalized_key = _normalize_key(key)
         normalized_name = name.strip()
         if not normalized_name:
             raise StorageError("watch pool name cannot be empty")
+        resolved_status = monitoring_status or ("active" if active else "archived")
+        if resolved_status not in POOL_MONITORING_STATUSES:
+            raise StorageError(
+                f"invalid pool monitoring status: {resolved_status}"
+            )
+        resolved_active = resolved_status == "active"
         pool_id = uuid4().hex
         now = datetime.now().astimezone()
         with self._connect() as connection:
@@ -653,12 +706,14 @@ class ReplayStore:
             connection.execute(
                 """
                 INSERT INTO watch_pools (
-                    id, key, name, thesis_id, active, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    id, key, name, thesis_id, active, monitoring_status,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(key) DO UPDATE SET
                     name = excluded.name,
                     thesis_id = excluded.thesis_id,
                     active = excluded.active,
+                    monitoring_status = excluded.monitoring_status,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -666,7 +721,8 @@ class ReplayStore:
                     normalized_key,
                     normalized_name,
                     thesis_id,
-                    int(active),
+                    int(resolved_active),
+                    resolved_status,
                     now.isoformat(),
                     now.isoformat(),
                 ),
@@ -706,6 +762,7 @@ class ReplayStore:
         code: str,
         role: str,
         tradable: bool,
+        relationship: str | None = None,
     ) -> WatchPoolMember:
         normalized_key = _normalize_key(pool_key)
         normalized_code = _validate_code(code)
@@ -713,6 +770,17 @@ class ReplayStore:
             raise StorageError(f"invalid pool member role: {role}")
         if role == "research" and tradable:
             raise StorageError("research pool members cannot be tradable")
+        resolved_relationship = relationship or (
+            "research" if role == "research" else "direct"
+        )
+        if resolved_relationship not in POOL_RELATIONSHIPS:
+            raise StorageError(
+                f"invalid pool member relationship: {resolved_relationship}"
+            )
+        if resolved_relationship in {"adjacent", "cost_pressure", "research"} and tradable:
+            raise StorageError(
+                "adjacent, cost-pressure, and research members cannot be tradable"
+            )
         now = datetime.now().astimezone()
         with self._connect() as connection:
             pool = connection.execute(
@@ -723,11 +791,13 @@ class ReplayStore:
             connection.execute(
                 """
                 INSERT INTO watch_pool_members (
-                    pool_id, code, role, tradable, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?)
+                    pool_id, code, role, tradable, relationship,
+                    created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(pool_id, code) DO UPDATE SET
                     role = excluded.role,
                     tradable = excluded.tradable,
+                    relationship = excluded.relationship,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -735,6 +805,7 @@ class ReplayStore:
                     normalized_code,
                     role,
                     int(tradable),
+                    resolved_relationship,
                     now.isoformat(),
                     now.isoformat(),
                 ),
@@ -767,6 +838,192 @@ class ReplayStore:
                 (pool.id,),
             ).fetchall()
         return tuple(_watch_pool_member_from_row(row) for row in rows)
+
+    def upsert_trade_plan(
+        self,
+        key: str,
+        trading_date: date,
+        thesis_key: str,
+        action: str,
+        target_code: str,
+        target_name: str,
+        quantity: int,
+        priority: int,
+        trigger_conditions: tuple[str, ...],
+        ranking_notes: str,
+        rationale: str,
+        *,
+        status: str = "active",
+        buy_point_type: str | None = None,
+        exit_mode: str | None = None,
+        risk_factor_key: str | None = None,
+        observation_times: tuple[time, ...] = (),
+        required_observations: int = 1,
+        guard_conditions: tuple[str, ...] = (),
+        cancel_conditions: tuple[str, ...] = (),
+    ) -> TradePlanState:
+        normalized_key = _normalize_key(key)
+        normalized_thesis = _normalize_key(thesis_key)
+        normalized_code = _validate_code(target_code)
+        normalized_name = target_name.strip()
+        if action not in {"BUY", "SELL"}:
+            raise StorageError(f"invalid trade plan action: {action}")
+        if status not in TRADE_PLAN_STATUSES:
+            raise StorageError(f"invalid trade plan status: {status}")
+        if buy_point_type is not None and buy_point_type not in BUY_POINT_TYPES:
+            raise StorageError(f"invalid buy point type: {buy_point_type}")
+        if exit_mode is not None and exit_mode not in EXIT_MODES:
+            raise StorageError(f"invalid exit mode: {exit_mode}")
+        if action == "BUY" and buy_point_type is None:
+            raise StorageError("BUY plans require a buy point type")
+        if action == "SELL" and exit_mode is None:
+            raise StorageError("SELL plans require an exit mode")
+        if quantity <= 0 or quantity % 100 != 0:
+            raise StorageError("trade plan quantity must use positive 100-share lots")
+        if priority < 0:
+            raise StorageError("trade plan priority cannot be negative")
+        if not normalized_name:
+            raise StorageError("trade plan target name cannot be empty")
+        triggers = _normalized_texts(trigger_conditions, "trigger condition")
+        guards = _normalized_texts(guard_conditions, "guard condition")
+        cancels = _normalized_texts(cancel_conditions, "cancel condition")
+        if not triggers:
+            raise StorageError("trade plan requires at least one trigger condition")
+        if required_observations < 1:
+            raise StorageError("required observations must be at least one")
+        if observation_times and required_observations > len(observation_times):
+            raise StorageError(
+                "required observations cannot exceed configured observation times"
+            )
+        normalized_ranking = ranking_notes.strip()
+        normalized_rationale = rationale.strip()
+        if not normalized_ranking or not normalized_rationale:
+            raise StorageError("ranking notes and rationale cannot be empty")
+
+        plan_id = uuid4().hex
+        now = datetime.now().astimezone()
+        with self._connect() as connection:
+            thesis = connection.execute(
+                "SELECT id FROM theses WHERE key = ?", (normalized_thesis,)
+            ).fetchone()
+            if thesis is None:
+                raise StorageError(f"thesis does not exist: {normalized_thesis}")
+            normalized_risk = None
+            if risk_factor_key is not None:
+                normalized_risk = _normalize_key(risk_factor_key)
+                factor = connection.execute(
+                    "SELECT id FROM risk_factors WHERE key = ?",
+                    (normalized_risk,),
+                ).fetchone()
+                if factor is None:
+                    raise StorageError(
+                        f"risk factor does not exist: {normalized_risk}"
+                    )
+            connection.execute(
+                """
+                INSERT INTO trade_plans (
+                    id, key, trading_date, thesis_id, action, target_code,
+                    target_name, quantity, priority, status, buy_point_type,
+                    exit_mode, risk_factor_key, observation_times_json,
+                    required_observations, trigger_conditions_json,
+                    guard_conditions_json, cancel_conditions_json,
+                    ranking_notes, rationale, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    trading_date = excluded.trading_date,
+                    thesis_id = excluded.thesis_id,
+                    action = excluded.action,
+                    target_code = excluded.target_code,
+                    target_name = excluded.target_name,
+                    quantity = excluded.quantity,
+                    priority = excluded.priority,
+                    status = excluded.status,
+                    buy_point_type = excluded.buy_point_type,
+                    exit_mode = excluded.exit_mode,
+                    risk_factor_key = excluded.risk_factor_key,
+                    observation_times_json = excluded.observation_times_json,
+                    required_observations = excluded.required_observations,
+                    trigger_conditions_json = excluded.trigger_conditions_json,
+                    guard_conditions_json = excluded.guard_conditions_json,
+                    cancel_conditions_json = excluded.cancel_conditions_json,
+                    ranking_notes = excluded.ranking_notes,
+                    rationale = excluded.rationale,
+                    updated_at = excluded.updated_at
+                """,
+                (
+                    plan_id,
+                    normalized_key,
+                    trading_date.isoformat(),
+                    thesis["id"],
+                    action,
+                    normalized_code,
+                    normalized_name,
+                    quantity,
+                    priority,
+                    status,
+                    buy_point_type,
+                    exit_mode,
+                    normalized_risk,
+                    json.dumps([value.isoformat(timespec="minutes") for value in observation_times]),
+                    required_observations,
+                    json.dumps(triggers, ensure_ascii=False),
+                    json.dumps(guards, ensure_ascii=False),
+                    json.dumps(cancels, ensure_ascii=False),
+                    normalized_ranking,
+                    normalized_rationale,
+                    now.isoformat(),
+                    now.isoformat(),
+                ),
+            )
+        return self.get_trade_plan(normalized_key)
+
+    def get_trade_plan(self, key: str) -> TradePlanState:
+        with self._connect() as connection:
+            row = connection.execute(
+                """
+                SELECT trade_plans.*, theses.key AS thesis_key
+                FROM trade_plans
+                JOIN theses ON theses.id = trade_plans.thesis_id
+                WHERE trade_plans.key = ?
+                """,
+                (_normalize_key(key),),
+            ).fetchone()
+        if row is None:
+            raise StorageError(f"trade plan does not exist: {key.strip()}")
+        return _trade_plan_from_row(row)
+
+    def list_trade_plans(
+        self,
+        trading_date: date | None = None,
+        statuses: tuple[str, ...] | None = None,
+    ) -> tuple[TradePlanState, ...]:
+        clauses = []
+        parameters: list[str] = []
+        if trading_date is not None:
+            clauses.append("trade_plans.trading_date = ?")
+            parameters.append(trading_date.isoformat())
+        if statuses is not None:
+            if not statuses:
+                return ()
+            invalid = set(statuses) - TRADE_PLAN_STATUSES
+            if invalid:
+                raise StorageError(
+                    f"invalid trade plan status: {sorted(invalid)[0]}"
+                )
+            placeholders = ",".join("?" for _ in statuses)
+            clauses.append(f"trade_plans.status IN ({placeholders})")
+            parameters.extend(statuses)
+        query = """
+            SELECT trade_plans.*, theses.key AS thesis_key
+            FROM trade_plans
+            JOIN theses ON theses.id = trade_plans.thesis_id
+        """
+        if clauses:
+            query += " WHERE " + " AND ".join(clauses)
+        query += " ORDER BY trade_plans.priority, trade_plans.key"
+        with self._connect() as connection:
+            rows = connection.execute(query, parameters).fetchall()
+        return tuple(_trade_plan_from_row(row) for row in rows)
 
     def upsert_risk_factor(
         self,
@@ -997,6 +1254,12 @@ class ReplayStore:
                     summary TEXT NOT NULL,
                     realization_condition TEXT NOT NULL,
                     invalidation_condition TEXT NOT NULL,
+                    thesis_type TEXT,
+                    stage TEXT,
+                    catalyst_anchor TEXT,
+                    transmission_chain TEXT,
+                    linkage_conclusion TEXT,
+                    confirmation_condition TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -1017,6 +1280,7 @@ class ReplayStore:
                     name TEXT NOT NULL,
                     thesis_id TEXT REFERENCES theses(id),
                     active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
+                    monitoring_status TEXT NOT NULL DEFAULT 'active',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -1028,6 +1292,7 @@ class ReplayStore:
                     ),
                     role TEXT NOT NULL CHECK (role IN ('direct', 'research')),
                     tradable INTEGER NOT NULL CHECK (tradable IN (0, 1)),
+                    relationship TEXT NOT NULL DEFAULT 'direct',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     PRIMARY KEY (pool_id, code),
@@ -1055,8 +1320,89 @@ class ReplayStore:
                     FOREIGN KEY (account_id, code)
                         REFERENCES positions(account_id, code)
                 );
+
+                CREATE TABLE IF NOT EXISTS trade_plans (
+                    id TEXT PRIMARY KEY,
+                    key TEXT NOT NULL UNIQUE,
+                    trading_date TEXT NOT NULL,
+                    thesis_id TEXT NOT NULL REFERENCES theses(id),
+                    action TEXT NOT NULL CHECK (action IN ('BUY', 'SELL')),
+                    target_code TEXT NOT NULL CHECK (
+                        length(target_code) = 6
+                        AND target_code NOT GLOB '*[^0-9]*'
+                    ),
+                    target_name TEXT NOT NULL,
+                    quantity INTEGER NOT NULL CHECK (
+                        quantity > 0 AND quantity % 100 = 0
+                    ),
+                    priority INTEGER NOT NULL CHECK (priority >= 0),
+                    status TEXT NOT NULL CHECK (
+                        status IN ('active', 'triggered', 'cancelled', 'expired')
+                    ),
+                    buy_point_type TEXT,
+                    exit_mode TEXT,
+                    risk_factor_key TEXT,
+                    observation_times_json TEXT NOT NULL,
+                    required_observations INTEGER NOT NULL CHECK (
+                        required_observations >= 1
+                    ),
+                    trigger_conditions_json TEXT NOT NULL,
+                    guard_conditions_json TEXT NOT NULL,
+                    cancel_conditions_json TEXT NOT NULL,
+                    ranking_notes TEXT NOT NULL,
+                    rationale TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    CHECK (
+                        (action = 'BUY' AND buy_point_type IS NOT NULL)
+                        OR (action = 'SELL' AND exit_mode IS NOT NULL)
+                    )
+                );
                 """
             )
+            thesis_columns = _column_names(connection, "theses")
+            for column, definition in (
+                ("thesis_type", "TEXT"),
+                ("stage", "TEXT"),
+                ("catalyst_anchor", "TEXT"),
+                ("transmission_chain", "TEXT"),
+                ("linkage_conclusion", "TEXT"),
+                ("confirmation_condition", "TEXT"),
+            ):
+                if column not in thesis_columns:
+                    connection.execute(
+                        f"ALTER TABLE theses ADD COLUMN {column} {definition}"
+                    )
+            pool_columns = _column_names(connection, "watch_pools")
+            if "monitoring_status" not in pool_columns:
+                connection.execute(
+                    "ALTER TABLE watch_pools ADD COLUMN "
+                    "monitoring_status TEXT NOT NULL DEFAULT 'active'"
+                )
+                connection.execute(
+                    """
+                    UPDATE watch_pools
+                    SET monitoring_status = CASE
+                        WHEN active = 1 THEN 'active'
+                        ELSE 'archived'
+                    END
+                    """
+                )
+            member_columns = _column_names(connection, "watch_pool_members")
+            if "relationship" not in member_columns:
+                connection.execute(
+                    "ALTER TABLE watch_pool_members ADD COLUMN "
+                    "relationship TEXT NOT NULL DEFAULT 'direct'"
+                )
+                connection.execute(
+                    """
+                    UPDATE watch_pool_members
+                    SET relationship = CASE
+                        WHEN role = 'research' THEN 'research'
+                        ELSE 'direct'
+                    END
+                    """
+                )
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.database)
@@ -1144,6 +1490,27 @@ def _validate_code(value: str) -> str:
     return normalized
 
 
+def _optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip()
+    return normalized or None
+
+
+def _normalized_texts(values: tuple[str, ...], label: str) -> tuple[str, ...]:
+    normalized = tuple(value.strip() for value in values if value.strip())
+    if len(normalized) != len(values):
+        raise StorageError(f"{label} cannot be empty")
+    return normalized
+
+
+def _column_names(connection: sqlite3.Connection, table: str) -> set[str]:
+    return {
+        row["name"]
+        for row in connection.execute(f"PRAGMA table_info({table})").fetchall()
+    }
+
+
 def _account_from_row(row: sqlite3.Row) -> AccountState:
     return AccountState(
         id=row["id"],
@@ -1179,6 +1546,12 @@ def _thesis_from_row(row: sqlite3.Row) -> ThesisState:
         summary=row["summary"],
         realization_condition=row["realization_condition"],
         invalidation_condition=row["invalidation_condition"],
+        thesis_type=row["thesis_type"],
+        stage=row["stage"],
+        catalyst_anchor=row["catalyst_anchor"],
+        transmission_chain=row["transmission_chain"],
+        linkage_conclusion=row["linkage_conclusion"],
+        confirmation_condition=row["confirmation_condition"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
@@ -1202,6 +1575,7 @@ def _watch_pool_from_row(row: sqlite3.Row) -> WatchPoolState:
         thesis_id=row["thesis_id"],
         thesis_key=row["thesis_key"],
         active=bool(row["active"]),
+        monitoring_status=row["monitoring_status"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
@@ -1214,6 +1588,7 @@ def _watch_pool_member_from_row(row: sqlite3.Row) -> WatchPoolMember:
         code=row["code"],
         role=row["role"],
         tradable=bool(row["tradable"]),
+        relationship=row["relationship"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
@@ -1238,4 +1613,35 @@ def _position_risk_link_from_row(row: sqlite3.Row) -> PositionRiskLink:
         risk_factor_id=row["risk_factor_id"],
         risk_factor_key=row["risk_factor_key"],
         created_at=datetime.fromisoformat(row["created_at"]),
+    )
+
+
+def _trade_plan_from_row(row: sqlite3.Row) -> TradePlanState:
+    return TradePlanState(
+        id=row["id"],
+        key=row["key"],
+        trading_date=date.fromisoformat(row["trading_date"]),
+        thesis_id=row["thesis_id"],
+        thesis_key=row["thesis_key"],
+        action=row["action"],
+        target_code=row["target_code"],
+        target_name=row["target_name"],
+        quantity=row["quantity"],
+        priority=row["priority"],
+        status=row["status"],
+        buy_point_type=row["buy_point_type"],
+        exit_mode=row["exit_mode"],
+        risk_factor_key=row["risk_factor_key"],
+        observation_times=tuple(
+            time.fromisoformat(value)
+            for value in json.loads(row["observation_times_json"])
+        ),
+        required_observations=row["required_observations"],
+        trigger_conditions=tuple(json.loads(row["trigger_conditions_json"])),
+        guard_conditions=tuple(json.loads(row["guard_conditions_json"])),
+        cancel_conditions=tuple(json.loads(row["cancel_conditions_json"])),
+        ranking_notes=row["ranking_notes"],
+        rationale=row["rationale"],
+        created_at=datetime.fromisoformat(row["created_at"]),
+        updated_at=datetime.fromisoformat(row["updated_at"]),
     )

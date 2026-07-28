@@ -69,6 +69,75 @@
       "code": "000636",
       "action": "BUY",
       "consumed_at": "2026-07-27 09:56"
+    },
+    {
+      "id": "出口B-20260728-01",
+      "direction": "兵装集团重组",
+      "kind": "出口B",
+      "date": "20260728",
+      "fingerprint": "csgc-two-points-1of6-leader-lost-limit-response-failed",
+      "fingerprint_hash": "6f2fc15bf1",
+      "status": "consumed",
+      "code": "601606",
+      "action": "reduce-200",
+      "consumed_at": "2026-07-28 09:51"
+    },
+    {
+      "id": "出口B-20260728-02",
+      "direction": "CPO/光模块",
+      "kind": "出口B",
+      "date": "20260728",
+      "fingerprint": "cpo-1of7-0of7-0of7-leader-lost-rebound-failed",
+      "fingerprint_hash": "4172e4d86d",
+      "status": "consumed",
+      "code": "002281",
+      "action": "sell-all",
+      "consumed_at": "2026-07-28 09:57"
+    },
+    {
+      "id": "出口B-20260728-03",
+      "direction": "创新药/医药",
+      "kind": "出口B",
+      "date": "20260728",
+      "fingerprint": "innovation-pool-1of7-two-observations-leader-lost-price-response-failed",
+      "fingerprint_hash": "b4c7cf6a65",
+      "status": "pending"
+    },
+    {
+      "id": "出口B-20260728-04",
+      "direction": "存储芯片",
+      "kind": "出口B",
+      "date": "20260728",
+      "fingerprint": "post-gap-storage-0of8-changxin-2to1-deep-below-open-rebound-failed",
+      "fingerprint_hash": "2792c756c7",
+      "status": "consumed",
+      "code": "000021",
+      "action": "reduce-200",
+      "consumed_at": "2026-07-28 11:00"
+    },
+    {
+      "id": "出口B-20260728-05",
+      "direction": "创新药/医药",
+      "kind": "出口B",
+      "date": "20260728",
+      "fingerprint": "post-gap-innovation-0of7-two-observations-zhaoyan-worst-rebound-failed",
+      "fingerprint_hash": "209582019c",
+      "status": "consumed",
+      "code": "603127",
+      "action": "reduce-100",
+      "consumed_at": "2026-07-28 11:00"
+    },
+    {
+      "id": "出口B-20260728-06",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "出口B",
+      "date": "20260728",
+      "fingerprint": "14:09-14:10 MLCC池0/5且风华连续落后鸿远并跌破开盘成本，42.86反弹未维持",
+      "fingerprint_hash": "1a0a4efd55",
+      "status": "consumed",
+      "code": "000636",
+      "action": "卖出200股@42.77，剩300股",
+      "consumed_at": "2026-07-28 14:10:24"
     }
   ]
 }

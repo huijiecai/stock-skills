@@ -384,3 +384,107 @@ def test_independent_research_context_cli(tmp_path: Path, monkeypatch) -> None:
     assert json.loads(pool_result.stdout)["members"][0]["code"] == "603127"
     assert json.loads(risk_result.stdout)[0]["max_exposure_pct"] == "60"
     assert risk_link_result.exit_code == 0
+
+
+def test_structured_trade_plan_cli(tmp_path: Path, monkeypatch) -> None:
+    settings = TraderSettings(
+        repo_root=tmp_path,
+        astock_binary=tmp_path / "astock",
+        data_dir=tmp_path / "data",
+    )
+    monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
+    thesis = runner.invoke(
+        app,
+        [
+            "thesis",
+            "set",
+            "--key",
+            "defense_restructuring",
+            "--title",
+            "兵装集团重组",
+            "--status",
+            "active",
+            "--summary",
+            "旧事件重新定价",
+            "--realization",
+            "方案披露并完成定价",
+            "--invalidation",
+            "关系池与领导同时断裂",
+            "--type",
+            "event",
+            "--stage",
+            "confirmed",
+            "--catalyst-anchor",
+            "兵装集团分立",
+            "--transmission-chain",
+            "集团关系调整到上市平台重估",
+            "--linkage",
+            "company",
+            "--confirmation",
+            "关系池至少4/6且领导分歧修复",
+        ],
+    )
+    risk = runner.invoke(
+        app,
+        [
+            "risk",
+            "set",
+            "--key",
+            "defense",
+            "--name",
+            "兵装风险",
+            "--max-exposure",
+            "30",
+        ],
+    )
+    plan = runner.invoke(
+        app,
+        [
+            "plan",
+            "set",
+            "--key",
+            "buy_great_wall_20260727",
+            "--date",
+            "2026-07-27",
+            "--thesis",
+            "defense_restructuring",
+            "--action",
+            "BUY",
+            "--code",
+            "601606",
+            "--name",
+            "长城军工",
+            "--quantity",
+            "500",
+            "--priority",
+            "1",
+            "--trigger",
+            "关系池至少4/6上涨",
+            "--trigger",
+            "领导分歧后重新主动",
+            "--ranking-notes",
+            "同批最多执行前两名",
+            "--rationale",
+            "旧重组关系重新定价",
+            "--buy-point",
+            "confirmation",
+            "--risk",
+            "defense",
+            "--observe",
+            "09:35",
+            "--observe",
+            "09:50",
+            "--json",
+        ],
+    )
+    listed = runner.invoke(
+        app,
+        ["plan", "list", "--date", "2026-07-27", "--json"],
+    )
+
+    assert thesis.exit_code == 0
+    assert risk.exit_code == 0
+    assert plan.exit_code == 0
+    payload = json.loads(listed.stdout)
+    assert payload[0]["target_code"] == "601606"
+    assert payload[0]["observation_times"] == ["09:35:00", "09:50:00"]

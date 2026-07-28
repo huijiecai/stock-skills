@@ -126,7 +126,12 @@ class PaperBroker:
         }
         risk_limits = {
             exposure.factor.key: (
-                set(exposure.position_codes),
+                set(exposure.position_codes)
+                | {
+                    plan.plan.target_code
+                    for plan in context.trade_plans
+                    if plan.plan.risk_factor_key == exposure.factor.key
+                },
                 exposure.factor.max_exposure_pct,
             )
             for exposure in context.risk_exposures
@@ -217,6 +222,7 @@ class PaperBroker:
                     account=account,
                     proposal=proposal,
                     trade_date=trade_date,
+                    market_time=context.as_of,
                     cash_cents=cash_cents,
                     price_cents=price_cents,
                     simulated=simulated,
@@ -334,6 +340,7 @@ class PaperBroker:
         account: sqlite3.Row,
         proposal: JudgmentProposal,
         trade_date: date,
+        market_time: datetime,
         cash_cents: int,
         price_cents: int,
         simulated: dict[str, _SimPosition],
@@ -372,6 +379,7 @@ class PaperBroker:
                 for code, position in simulated.items()
             }
             existing = post_positions.get(proposal.code)
+            opens_new_position = existing is None
             if existing is None:
                 post_positions[proposal.code] = _SimPosition(
                     code=proposal.code,
@@ -412,8 +420,17 @@ class PaperBroker:
                     _check(
                         "tradable_pool",
                         proposal.code in tradable_codes,
-                        "code is an explicitly tradable active-pool member",
-                        "BUY code is not an explicitly tradable active-pool member",
+                        "code is an explicitly tradable monitored-pool member",
+                        "BUY code is not an explicitly tradable monitored-pool member",
+                    ),
+                    _check(
+                        "new_position_cutoff",
+                        not opens_new_position
+                        or market_time.time().replace(tzinfo=None)
+                        < self.policy.no_new_positions_after,
+                        "new-position cutoff has not been reached",
+                        "new positions cannot be opened at or after "
+                        f"{self.policy.no_new_positions_after.isoformat(timespec='minutes')}",
                     ),
                     _check(
                         "cash",

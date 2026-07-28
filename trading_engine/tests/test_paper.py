@@ -189,6 +189,24 @@ def test_paper_buy_is_atomic_idempotent_and_auditable(tmp_path: Path) -> None:
     assert paper_store.audit_order(first.orders[0].id).valid is True
     assert paper_store.audit_account("paper").valid is True
 
+    _link_bought_position(store)
+    next_market = store.record_market_snapshot(
+        MarketSnapshot(
+            as_of=DAY_ONE + timedelta(minutes=1),
+            source="astock-live",
+            payload={"mode": "shadow", "quotes": [_quote("603127", 20)]},
+        )
+    )
+    next_context = DecisionContextBuilder(store, context_store).build(
+        next_market, "paper"
+    )
+    assert len(next_context.context.execution_history) == 1
+    executed = next_context.context.execution_history[0]
+    assert executed.code == "603127"
+    assert executed.side == "BUY"
+    assert executed.quantity == 100
+    assert executed.sellable_after == 0
+
 
 def test_non_trading_judgment_is_consumed_as_skipped_event(tmp_path: Path) -> None:
     store, context_store, paper_store, broker = _seed_paper(tmp_path)
@@ -331,6 +349,28 @@ def test_cooldown_and_duplicate_signal_rules(tmp_path: Path) -> None:
     assert store.get_position("paper", "603127").quantity == 100
 
 
+def test_new_position_is_rejected_at_or_after_cutoff(tmp_path: Path) -> None:
+    store, context_store, _, broker = _seed_paper(tmp_path)
+    judgment = _judgment(
+        store,
+        context_store,
+        DAY_ONE.replace(hour=14, minute=50),
+        "603127",
+        20,
+        "BUY",
+        100,
+    )
+
+    result = broker.execute_judgment("paper", judgment.id)
+
+    assert result.orders[0].status == "rejected"
+    assert any(
+        check.name == "new_position_cutoff" and not check.passed
+        for check in result.checks[result.orders[0].id]
+    )
+    assert store.list_positions("paper") == ()
+
+
 def test_gross_and_named_risk_exposure_limits_are_enforced(tmp_path: Path) -> None:
     store, context_store, paper_store, _ = _seed_paper(tmp_path)
     gross_broker = PaperBroker(
@@ -377,6 +417,53 @@ def test_gross_and_named_risk_exposure_limits_are_enforced(tmp_path: Path) -> No
     assert any(
         check.name == "risk_exposure:paper_risk" and not check.passed
         for check in risk_result.checks[risk_result.orders[0].id]
+    )
+
+
+def test_new_position_uses_trade_plan_risk_factor(tmp_path: Path) -> None:
+    store, context_store, paper_store, _ = _seed_paper(tmp_path)
+    store.upsert_thesis(
+        "paper_thesis",
+        "Paper thesis",
+        "active",
+        "A deterministic thesis",
+        "Condition passes",
+        "Condition fails",
+        "event",
+        "confirmed",
+        "Fixture catalyst",
+        "Catalyst -> product -> company",
+        "company",
+        "Pool and leader confirm together",
+    )
+    store.upsert_risk_factor("paper_risk", "Paper risk", Decimal("1"))
+    store.upsert_trade_plan(
+        key="paper_buy_plan",
+        trading_date=DAY_ONE.date(),
+        thesis_key="paper_thesis",
+        action="BUY",
+        target_code="603127",
+        target_name="Test stock",
+        quantity=100,
+        priority=1,
+        trigger_conditions=("fixture trigger",),
+        ranking_notes="fixture ranking",
+        rationale="fixture rationale",
+        buy_point_type="confirmation",
+        risk_factor_key="paper_risk",
+    )
+    judgment = _judgment(
+        store, context_store, DAY_ONE, "603127", 20, "BUY", 100
+    )
+
+    result = PaperBroker(
+        store, context_store, paper_store
+    ).execute_judgment("paper", judgment.id)
+
+    assert result.orders[0].status == "rejected"
+    assert any(
+        check.name == "risk_exposure:paper_risk" and not check.passed
+        for check in result.checks[result.orders[0].id]
     )
 
 

@@ -51,27 +51,45 @@ func (c *Client) GetQuotes(codes []string) ([]*model.Quote, error) {
 
 	// 板块/指数走底层 framing
 	if len(indexCodes) > 0 {
-		prefixed := make([]string, len(indexCodes))
-		for i, code := range indexCodes {
-			prefixed[i] = IndexCode(code)
+		quotes, err := c.GetIndexQuotes(indexCodes)
+		if err != nil {
+			return nil, err
 		}
-		f, ferr := protocol.MQuote.Frame(prefixed...)
-		if ferr != nil {
-			return nil, fmt.Errorf("quote frame: %w", ferr)
-		}
-		result, serr := cli.SendFrame(f)
-		if serr != nil {
-			return nil, fmt.Errorf("get index quote: %w", serr)
-		}
-		resp := result.(protocol.QuotesResp)
-		for i, q := range resp {
-			if i >= len(indexCodes) {
-				break
-			}
-			out = append(out, mapQuote(indexCodes[i], q))
-		}
+		out = append(out, quotes...)
 	}
 
+	return out, nil
+}
+
+// GetIndexQuotes explicitly treats every code as an index and avoids stock-code ambiguity.
+func (c *Client) GetIndexQuotes(codes []string) ([]*model.Quote, error) {
+	cli, err := c.Raw()
+	if err != nil {
+		return nil, err
+	}
+	prefixed := make([]string, len(codes))
+	for i, code := range codes {
+		prefixed[i] = IndexCode(code)
+	}
+	f, err := protocol.MQuote.Frame(prefixed...)
+	if err != nil {
+		return nil, fmt.Errorf("index quote frame: %w", err)
+	}
+	result, err := cli.SendFrame(f)
+	if err != nil {
+		return nil, fmt.Errorf("get index quote: %w", err)
+	}
+	resp := result.(protocol.QuotesResp)
+	if len(resp) != len(codes) {
+		return nil, fmt.Errorf(
+			"index quote count mismatch: requested %d, returned %d",
+			len(codes), len(resp),
+		)
+	}
+	out := make([]*model.Quote, 0, len(codes))
+	for i, q := range resp {
+		out = append(out, mapQuote(codes[i], q))
+	}
 	return out, nil
 }
 

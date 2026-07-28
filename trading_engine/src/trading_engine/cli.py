@@ -22,6 +22,7 @@ from trading_engine.models import (
     PositionState,
     RiskFactorState,
     ThesisState,
+    TradePlanState,
     WatchPoolMember,
     WatchPoolState,
 )
@@ -58,6 +59,7 @@ position_app = typer.Typer(help="Manage positions in the independent account.")
 thesis_app = typer.Typer(help="Manage independent investment theses.")
 pool_app = typer.Typer(help="Manage independent fixed watch pools.")
 risk_app = typer.Typer(help="Manage independent portfolio risk factors.")
+plan_app = typer.Typer(help="Manage structured daily if-then trade plans.")
 app.add_typer(config_app, name="config")
 app.add_typer(astock_app, name="astock")
 app.add_typer(replay_app, name="replay")
@@ -68,6 +70,7 @@ app.add_typer(position_app, name="position")
 app.add_typer(thesis_app, name="thesis")
 app.add_typer(pool_app, name="pool")
 app.add_typer(risk_app, name="risk")
+app.add_typer(plan_app, name="plan")
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(context_app, name="context")
 app.add_typer(paper_app, name="paper")
@@ -468,12 +471,49 @@ def thesis_set(
     invalidation: str = typer.Option(
         ..., "--invalidation", help="Condition that invalidates the thesis."
     ),
+    thesis_type: str | None = typer.Option(
+        None, "--type", help="continuous, event, or realtime."
+    ),
+    stage: str | None = typer.Option(
+        None,
+        "--stage",
+        help="emerging, confirmed, accelerating, realizing, or ended.",
+    ),
+    catalyst_anchor: str | None = typer.Option(
+        None, "--catalyst-anchor", help="Observable catalyst or data anchor."
+    ),
+    transmission_chain: str | None = typer.Option(
+        None,
+        "--transmission-chain",
+        help="Shortest event-to-company benefit chain.",
+    ),
+    linkage_conclusion: str | None = typer.Option(
+        None,
+        "--linkage",
+        help="company, sub_industry, end_demand, or unresolved.",
+    ),
+    confirmation_condition: str | None = typer.Option(
+        None,
+        "--confirmation",
+        help="Market behavior that confirms the thesis for trading.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """Create or replace one thesis in the engine database."""
     try:
         thesis = _store().upsert_thesis(
-            key, title, status, summary, realization, invalidation
+            key,
+            title,
+            status,
+            summary,
+            realization,
+            invalidation,
+            thesis_type,
+            stage,
+            catalyst_anchor,
+            transmission_chain,
+            linkage_conclusion,
+            confirmation_condition,
         )
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
@@ -525,11 +565,18 @@ def pool_set(
     active: bool = typer.Option(
         True, "--active/--inactive", help="Set pool activity state."
     ),
+    monitoring_status: str | None = typer.Option(
+        None,
+        "--status",
+        help="active, dormant, or archived. Overrides --active/--inactive.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """Create or replace a fixed watch pool."""
     try:
-        pool = _store().upsert_watch_pool(key, name, thesis_key, active)
+        pool = _store().upsert_watch_pool(
+            key, name, thesis_key, active, monitoring_status
+        )
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -548,12 +595,17 @@ def pool_member(
         "--tradable/--research-only",
         help="Whether the member is eligible for trading.",
     ),
+    relationship: str | None = typer.Option(
+        None,
+        "--relationship",
+        help="direct, volume, adjacent, cost_pressure, or research.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """Create or replace one member of a fixed watch pool."""
     try:
         member = _store().set_watch_pool_member(
-            pool_key, code, role, tradable
+            pool_key, code, role, tradable, relationship
         )
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
@@ -563,7 +615,8 @@ def pool_member(
     else:
         typer.echo(
             f"已保存固定池成员 {member.pool_key}/{member.code} "
-            f"role={member.role} tradable={str(member.tradable).lower()}"
+            f"role={member.role} relationship={member.relationship} "
+            f"tradable={str(member.tradable).lower()}"
         )
 
 
@@ -581,6 +634,106 @@ def pool_show(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     _print_watch_pool(pool, members, json_output)
+
+
+@plan_app.command("set")
+def plan_set(
+    key: str = typer.Option(..., "--key", help="Stable ASCII plan key."),
+    trading_date: str = typer.Option(
+        ..., "--date", help="Trading date in YYYY-MM-DD format."
+    ),
+    thesis_key: str = typer.Option(..., "--thesis", help="Existing thesis key."),
+    action: str = typer.Option(..., "--action", help="BUY or SELL."),
+    code: str = typer.Option(..., "--code", help="Target stock code."),
+    name: str = typer.Option(..., "--name", help="Target stock name."),
+    quantity: int = typer.Option(..., "--quantity", help="100-share lot quantity."),
+    priority: int = typer.Option(100, "--priority", help="Lower ranks first."),
+    trigger: list[str] = typer.Option(
+        ..., "--trigger", help="Repeat for every required trigger condition."
+    ),
+    ranking_notes: str = typer.Option(
+        ..., "--ranking-notes", help="Account-ranking instructions."
+    ),
+    rationale: str = typer.Option(..., "--rationale", help="Plan rationale."),
+    status: str = typer.Option("active", "--status", help="Plan status."),
+    buy_point_type: str | None = typer.Option(
+        None,
+        "--buy-point",
+        help="confirmation, first_board, or pullback for BUY plans.",
+    ),
+    exit_mode: str | None = typer.Option(
+        None,
+        "--exit-mode",
+        help="expectation or trade_confirmation for SELL plans.",
+    ),
+    risk_factor_key: str | None = typer.Option(
+        None, "--risk", help="Optional named shared-risk factor."
+    ),
+    observe: list[str] | None = typer.Option(
+        None, "--observe", help="Repeat for observation checkpoints in HH:MM."
+    ),
+    required_observations: int = typer.Option(
+        1, "--required-observations", help="Required matching checkpoints."
+    ),
+    guard: list[str] | None = typer.Option(
+        None, "--guard", help="Repeat for mandatory guard conditions."
+    ),
+    cancel: list[str] | None = typer.Option(
+        None, "--cancel", help="Repeat for conditions that cancel the plan."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Create or replace one structured daily if-then trade plan."""
+    try:
+        plan = _store().upsert_trade_plan(
+            key=key,
+            trading_date=_parse_iso_date(trading_date),
+            thesis_key=thesis_key,
+            action=action.upper(),
+            target_code=code,
+            target_name=name,
+            quantity=quantity,
+            priority=priority,
+            trigger_conditions=tuple(trigger),
+            ranking_notes=ranking_notes,
+            rationale=rationale,
+            status=status,
+            buy_point_type=buy_point_type,
+            exit_mode=exit_mode,
+            risk_factor_key=risk_factor_key,
+            observation_times=tuple(
+                parse_clock_time(value) for value in (observe or [])
+            ),
+            required_observations=required_observations,
+            guard_conditions=tuple(guard or []),
+            cancel_conditions=tuple(cancel or []),
+        )
+    except (TradingEngineError, ValueError) as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_trade_plans((plan,), json_output)
+
+
+@plan_app.command("list")
+def plan_list(
+    trading_date: str | None = typer.Option(
+        None, "--date", help="Optional date in YYYY-MM-DD format."
+    ),
+    status: list[str] | None = typer.Option(
+        None, "--status", help="Repeat to filter plan statuses."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """List structured trade plans stored by the independent engine."""
+    try:
+        plans = _store().list_trade_plans(
+            _parse_iso_date(trading_date) if trading_date else None,
+            tuple(status) if status else None,
+        )
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    _print_trade_plans(plans, json_output)
 
 
 @risk_app.command("set")
@@ -823,13 +976,35 @@ def _print_watch_pool(
         return
     typer.echo(
         f"固定池 {pool.key}  name={pool.name} "
-        f"active={str(pool.active).lower()} thesis={pool.thesis_key or '-'}"
+        f"status={pool.monitoring_status} thesis={pool.thesis_key or '-'}"
     )
-    typer.echo(f"{'代码':<8} {'角色':<10} {'可交易':<8}")
+    typer.echo(f"{'代码':<8} {'角色':<10} {'关系':<16} {'可交易':<8}")
     for member in members:
         typer.echo(
-            f"{member.code:<8} {member.role:<10} "
+            f"{member.code:<8} {member.role:<10} {member.relationship:<16} "
             f"{str(member.tradable).lower():<8}"
+        )
+
+
+def _print_trade_plans(
+    plans: tuple[TradePlanState, ...], json_output: bool
+) -> None:
+    if json_output:
+        typer.echo(
+            json.dumps(
+                [plan.model_dump(mode="json") for plan in plans],
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return
+    typer.echo("结构化交易预案")
+    typer.echo(f"{'日期':<12} {'优先级':>6} {'动作':<6} {'代码':<8} {'数量':>8} KEY")
+    for plan in plans:
+        typer.echo(
+            f"{plan.trading_date.isoformat():<12} {plan.priority:>6} "
+            f"{plan.action:<6} {plan.target_code:<8} {plan.quantity:>8} "
+            f"{plan.key}"
         )
 
 

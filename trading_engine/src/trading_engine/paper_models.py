@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Literal
 
@@ -13,6 +13,7 @@ class PaperPolicy(BaseModel):
     buy_lot_size: int = Field(default=100, gt=0)
     max_single_position_pct: Decimal = Field(default=Decimal("30"), gt=0, le=100)
     max_gross_exposure_pct: Decimal = Field(default=Decimal("95"), gt=0, le=100)
+    no_new_positions_after: time = time(14, 50)
     policy_version: str = "paper-main-board-v1"
 
 

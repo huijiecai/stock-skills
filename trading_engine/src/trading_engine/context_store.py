@@ -11,8 +11,10 @@ from trading_engine.context_models import (
     CatalystEvidence,
     DecisionContext,
     DecisionContextRecord,
+    PriorDecisionContext,
 )
 from trading_engine.errors import ContextError, StorageError
+from trading_engine.models import JudgmentReport
 
 
 EVIDENCE_KINDS = {"announcement", "news", "industry", "market", "other"}
@@ -179,6 +181,72 @@ class ContextStore:
         if row is None:
             raise StorageError(f"decision context does not exist: {context_id}")
         return _context_record_from_row(row)
+
+    def list_contexts_before(
+        self,
+        account_name: str,
+        before: datetime,
+        limit: int = 240,
+    ) -> tuple[DecisionContextRecord, ...]:
+        if limit < 1:
+            raise ContextError("context history limit must be at least one")
+        cutoff = _as_utc(before, "before")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT context_snapshots.*
+                FROM context_snapshots
+                JOIN accounts ON accounts.id = context_snapshots.account_id
+                WHERE accounts.name = ? AND context_snapshots.as_of < ?
+                ORDER BY context_snapshots.as_of DESC
+                LIMIT ?
+                """,
+                (account_name.strip(), cutoff.isoformat(), limit),
+            ).fetchall()
+        return tuple(reversed(tuple(_context_record_from_row(row) for row in rows)))
+
+    def list_prior_decisions(
+        self,
+        account_name: str,
+        before: datetime,
+        limit: int = 100,
+    ) -> tuple[PriorDecisionContext, ...]:
+        if limit < 1:
+            raise ContextError("decision history limit must be at least one")
+        cutoff = _as_utc(before, "before")
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT judgments.output_json, context_snapshots.as_of
+                FROM judgments
+                JOIN context_snapshots
+                  ON context_snapshots.id = json_extract(
+                      judgments.input_json, '$.decision_context_id'
+                  )
+                JOIN accounts ON accounts.id = context_snapshots.account_id
+                WHERE accounts.name = ?
+                  AND context_snapshots.as_of < ?
+                  AND judgments.status = 'completed'
+                  AND judgments.output_json IS NOT NULL
+                ORDER BY context_snapshots.as_of DESC, judgments.created_at DESC
+                LIMIT ?
+                """,
+                (account_name.strip(), cutoff.isoformat(), limit),
+            ).fetchall()
+        decisions = []
+        for row in reversed(rows):
+            report = JudgmentReport.model_validate_json(row["output_json"])
+            for proposal in report.proposals:
+                decisions.append(
+                    PriorDecisionContext(
+                        as_of=datetime.fromisoformat(row["as_of"]),
+                        code=proposal.code,
+                        action=proposal.action,
+                        quantity=proposal.quantity,
+                        reason=proposal.reason,
+                    )
+                )
+        return tuple(decisions)
 
     def _initialize(self) -> None:
         with self._connect() as connection:

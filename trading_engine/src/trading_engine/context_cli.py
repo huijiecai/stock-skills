@@ -12,7 +12,11 @@ from trading_engine.context_models import CatalystEvidence, DecisionContextRecor
 from trading_engine.context_store import ContextStore
 from trading_engine.errors import ContextError, TradingEngineError
 from trading_engine.live import LiveMarketData
-from trading_engine.replay import ReplayMarketData, SHANGHAI_TZ, parse_clock_time
+from trading_engine.replay import (
+    ReplayMarketData,
+    parse_clock_time,
+    replay_time,
+)
 from trading_engine.storage import ReplayStore
 
 
@@ -108,7 +112,9 @@ def context_capture(
         builder = DecisionContextBuilder(store, context_store)
         codes = builder.required_live_codes(account_name)
         snapshot = LiveMarketData(
-            AstockClient(settings.astock_binary), codes
+            AstockClient(settings.astock_binary, timeout_seconds=60),
+            codes,
+            include_discovery=True,
         ).snapshot()
         market_record = store.record_market_snapshot(snapshot)
         record = builder.build(market_record, account_name)
@@ -156,10 +162,9 @@ def context_replay(
         settings = TraderSettings.load()
         store, context_store = _stores(settings)
         builder = DecisionContextBuilder(store, context_store)
-        codes = builder.required_live_codes(account_name)
         trading_date = datetime.strptime(replay_date, "%Y%m%d").date()
-        replay_time = parse_clock_time(until)
-        at = datetime.combine(trading_date, replay_time, tzinfo=SHANGHAI_TZ)
+        codes = builder.required_live_codes(account_name, trading_date)
+        at = replay_time(trading_date, parse_clock_time(until))
         snapshot = ReplayMarketData(
             AstockClient(settings.astock_binary), trading_date, codes
         ).snapshot(at)
@@ -246,8 +251,19 @@ def _print_context(record: DecisionContextRecord, json_output: bool) -> None:
     typer.echo(
         f"账户={context.account.name} 总资产=¥{context.total_assets:,.2f} "
         f"持仓={len(context.positions)} 预期={len(context.theses)} "
-        f"固定池={len(context.pools)} 证据={len(context.evidence)}"
+        f"固定池={len(context.pools)} 预案={len(context.trade_plans)} "
+        f"历史观察={len(context.observation_history)} "
+        f"历史判断={len(context.prior_decisions)} "
+        f"当日成交={len(context.execution_history)} 证据={len(context.evidence)}"
     )
+    if context.market_discovery is not None:
+        discovery = context.market_discovery
+        typer.echo(
+            f"市场覆盖={discovery.coverage_mode} "
+            f"扫描={discovery.scanned_count or len(discovery.scanned_codes)} "
+            f"候选={len(discovery.candidates)} "
+            f"板块={len(discovery.sector_leaders)} 指数={len(discovery.indices)}"
+        )
     typer.echo(
         f"ready_for_judgment={str(context.ready_for_judgment).lower()} "
         f"excluded_future_evidence={context.excluded_future_evidence_count}"

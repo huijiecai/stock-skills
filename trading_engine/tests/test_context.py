@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -345,6 +345,144 @@ def test_analyzer_refuses_blocked_context(tmp_path: Path) -> None:
         ReadOnlyAnalyzer(store).analyze(market_record, context_record)
 
 
+def test_context_contains_plans_dormant_pools_paths_and_observation_history(
+    tmp_path: Path,
+) -> None:
+    store, context_store, builder = _seed_context_state(tmp_path)
+    store.upsert_thesis(
+        "innovation_medicine",
+        "创新药",
+        "active",
+        "研发需求改善",
+        "需求完成定价",
+        "需求被否定",
+        "continuous",
+        "confirmed",
+        "创新药BD与研发订单",
+        "研发需求 -> CXO订单 -> 昭衍新药",
+        "sub_industry",
+        "固定池多数上涨且昭衍保持前二",
+    )
+    mlcc = store.upsert_thesis(
+        "ai_server_mlcc",
+        "AI服务器高端MLCC",
+        "watch",
+        "AI服务器需求向高端MLCC传导",
+        "服务器订单和MLCC需求完成定价",
+        "需求转弱且直接池联动消失",
+        "continuous",
+        "emerging",
+        "AI服务器资本开支",
+        "AI服务器扩产 -> 高端MLCC需求 -> 风华高科",
+        "sub_industry",
+        "固定池至少4/5上涨且风华分歧后重新领先",
+    )
+    pool = store.upsert_watch_pool(
+        "mlcc_pool",
+        "AI服务器高端MLCC池",
+        mlcc.key,
+        monitoring_status="dormant",
+    )
+    for code in ("000636", "300408", "603260", "603678", "603989"):
+        store.set_watch_pool_member(
+            pool.key,
+            code,
+            "direct",
+            code.startswith(("000", "600", "601", "603", "605")),
+        )
+    store.upsert_risk_factor("tech_growth", "科技成长", Decimal("60"))
+    store.upsert_trade_plan(
+        key="buy_fenghua_20260728",
+        trading_date=AS_OF.date(),
+        thesis_key=mlcc.key,
+        action="BUY",
+        target_code="000636",
+        target_name="风华高科",
+        quantity=500,
+        priority=2,
+        trigger_conditions=(
+            "MLCC固定池至少4/5上涨",
+            "风华高科经历分歧后重新主动并保持池内第一",
+        ),
+        ranking_notes="按新鲜度、确认质量、领导和账户风险排序",
+        rationale="服务器资本开支向高端MLCC需求传导",
+        buy_point_type="confirmation",
+        risk_factor_key="tech_growth",
+        observation_times=(time(9, 35), time(9, 50)),
+        required_observations=2,
+        guard_conditions=("交易后科技共同风险不超过60%",),
+        cancel_conditions=("固定池缩至2/5以下",),
+    )
+    context_store.add_evidence(
+        thesis_key=mlcc.key,
+        kind="industry",
+        source_name="fixture",
+        published_at=AS_OF.replace(hour=8, minute=0),
+        observed_at=AS_OF.replace(hour=8, minute=1),
+        summary="盘前可观察的AI服务器需求证据",
+        stance="supports",
+        reliability="high",
+    )
+
+    codes = builder.required_live_codes("default", AS_OF.date())
+    assert "000636" in codes
+    assert "300408" in codes
+
+    def market(at: datetime, fenghua_price: float):
+        rows = [
+            _quote("603127", 52, 50),
+            _quote("300255", 20, 19),
+            {
+                **_quote("000636", fenghua_price, 40),
+                "open": 40.5,
+                "high": fenghua_price,
+                "low": 39.8,
+            },
+            _quote("300408", 32, 30),
+            _quote("603260", 21, 20),
+            _quote("603678", 42, 40),
+            _quote("603989", 31, 30),
+        ]
+        return store.record_market_snapshot(
+            MarketSnapshot(
+                as_of=at,
+                source="astock-live",
+                payload={"mode": "shadow", "quotes": rows},
+            )
+        )
+
+    first_market = market(AS_OF.replace(hour=9, minute=35), 42)
+    first = builder.build(first_market)
+    assert first.context.ready_for_judgment is True
+    ReadOnlyAnalyzer(store).analyze(first_market, first)
+
+    second = builder.build(market(AS_OF.replace(hour=9, minute=50), 43))
+
+    mlcc_context = next(
+        item for item in second.context.pools if item.pool.key == "mlcc_pool"
+    )
+    plan_context = second.context.trade_plans[0]
+    assert mlcc_context.pool.monitoring_status == "dormant"
+    assert mlcc_context.metrics is not None
+    assert mlcc_context.metrics.up_count == 5
+    assert mlcc_context.metrics.leader_codes[0] == "000636"
+    fenghua = next(
+        item for item in mlcc_context.member_signals if item.code == "000636"
+    )
+    assert fenghua.path.dipped_below_pre_close is True
+    assert fenghua.path.recovered_above_pre_close is True
+    assert len(plan_context.observed_times) == 2
+    assert plan_context.missing_observation_times == ()
+    assert [item.as_of.time() for item in second.context.observation_history] == [
+        time(9, 35)
+    ]
+    assert second.context.prior_decisions
+    assert second.context.strategy_rules is not None
+    assert second.context.strategy_rules.max_batch_buys == 2
+    assert second.context.market_discovery is not None
+    assert "full_market_candidates" in second.context.market_discovery.missing_capabilities
+
+
 def test_context_capture_requests_positions_and_all_active_pool_members(
     tmp_path: Path, monkeypatch
 ) -> None:
@@ -356,8 +494,9 @@ def test_context_capture_requests_positions_and_all_active_pool_members(
     )
 
     class StubLiveMarketData:
-        def __init__(self, _client, codes) -> None:
+        def __init__(self, _client, codes, include_discovery=False) -> None:
             assert codes == ("300255", "603127")
+            assert include_discovery is True
 
         def snapshot(self):
             return MarketSnapshot(

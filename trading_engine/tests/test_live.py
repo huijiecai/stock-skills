@@ -33,6 +33,66 @@ class FakeAstockClient:
         return self.rows
 
 
+class DiscoveryAstockClient:
+    def run_json(self, *arguments: str):
+        if arguments[:2] == ("live", "quote"):
+            return [_quote("000636")]
+        if arguments == ("live", "market"):
+            candidate = {
+                "code": "000636",
+                "name": "风华高科",
+                "industry": "电子元件",
+                "sector": "MLCC",
+                "business": "被动元件",
+                "price": 44.24,
+                "pre_close": 40.22,
+                "change_pct": 10.0,
+                "amount": 6_500_000_000,
+                "low": 40.01,
+                "rebound_pct": 10.52,
+                "limit_up": True,
+                "reasons": ["limit_up", "strong_move"],
+            }
+            return {
+                "coverage_mode": "all_main_board_snapshot",
+                "universe": 3200,
+                "scanned": 3195,
+                "missing_quotes": 5,
+                "failed_batches": 1,
+                "top_amount": [candidate],
+                "candidates": [candidate],
+            }
+        if arguments == ("live", "block", "rank", "--limit", "50"):
+            return [
+                {
+                    "code": "sh880507",
+                    "name": "MLCC",
+                    "block_type": "concept",
+                    "price": 1234.5,
+                    "pre_close": 1200,
+                    "change_pct": 4.4,
+                    "amount": 12_000_000_000,
+                    "limit_up_count": 2,
+                }
+            ]
+        if arguments[:2] == ("live", "index"):
+            return [
+                {
+                    "code": code,
+                    "price": 1000 + index,
+                    "pre_close": 990 + index,
+                    "change_pct": 1.01,
+                    "volume": 1_000_000,
+                    "amount": 10_000_000_000,
+                    "open": 995,
+                    "high": 1010,
+                    "low": 985,
+                }
+                for index, code in enumerate(arguments[2:])
+            ]
+        raise AssertionError(arguments)
+
+
 def test_live_snapshot_preserves_requested_order_and_validates_quotes() -> None:
     provider = LiveMarketData(
         FakeAstockClient([_quote("000636", 44.24, 40.22), _quote("000021")]),  # type: ignore[arg-type]
@@ -67,3 +127,33 @@ def test_live_snapshot_rejects_zero_price() -> None:
 
     with pytest.raises(LiveDataError, match="invalid live quote"):
         provider.snapshot(OBSERVED_AT)
+
+
+def test_live_snapshot_can_capture_full_market_discovery() -> None:
+    provider = LiveMarketData(
+        DiscoveryAstockClient(),  # type: ignore[arg-type]
+        ("000636",),
+        include_discovery=True,
+    )
+
+    snapshot = provider.snapshot(OBSERVED_AT)
+
+    discovery = snapshot.payload["market_discovery"]
+    assert discovery["coverage_mode"] == "full_market"
+    assert discovery["universe_count"] == 3200
+    assert discovery["scanned_count"] == 3195
+    assert discovery["limit_up_codes"] == ("000636",)
+    assert discovery["candidates"][0]["reasons"] == [
+        "limit_up",
+        "strong_move",
+    ]
+    assert discovery["sector_leaders"][0]["name"] == "MLCC"
+    assert {row["name"] for row in discovery["indices"]} == {
+        "上证指数",
+        "深证成指",
+        "创业板指",
+        "上证50",
+        "沪深300",
+        "中证1000",
+    }
+    assert discovery["missing_capabilities"] == []
