@@ -73,7 +73,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 				return err
 			}
 			if snap.TotalStocks == 0 {
-				fmt.Printf("日期 %s 无 daily 数据（可能非交易日或未同步）\n", date)
+				fmt.Fprintf(os.Stderr, "日期 %s 无 daily 数据（可能非交易日或未同步）\n", date)
 				return nil
 			}
 

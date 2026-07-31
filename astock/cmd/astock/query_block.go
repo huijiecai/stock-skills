@@ -90,7 +90,7 @@ func runBlockRank(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if len(list) == 0 {
-		fmt.Printf("日期 %s 无板块数据（可能板块 daily 未同步该日）\n", formatDate(date))
+		fmt.Fprintf(os.Stderr, "日期 %s 无板块数据（可能板块 daily 未同步该日）\n", formatDate(date))
 		return nil
 	}
 
@@ -310,8 +310,9 @@ type BlockMemberRow struct {
 	PreClose    float64 `json:"pre_close"`
 	ChangePct   float64 `json:"change_pct"`
 	Amount      float64 `json:"amount"`
-	Turnover    float64 `json:"turnover"`     // 换手率%（volume 手 * 10000 / float_share 股）
-	LimitStatus string  `json:"limit_status"` // 涨停/跌停/-
+	Turnover    float64 `json:"turnover"`              // 换手率%（volume 手 * 10000 / float_share 股）
+	LimitStatus string  `json:"limit_status"`          // 涨停/跌停/-
+	DataSource  string  `json:"data_source,omitempty"` // "minute"/"daily"；query/live 不填
 }
 
 func queryBlockMembers(ctx context.Context, ch *dwh.Client, blockCode, date string, asc bool) ([]*BlockMemberRow, error) {
@@ -386,20 +387,27 @@ func printBlockMembers(list []*BlockMemberRow, blockCode, blockName, date string
 	}
 	fmt.Printf("=== %s [%s %s] 成分股%s榜 ===\n", date, blockCode, blockName, label)
 	t := newTable("代码", 8, "名称", 12, "行业", 12, "收盘", 8, "涨跌%", 8, "成交额(亿)", 10, "换手%", 8, "状态", 6)
+	minuteCnt := 0
 	for _, r := range list {
+		// data_source == "daily" 表示无分钟数据，显示为空
+		noData := r.DataSource == "daily"
+		closeStr := "-"
+		chgStr := "-"
 		amt := "-"
-		if r.Amount > 0 {
-			amt = fmt.Sprintf("%.2f", r.Amount/1e8)
-		}
 		turn := "-"
-		if r.Turnover > 0 {
-			turn = fmt.Sprintf("%.2f", r.Turnover)
+		if !noData {
+			minuteCnt++
+			closeStr = fmt.Sprintf("%.2f", r.Close)
+			chgStr = fmt.Sprintf("%+.2f", r.ChangePct)
+			if r.Amount > 0 {
+				amt = fmt.Sprintf("%.2f", r.Amount/1e8)
+			}
+			if r.Turnover > 0 {
+				turn = fmt.Sprintf("%.2f", r.Turnover)
+			}
 		}
-		t.Row(r.Code, r.Name, r.Industry,
-			fmt.Sprintf("%.2f", r.Close),
-			fmt.Sprintf("%+.2f", r.ChangePct),
-			amt, turn, r.LimitStatus)
+		t.Row(r.Code, r.Name, r.Industry, closeStr, chgStr, amt, turn, r.LimitStatus)
 	}
 	t.Print()
-	fmt.Printf("\n共 %d 只成分股\n", len(list))
+	fmt.Printf("\n共 %d 只成分股（%d 只有分钟数据，%d 只无分钟数据）\n", len(list), minuteCnt, len(list)-minuteCnt)
 }

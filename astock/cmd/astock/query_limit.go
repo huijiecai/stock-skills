@@ -75,7 +75,7 @@ date 可选，格式 YYYYMMDD；省略则取 kline_daily 中最新交易日。
 				return err
 			}
 			if len(list) == 0 {
-				fmt.Printf("日期 %s 无%s股\n", formatDate(date), sideLabel(side))
+				fmt.Fprintf(os.Stderr, "日期 %s 无%s股\n", formatDate(date), sideLabel(side))
 				return nil
 			}
 

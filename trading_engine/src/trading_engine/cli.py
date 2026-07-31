@@ -27,6 +27,7 @@ from trading_engine.models import (
     WatchPoolState,
 )
 from trading_engine.paper_cli import paper_app
+from trading_engine.tools_cli import tools_app, brief_command
 from trading_engine.replay import (
     ReplayEngine,
     ReplayMarketData,
@@ -74,6 +75,20 @@ app.add_typer(plan_app, name="plan")
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(context_app, name="context")
 app.add_typer(paper_app, name="paper")
+app.add_typer(tools_app, name="tools")
+
+
+@app.command("brief")
+def brief(
+    account_name: str = typer.Option(
+        "paper", "--account", help="Account name."
+    ),
+) -> None:
+    """Generate minimal state summary for brain startup.
+
+    Does NOT pre-fetch market data. Call fetch-* tools for quotes.
+    """
+    brief_command(account_name)
 
 
 @app.callback()

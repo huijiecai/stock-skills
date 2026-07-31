@@ -92,10 +92,10 @@ func canAutoSync(kind, freq, date, from string) (bool, string) {
 // freq/date/from 仅用于历史日期窗口判定（见 canAutoSync）。
 func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code string, dataType model.DataType, freq, date, from string) bool {
 	if ok, reason := canAutoSync(kind, freq, date, from); !ok {
-		fmt.Printf("无数据（%s）\n", reason)
+		fmt.Fprintf(os.Stderr, "无数据（%s）\n", reason)
 		return false
 	}
-	fmt.Printf("⚠ 本地无 %s 数据，自动 sync %s %s...\n", kind, kind, code)
+	fmt.Fprintf(os.Stderr, "⚠ 本地无 %s 数据，自动 sync %s %s...\n", kind, kind, code)
 	tc := tdx.New()
 	defer tc.Close()
 	var err error
@@ -114,10 +114,10 @@ func autoSyncOnEmpty(ctx context.Context, ch *dwh.Client, kind, code string, dat
 		return false
 	}
 	if err != nil {
-		fmt.Printf("✗ sync 失败: %v\n", err)
+		fmt.Fprintf(os.Stderr, "✗ sync 失败: %v\n", err)
 		return false
 	}
-	fmt.Printf("✓ sync 完成，重新查询...\n\n")
+	fmt.Fprintf(os.Stderr, "✓ sync 完成，重新查询...\n\n")
 	return true
 }
 
@@ -205,7 +205,7 @@ func newQueryCmd() *cobra.Command {
 		}
 		if len(bars) == 0 {
 			if noSync || !autoSyncOnEmpty(ctx, ch, "daily", code, dataType, "", "", from) {
-				fmt.Println("无数据")
+				fmt.Fprintln(os.Stderr, "无数据")
 				return nil
 			}
 			bars, err = queryDaily(ctx, ch, code, dataType, from, to, fetchLimit)
@@ -213,7 +213,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(bars) == 0 {
-				fmt.Println("无数据")
+				fmt.Fprintln(os.Stderr, "无数据")
 				return nil
 			}
 		}
@@ -374,7 +374,7 @@ func newQueryCmd() *cobra.Command {
 		}
 		if len(bars) == 0 {
 			if noSync || !autoSyncOnEmpty(ctx, ch, "minute", code, dataType, freq, date, "") {
-				fmt.Println("无数据")
+				fmt.Fprintln(os.Stderr, "无数据")
 				return nil
 			}
 			bars, err = doQuery()
@@ -382,7 +382,7 @@ func newQueryCmd() *cobra.Command {
 				return err
 			}
 			if len(bars) == 0 {
-				fmt.Println("无数据")
+				fmt.Fprintln(os.Stderr, "无数据")
 				return nil
 			}
 		}
@@ -548,7 +548,7 @@ func newQueryCmd() *cobra.Command {
 					list = append(list, &r)
 				}
 				if len(list) == 0 {
-					fmt.Println("无匹配结果（未 sync 当日 daily？试 astock sync all --all --skip-* --days 1）")
+					fmt.Fprintln(os.Stderr, "无匹配结果（未 sync 当日 daily？试 astock sync all --all --skip-* --days 1）")
 					return nil
 				}
 
@@ -611,7 +611,7 @@ func newQueryCmd() *cobra.Command {
 				list = append(list, &r)
 			}
 			if len(list) == 0 {
-				fmt.Println("无匹配结果")
+				fmt.Fprintln(os.Stderr, "无匹配结果")
 				return nil
 			}
 
@@ -691,7 +691,7 @@ func newQueryCmd() *cobra.Command {
 				list = append(list, &r)
 			}
 			if len(list) == 0 {
-				fmt.Println("无匹配结果")
+				fmt.Fprintln(os.Stderr, "无匹配结果")
 				return nil
 			}
 
@@ -964,9 +964,9 @@ func newQueryCmd() *cobra.Command {
 				row := ch.Conn().QueryRow(ctx, q)
 				var (
 					c, name, market, typ, industry, sector, province, business string
-					listDate                                                    time.Time
-					delistDate                                                  *time.Time
-					updatedAt                                                   time.Time
+					listDate                                                   time.Time
+					delistDate                                                 *time.Time
+					updatedAt                                                  time.Time
 				)
 				if err := row.Scan(&c, &name, &market, &typ, &listDate, &delistDate,
 					&industry, &sector, &province, &business, &updatedAt); err != nil {
@@ -974,8 +974,8 @@ func newQueryCmd() *cobra.Command {
 				}
 				r := &infoRow{
 					Code: c, Name: name, Market: market, Type: typ,
-					ListDate:  listDate.Format("2006-01-02"),
-					Industry:  industry, Sector: sector, Province: province, Business: business,
+					ListDate: listDate.Format("2006-01-02"),
+					Industry: industry, Sector: sector, Province: province, Business: business,
 					UpdatedAt: updatedAt.Format("2006-01-02 15:04"),
 				}
 				hasF10 := industry != "" || sector != "" || province != ""
@@ -1094,7 +1094,7 @@ type dailyBar struct {
 	PreClose  float64            `json:"pre_close"`
 	Volume    uint64             `json:"volume"`
 	Amount    float64            `json:"amount"`
-	Turnover  float64            `json:"turnover"` // 换手率（%）。无 finance 数据时为 0
+	Turnover  float64            `json:"turnover"`     // 换手率（%）。无 finance 数据时为 0
 	MA        map[string]float64 `json:"ma,omitempty"` // 均线：键如 "MA5" / "MA10" / "MA20"，热身不足不入表
 }
 

@@ -138,6 +138,54 @@
       "code": "000636",
       "action": "卖出200股@42.77，剩300股",
       "consumed_at": "2026-07-28 14:10:24"
+    },
+    {
+      "id": "出口B-20260729-01",
+      "direction": "创新药/医药",
+      "kind": "出口B",
+      "date": "20260729",
+      "fingerprint": "day2-pool-2of7-two-observations-zhaoyan-weakest",
+      "fingerprint_hash": "b5b54443c4",
+      "status": "consumed",
+      "code": "603127",
+      "action": "卖出200股@43.95清仓",
+      "consumed_at": "2026-07-29 09:49"
+    },
+    {
+      "id": "出口B-20260729-02",
+      "direction": "存储芯片",
+      "kind": "出口B",
+      "date": "20260729",
+      "fingerprint": "day2-pool-0of8-incl-2-limit-down-shenke-weakest",
+      "fingerprint_hash": "20ab4fdc6d",
+      "status": "consumed",
+      "code": "000021",
+      "action": "卖出200股@37.15清仓",
+      "consumed_at": "2026-07-29 09:49"
+    },
+    {
+      "id": "出口B-20260729-03",
+      "direction": "兵装集团重组",
+      "kind": "出口B",
+      "date": "20260729",
+      "fingerprint": "day2-pool-4to2-flip-negative-changcheng-weakest",
+      "fingerprint_hash": "d1bc003aaa",
+      "status": "consumed",
+      "code": "601606",
+      "action": "卖出300股@32.52清仓",
+      "consumed_at": "2026-07-29 09:49"
+    },
+    {
+      "id": "出口B-20260730-01",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "出口B",
+      "date": "20260730",
+      "fingerprint": "day3-pool-5to2-two-observations-signal1-pool-degradation-signal4-limit-up-zero",
+      "fingerprint_hash": "454bde8b33",
+      "status": "consumed",
+      "code": "000636",
+      "action": "减仓100股@48.75剩200股",
+      "consumed_at": "2026-07-30 09:50"
     }
   ]
 }

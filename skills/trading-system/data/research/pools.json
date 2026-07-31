@@ -4,12 +4,12 @@
   "pools": {
     "innovation_medicine": {
       "direction": "创新药/医药",
-      "expectation_file": "创新药-医药.md",
+      "expectation_file": null,
       "codes": ["603127", "002821", "603538", "002317", "300255", "002038", "002653"]
     },
     "storage": {
       "direction": "存储芯片",
-      "expectation_file": "独立模拟-存储芯片.md",
+      "expectation_file": "存储芯片-超级周期.md",
       "codes": ["300223", "603986", "000021", "688110", "688766", "688123", "002156", "600584"]
     },
     "changxin_supply_chain": {
@@ -29,12 +29,12 @@
     },
     "mlcc": {
       "direction": "MLCC/电子陶瓷",
-      "expectation_file": "独立模拟-MLCC-电子陶瓷.md",
+      "expectation_file": null,
       "codes": ["300285", "300408", "605376", "000636", "603678"]
     },
     "high_temp_fire": {
       "direction": "高温负荷/火电运营",
-      "expectation_file": "高温负荷-火电运营.md",
+      "expectation_file": null,
       "codes": ["601991", "600578", "600027", "600011", "600795", "000539", "000543", "001896", "000767", "600744"]
     },
     "uhv_grid": {
@@ -79,7 +79,7 @@
     },
     "csgc_restructuring": {
       "direction": "兵装集团重组",
-      "expectation_file": "兵装集团重组.md",
+      "expectation_file": null,
       "codes": ["601606", "002265", "002189", "600698", "600178", "000625"]
     },
     "ai_phone_pc": {

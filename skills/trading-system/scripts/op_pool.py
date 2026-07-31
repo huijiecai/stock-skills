@@ -35,10 +35,10 @@ def load_pools() -> dict:
         if len(codes) != len(set(codes)) or any(not CODE_RE.match(str(code)) for code in codes):
             raise SystemExit(f"{pool_id}: duplicate or invalid stock code")
         expectation_file = pool.get("expectation_file") if isinstance(pool, dict) else None
-        if not isinstance(expectation_file, str) or not expectation_file:
-            raise SystemExit(f"{pool_id}: expectation_file is required")
-        if not (ROOT / "data" / "research" / "expectations" / expectation_file).is_file():
-            raise SystemExit(f"{pool_id}: expectation file not found: {expectation_file}")
+        pool["expectation_file"] = expectation_file
+        if expectation_file:
+            if not (ROOT / "data" / "research" / "expectations" / expectation_file).is_file():
+                raise SystemExit(f"{pool_id}: expectation file not found: {expectation_file}")
     return payload
 
 

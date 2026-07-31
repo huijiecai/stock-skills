@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sqlite3
 from datetime import datetime, time, timedelta
 from decimal import Decimal
 from pathlib import Path
@@ -90,7 +91,27 @@ def _seed_context_state(
         stance="supports",
         reliability="medium",
     )
+    _backdate_core_state(database, AS_OF.replace(hour=9, minute=10))
     return store, context_store, DecisionContextBuilder(store, context_store)
+
+
+def _backdate_core_state(database: Path, timestamp: datetime) -> None:
+    value = timestamp.isoformat()
+    with sqlite3.connect(database) as connection:
+        for table in (
+            "accounts",
+            "positions",
+            "theses",
+            "watch_pools",
+            "watch_pool_members",
+            "risk_factors",
+            "trade_plans",
+        ):
+            connection.execute(
+                f"UPDATE {table} SET created_at = ?, updated_at = ?", (value, value)
+            )
+        for table in ("position_theses", "position_risk_factors"):
+            connection.execute(f"UPDATE {table} SET created_at = ?", (value,))
 
 
 def _live_snapshot(
@@ -203,6 +224,7 @@ def test_position_buy_date_after_market_snapshot_is_rejected(tmp_path: Path) -> 
         Decimal("50.00"),
         AS_OF.date() + timedelta(days=1),
     )
+    _backdate_core_state(store.database, AS_OF.replace(hour=9, minute=10))
 
     with pytest.raises(ContextError, match="buy date after"):
         builder.build(_live_snapshot(store))
@@ -423,6 +445,7 @@ def test_context_contains_plans_dormant_pools_paths_and_observation_history(
         stance="supports",
         reliability="high",
     )
+    _backdate_core_state(store.database, AS_OF.replace(hour=9, minute=10))
 
     codes = builder.required_live_codes("default", AS_OF.date())
     assert "000636" in codes

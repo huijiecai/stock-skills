@@ -109,12 +109,32 @@ def _seed_paper(
         stance="supports",
         reliability="high",
     )
+    _backdate_core_state(database, DAY_ONE.replace(hour=9, minute=10))
     return (
         store,
         context_store,
         paper_store,
         PaperBroker(store, context_store, paper_store),
     )
+
+
+def _backdate_core_state(database: Path, timestamp: datetime) -> None:
+    value = timestamp.isoformat()
+    with sqlite3.connect(database) as connection:
+        for table in (
+            "accounts",
+            "positions",
+            "theses",
+            "watch_pools",
+            "watch_pool_members",
+            "risk_factors",
+            "trade_plans",
+        ):
+            connection.execute(
+                f"UPDATE {table} SET created_at = ?, updated_at = ?", (value, value)
+            )
+        for table in ("position_theses", "position_risk_factors"):
+            connection.execute(f"UPDATE {table} SET created_at = ?", (value,))
 
 
 def _judgment(
@@ -126,6 +146,7 @@ def _judgment(
     action: str,
     quantity: int | None,
 ):
+    _backdate_core_state(store.database, at - timedelta(minutes=5))
     market = store.record_market_snapshot(
         MarketSnapshot(
             as_of=at,
@@ -190,6 +211,7 @@ def test_paper_buy_is_atomic_idempotent_and_auditable(tmp_path: Path) -> None:
     assert paper_store.audit_account("paper").valid is True
 
     _link_bought_position(store)
+    _backdate_core_state(store.database, DAY_ONE.replace(hour=9, minute=10))
     next_market = store.record_market_snapshot(
         MarketSnapshot(
             as_of=DAY_ONE + timedelta(minutes=1),
@@ -473,6 +495,7 @@ def test_stale_or_price_only_judgment_cannot_execute(tmp_path: Path) -> None:
         store, context_store, DAY_ONE, "603127", 20, "BUY", 100
     )
     store.update_account("paper", cash=Decimal("99999"))
+    _backdate_core_state(store.database, DAY_ONE.replace(hour=9, minute=10))
     with pytest.raises(PaperTradingError, match="stale|updated after"):
         broker.execute_judgment("paper", full_context.id)
     assert paper_store.list_orders("paper") == ()
