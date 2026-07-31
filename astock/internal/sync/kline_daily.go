@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+		"os"
 	"time"
 
 	"github.com/huijiecai/stock/astock/internal/dwh"
@@ -44,7 +45,7 @@ func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dat
 			}
 			n, err := syncDailyOne(ctx, ch, tc, sc.Code, sc.Type, count)
 			if err != nil {
-				fmt.Printf("  ⚠ %s failed: %v\n", sc.Code, err)
+				fmt.Fprintf(os.Stderr, "  ⚠ %s failed: %v\n", sc.Code, err)
 				continue
 			}
 			total += n

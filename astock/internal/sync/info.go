@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+		"os"
 	"time"
 
 	"github.com/huijiecai/stock/astock/internal/dwh"
@@ -47,7 +48,7 @@ func Info(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all 
 
 		info, err := tc.GetCompanyInfo(market, sc.Code)
 		if err != nil {
-			fmt.Printf("  ⚠ info %s: %v\n", sc.Code, err)
+			fmt.Fprintf(os.Stderr, "  ⚠ info %s: %v\n", sc.Code, err)
 			continue
 		}
 		if info.Industry == "" && info.Province == "" {
@@ -57,7 +58,7 @@ func Info(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all 
 		// UPDATE securities 的扩展字段（CH 不支持 UPDATE，用 INSERT 覆盖 ReplacingMergeTree）
 		// 先读出现有行，再补充字段写回
 		if err := updateSecurityInfo(ctx, ch, sc.Code, info); err != nil {
-			fmt.Printf("  ⚠ update %s: %v\n", sc.Code, err)
+			fmt.Fprintf(os.Stderr, "  ⚠ update %s: %v\n", sc.Code, err)
 			continue
 		}
 		total++

@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+		"os"
 	"time"
 
 	"github.com/huijiecai/stock/astock/internal/dwh"
@@ -34,7 +35,7 @@ func XDXR(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, all 
 		}
 		items, err := tc.GetXDXR(sc.Code)
 		if err != nil {
-			fmt.Printf("  ⚠ xdxr %s failed: %v\n", sc.Code, err)
+			fmt.Fprintf(os.Stderr, "  ⚠ xdxr %s failed: %v\n", sc.Code, err)
 			continue
 		}
 		if len(items) == 0 {

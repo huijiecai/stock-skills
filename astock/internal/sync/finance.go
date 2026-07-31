@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
+		"os"
 	"time"
 
 	"github.com/huijiecai/stock/astock/internal/dwh"
@@ -38,7 +39,7 @@ func Finance(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, a
 		}
 		f, err := tc.GetFinance(market, sc.Code)
 		if err != nil {
-			fmt.Printf("  ⚠ finance %s failed: %v\n", sc.Code, err)
+			fmt.Fprintf(os.Stderr, "  ⚠ finance %s failed: %v\n", sc.Code, err)
 			continue
 		}
 		if f == nil || f.ReportDate.IsZero() {
