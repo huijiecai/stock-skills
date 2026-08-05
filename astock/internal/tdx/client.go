@@ -14,8 +14,9 @@ import (
 // Client 是单连接 TDX 客户端的薄封装。
 // 内部惰性连接：第一次调用 raw() 时才真正 Dial，便于命令未触达 TDX 时也能正常运行。
 type Client struct {
-	mu  sync.Mutex
-	cli *itdx.Client
+	mu     sync.Mutex
+	rankMu sync.Mutex
+	cli    *itdx.Client
 }
 
 // New 返回一个未连接的 Client；首次调用 Raw() 才会真正建连。
