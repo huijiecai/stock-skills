@@ -186,6 +186,66 @@
       "code": "000636",
       "action": "减仓100股@48.75剩200股",
       "consumed_at": "2026-07-30 09:50"
+    },
+    {
+      "id": "BUY-20260804-01",
+      "direction": "PCB/覆铜板",
+      "kind": "BUY",
+      "date": "20260804",
+      "fingerprint": "pcb-mode-a-complete-7of7-linkage-all-over-4pct-dongshan-leader-near-limit-up-buyable",
+      "fingerprint_hash": "94d1803da9",
+      "status": "consumed",
+      "code": "002384",
+      "action": "买入100股@178.30",
+      "consumed_at": "2026-08-04 09:47"
+    },
+    {
+      "id": "BUY-20260804-02",
+      "direction": "CRO/医药外包",
+      "kind": "BUY",
+      "date": "20260804",
+      "fingerprint": "cro-mode-a-complete-5of5-linkage-2-limit-up-wu-yiming-cai-lai-locked-buy-3rd-zhaoyan",
+      "fingerprint_hash": "8862844d9e",
+      "status": "consumed",
+      "code": "603127",
+      "action": "买入200股@43.05",
+      "consumed_at": "2026-08-04 09:37"
+    },
+    {
+      "id": "出口B-20260804-01",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "出口B",
+      "date": "20260804",
+      "fingerprint": "day6-mlcc-pool-0of5-crash-fenghua-broke-50.0-key-support",
+      "fingerprint_hash": "23e46e5b5f",
+      "status": "consumed",
+      "code": "000636",
+      "action": "清仓100股@49.87",
+      "consumed_at": "2026-08-04 09:37"
+    },
+    {
+      "id": "BUY-20260805-01",
+      "direction": "存储芯片",
+      "kind": "BUY",
+      "date": "20260805",
+      "fingerprint": "storage-modeb-reconfirm-8of8-top1-two-limitups-two-day-repair-leader-603986-over-cap-execute-600667",
+      "fingerprint_hash": "a570b45e7d",
+      "status": "consumed",
+      "code": "600667",
+      "action": "买入900股@17.88",
+      "consumed_at": "2026-08-05 09:40"
+    },
+    {
+      "id": "BUY-20260805-02",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "BUY",
+      "date": "20260805",
+      "fingerprint": "mlcc-modeb-reconfirm-5of5-top2-fenghua-deep-reversal-leader-second-ranked-tech-factor-under-60",
+      "fingerprint_hash": "b06e9e589a",
+      "status": "consumed",
+      "code": "000636",
+      "action": "买入300股@58.91",
+      "consumed_at": "2026-08-05 09:52"
     }
   ]
 }
