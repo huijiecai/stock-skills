@@ -101,7 +101,9 @@
       "date": "20260728",
       "fingerprint": "innovation-pool-1of7-two-observations-leader-lost-price-response-failed",
       "fingerprint_hash": "b4c7cf6a65",
-      "status": "pending"
+      "status": "cancelled",
+      "canceled_at": "2026-08-06 15:00",
+      "cancel_reason": "7/28候选未成交，后续同方向出口信号已重新确认并消费；旧指纹不再构成活跃待执行信号"
     },
     {
       "id": "出口B-20260728-04",
@@ -246,6 +248,64 @@
       "code": "000636",
       "action": "买入300股@58.91",
       "consumed_at": "2026-08-05 09:52"
+    },
+    {
+      "id": "出口B-20260806-01",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "出口B",
+      "date": "20260806",
+      "fingerprint": "mlcc-pool-1of5-two-observations-fenghua-2.47pct-4th-of-5-rebound-55.35-to-56.37-no-support",
+      "fingerprint_hash": "9c72a1336b",
+      "status": "consumed",
+      "code": "000636",
+      "action": "减仓100股@56.80剩200股",
+      "consumed_at": "2026-08-06 09:36"
+    },
+    {
+      "id": "出口B-20260806-02",
+      "direction": "PCB/覆铜板",
+      "kind": "出口B",
+      "date": "20260806",
+      "fingerprint": "pcb-pool-1of8-to-2of8-two-observations-dongshan-weakest-4.15pct-rebound-179-to-181-no-support",
+      "fingerprint_hash": "cbb580df89",
+      "status": "consumed",
+      "code": "002384",
+      "action": "清仓100股@182.80",
+      "consumed_at": "2026-08-06 09:36"
+    },
+    {
+      "id": "出口B-20260806-03",
+      "direction": "CRO/医药外包",
+      "kind": "出口B",
+      "date": "20260806",
+      "fingerprint": "cro-pool-4of5-to-0of5-collapse-zhaoyan-positive-to-negative-1.73pct-no-rebound",
+      "fingerprint_hash": "d206b06f59",
+      "status": "consumed",
+      "code": "603127",
+      "action": "减仓100股@45.35剩100股",
+      "consumed_at": "2026-08-06 09:36"
+    },
+    {
+      "id": "BUY-20260806-01",
+      "direction": "CPO-光模块",
+      "kind": "BUY",
+      "date": "20260806",
+      "fingerprint": "600487|CPO池2/7到7/7同日分歧修复|1128仍6/7|主板执行强端|300股|科技因子26.46到42.03",
+      "fingerprint_hash": "e581946c3c",
+      "status": "consumed",
+      "code": "600487",
+      "action": "买入300股@55.50",
+      "consumed_at": "2026-08-06 13:44"
+    },
+    {
+      "id": "出口B-20260806-04",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "出口B",
+      "date": "20260806",
+      "fingerprint": "mlcc-pool-4of5-to-2of5-three-observations-1115-1119-1126-fenghua-1.09-to-2.28-rebound-1.44-then-drop-tickspeed-0.46-breadth-significant-decline",
+      "fingerprint_hash": "89416df151",
+      "status": "cancelled",
+      "cancel_reason": "账户复核发现09:36已按出口B首日减仓100股；11:28无委托、无成交，避免首日重复减仓超过30%-50%"
     }
   ]
 }
