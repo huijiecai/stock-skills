@@ -130,6 +130,10 @@ func buildReplayBlockRankCmd() *cobra.Command {
 // 无 time：和 query block members 一样，返回日线终值成分股涨幅榜。
 // 有 time：从个股分钟线重建指定时间点的成分股涨幅榜。
 //
+// 支持逗号分隔的多个板块代码，例如：
+//
+//	astock replay block members 880904,880952 20260730 10:30
+//
 // 分钟级成员股的 SQL 改动：
 //   - member_minute CTE 从 kline_minute 取 argMax(close, dt) 作为指定时间点的 close
 //   - member_daily CTE 从 kline_daily 取 pre_close/name/industry/pct_limit
@@ -145,17 +149,19 @@ func buildReplayBlockMembersCmd() *cobra.Command {
 
 无 time 参数返回日线终值（同 query block members）。
 有 time 参数（如 10:30）从个股分钟线重建指定时间点的成分股涨幅榜。
+支持逗号分隔的多个板块代码。
 
 注意：replay prepare 仅同步涨停股分钟线，非涨停股将回退到日线收盘价（data_source 字段标明）。
 
 示例：
   astock replay block members 880904 20260730              # 收盘成分股涨幅榜
   astock replay block members 880904 20260730 10:30         # 10:30 成分股涨幅榜
+  astock replay block members 880904,880952 20260730 10:30  # 多板块
   astock replay block members 880904 20260730 10:30 --asc   # 跌幅排序
   astock replay block members 880904 20260730 --json`,
 		Args: cobra.MinimumNArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			blockCode := args[0]
+			blockCodes := parseCodes(args[0])
 			date, err := parseReplayDate(args[1])
 			if err != nil {
 				return err
@@ -178,25 +184,43 @@ func buildReplayBlockMembersCmd() *cobra.Command {
 			}
 			defer ch.Close()
 
-			list, err := queryReplayBlockMembers(ctx, ch, blockCode, date, hhmmss, asc)
-			if err != nil {
-				return err
-			}
-			if len(list) == 0 {
-				fmt.Println("无成分股或板块代码不存在")
-				return nil
-			}
-
-			var blockName string
-			_ = ch.Conn().QueryRow(ctx,
-				fmt.Sprintf("SELECT name FROM %s.blocks FINAL WHERE code = '%s'", ch.DB(), blockCode)).Scan(&blockName)
-
 			if isJSON(cmd) {
+				// JSON 模式：合并所有板块的成分股
+				var all []*BlockMemberRow
+				for _, bc := range blockCodes {
+					list, err := queryReplayBlockMembers(ctx, ch, bc, date, hhmmss, asc)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", bc, err)
+						continue
+					}
+					all = append(all, list...)
+				}
+				if len(all) == 0 {
+					fmt.Fprintf(os.Stderr, "无成分股或板块代码不存在\n")
+					return nil
+				}
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
-				return enc.Encode(list)
+				return enc.Encode(all)
 			}
-			printBlockMembers(list, blockCode, blockName, formatDate(date), asc)
+
+			// 文本模式：逐板块输出
+			for _, bc := range blockCodes {
+				list, err := queryReplayBlockMembers(ctx, ch, bc, date, hhmmss, asc)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "  ✗ %s: %v\n", bc, err)
+					continue
+				}
+				if len(list) == 0 {
+					fmt.Printf("%s: 无成分股或板块代码不存在\n", bc)
+					continue
+				}
+				var blockName string
+				_ = ch.Conn().QueryRow(ctx,
+					fmt.Sprintf("SELECT name FROM %s.blocks FINAL WHERE code = '%s'", ch.DB(), bc)).Scan(&blockName)
+				printBlockMembers(list, bc, blockName, formatDate(date), asc)
+				fmt.Println()
+			}
 			return nil
 		},
 	}

@@ -9,7 +9,6 @@ from trading_engine.models import (
     JudgmentRecord,
     JudgmentReport,
     LiveQuote,
-    LiveSnapshotRecord,
 )
 from trading_engine.storage import ReplayStore
 
@@ -103,49 +102,24 @@ class ReadOnlyAnalyzer:
 
     def analyze(
         self,
-        snapshot_record: LiveSnapshotRecord,
-        decision_context: "DecisionContextRecord | None" = None,
+        decision_context: "DecisionContextRecord",
     ) -> JudgmentRecord:
-        if decision_context is not None:
-            if (
-                decision_context.context.market_snapshot_id
-                != snapshot_record.id
-            ):
-                raise JudgmentError(
-                    "decision context market snapshot does not match judgment input"
-                )
-            if not decision_context.context.ready_for_judgment:
-                raise JudgmentError(
-                    "decision context is blocked: "
-                    + ", ".join(decision_context.context.blockers)
-                )
-            quotes = _context_quotes(decision_context)
-        else:
-            quotes = tuple(snapshot_record.snapshot.payload.get("quotes", []))
+        context_data = decision_context.context
+        if not context_data.ready_for_judgment:
+            raise JudgmentError(
+                "decision context is blocked: " + ", ".join(context_data.blockers)
+            )
+        quotes = _context_quotes(decision_context)
         try:
             context = JudgmentContext(
-                snapshot_id=snapshot_record.id,
-                as_of=snapshot_record.snapshot.as_of,
-                source=snapshot_record.snapshot.source,
+                snapshot_id=context_data.market_snapshot_id,
+                as_of=context_data.as_of,
+                source=context_data.market_source,
                 quotes=quotes,
-                decision_context_id=(
-                    decision_context.id if decision_context is not None else None
-                ),
-                decision_context_fingerprint=(
-                    decision_context.fingerprint
-                    if decision_context is not None
-                    else None
-                ),
-                domain_context=(
-                    decision_context.context.model_dump(mode="json")
-                    if decision_context is not None
-                    else None
-                ),
-                policy=(
-                    "context-read-only-v1"
-                    if decision_context is not None
-                    else "read-only-shadow-v1"
-                ),
+                decision_context_id=decision_context.id,
+                decision_context_fingerprint=decision_context.fingerprint,
+                domain_context=context_data.model_dump(mode="json"),
+                policy="context-read-only-v1",
             )
         except Exception as exc:
             raise JudgmentError(f"invalid judgment input: {exc}") from exc
@@ -159,7 +133,7 @@ class ReadOnlyAnalyzer:
                     if isinstance(provider_output, JudgmentReport)
                     else provider_output
                 )
-                if report.snapshot_id != snapshot_record.id:
+                if report.snapshot_id != context_data.market_snapshot_id:
                     raise JudgmentError("judgment output snapshot_id does not match input")
                 if report.provider != self.provider.name or report.model != self.provider.model:
                     raise JudgmentError("judgment output provider metadata does not match")
@@ -174,7 +148,7 @@ class ReadOnlyAnalyzer:
                         "judgment output stock codes do not match input snapshot"
                     )
                 return self.store.record_judgment(
-                    snapshot_record.id,
+                    context_data.market_snapshot_id,
                     context,
                     report,
                     self.provider.name,
@@ -186,7 +160,7 @@ class ReadOnlyAnalyzer:
 
         message = str(last_error or "judgment provider failed")
         return self.store.record_failed_judgment(
-            snapshot_record.id,
+            context_data.market_snapshot_id,
             context,
             self.provider.name,
             self.provider.model,

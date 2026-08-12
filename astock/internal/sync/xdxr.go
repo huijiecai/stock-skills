@@ -3,7 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
-		"os"
+	"os"
 	"time"
 
 	"github.com/huijiecai/stock/astock/internal/dwh"

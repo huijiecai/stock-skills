@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from collections import OrderedDict
 from datetime import date, datetime
+from decimal import Decimal
 
 import typer
 
@@ -198,8 +200,97 @@ def paper_report(
         typer.echo(f"- daily: {paths.daily}")
 
 
+@paper_app.command("history")
+def paper_history(
+    account_name: str = typer.Option(
+        "paper", "--account", help="Dedicated paper account name."
+    ),
+    report_date: str | None = typer.Option(
+        None, "--date", help="Filter to a single date in YYYY-MM-DD format."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """Aggregate paper fills, events, and orders into a daily summary."""
+    try:
+        _, _, paper_store, _ = _paper_dependencies()
+        fills = paper_store.list_fills(account_name)
+        events = paper_store.list_events(account_name)
+        orders = paper_store.list_orders(account_name)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+
+    filter_date = _parse_date(report_date) if report_date is not None else None
+    by_date: OrderedDict[str, dict] = OrderedDict()
+
+    def _ensure(day: date) -> dict:
+        key = day.isoformat()
+        if key not in by_date:
+            by_date[key] = {
+                "date": key,
+                "fills": 0,
+                "orders": 0,
+                "events": 0,
+                "buy_amount": Decimal("0"),
+                "sell_amount": Decimal("0"),
+                "net_cash": Decimal("0"),
+            }
+        return by_date[key]
+
+    for fill in fills:
+        if filter_date is not None and fill.filled_at.date() != filter_date:
+            continue
+        entry = _ensure(fill.filled_at.date())
+        entry["fills"] += 1
+        if fill.side == "BUY":
+            entry["buy_amount"] += fill.notional
+            entry["net_cash"] -= fill.notional
+        else:
+            entry["sell_amount"] += fill.notional
+            entry["net_cash"] += fill.notional
+
+    for order in orders:
+        if filter_date is not None and order.trade_date != filter_date:
+            continue
+        entry = _ensure(order.trade_date)
+        entry["orders"] += 1
+
+    for event in events:
+        if filter_date is not None and event.trade_date != filter_date:
+            continue
+        entry = _ensure(event.trade_date)
+        entry["events"] += 1
+
+    summary = list(by_date.values())
+    if json_output:
+        for entry in summary:
+            entry["buy_amount"] = str(entry["buy_amount"])
+            entry["sell_amount"] = str(entry["sell_amount"])
+            entry["net_cash"] = str(entry["net_cash"])
+        typer.echo(json.dumps(summary, indent=2, ensure_ascii=False))
+        return
+
+    if not summary:
+        typer.echo("无 Paper 交易历史")
+        return
+
+    typer.echo("Paper交易历史")
+    typer.echo(
+        f"{'日期':<12} {'成交':>6} {'订单':>6} {'事件':>6} "
+        f"{'买入金额':>14} {'卖出金额':>14} {'净现金流':>14}"
+    )
+    for entry in summary:
+        typer.echo(
+            f"{entry['date']:<12} {entry['fills']:>6} {entry['orders']:>6} "
+            f"{entry['events']:>6} "
+            f"{entry['buy_amount']:>14,.2f} "
+            f"{entry['sell_amount']:>14,.2f} "
+            f"{entry['net_cash']:>14,.2f}"
+        )
+
+
 def _paper_dependencies(
-) -> tuple[ReplayStore, ContextStore, PaperStore, TraderSettings]:
+    ) -> tuple[ReplayStore, ContextStore, PaperStore, TraderSettings]:
     settings = TraderSettings.load()
     database = settings.data_dir / "trader.db"
     store = ReplayStore(database)

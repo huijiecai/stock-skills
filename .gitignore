@@ -77,3 +77,6 @@ yarn-error.log*
 
 # Go binaries (build artifacts, do not commit)
 astock/astock
+
+# ZCode agent workspace (local tooling)
+.zcode/

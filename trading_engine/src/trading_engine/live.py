@@ -106,9 +106,15 @@ class LiveMarketData:
         )
         if not isinstance(sector_leaders, list):
             raise LiveDataError("astock live block rank returned a non-list payload")
-        indices = self.client.run_json("live", "index", *MARKET_INDICES)
+        index_snapshot = self.client.run_json("live", "index", *MARKET_INDICES)
+        if not isinstance(index_snapshot, dict):
+            raise LiveDataError("astock live index returned a non-object payload")
+        indices = index_snapshot.get("indices")
+        breadth = index_snapshot.get("breadth")
         if not isinstance(indices, list):
-            raise LiveDataError("astock live index returned a non-list payload")
+            raise LiveDataError("astock live index omitted indices")
+        if not isinstance(breadth, dict):
+            raise LiveDataError("astock live index omitted breadth")
         if {str(row.get("code", "")) for row in indices} != set(MARKET_INDICES):
             raise LiveDataError("astock live index returned an incomplete index set")
 
@@ -163,6 +169,7 @@ class LiveMarketData:
                 }
                 for row in indices
             ],
+            "breadth": breadth,
             "limit_up_codes": limit_up_codes,
             "missing_capabilities": [],
         }

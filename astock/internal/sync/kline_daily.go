@@ -3,7 +3,7 @@ package sync
 import (
 	"context"
 	"fmt"
-		"os"
+	"os"
 	"time"
 
 	"github.com/huijiecai/stock/astock/internal/dwh"
@@ -50,6 +50,12 @@ func Daily(ctx context.Context, ch *dwh.Client, tc *tdx.Client, code string, dat
 			}
 			total += n
 		}
+	}
+
+	// Keep the local trading calendar in step with stored index bars. This is
+	// intentionally local and deterministic; it adds no TDX request.
+	if _, _, err := RefreshTradeCalendarFromDaily(ctx, ch); err != nil {
+		return total, fmt.Errorf("refresh trade calendar: %w", err)
 	}
 
 	_ = WriteLog(ctx, ch, &LogEntry{Task: "sync_kline_daily", Target: code, StartAt: start, Rows: uint64(total), Status: "ok"})

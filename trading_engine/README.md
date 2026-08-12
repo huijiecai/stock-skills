@@ -119,7 +119,7 @@ trader context capture --account paper
 trader context replay --date 20260723 --until 10:30 --account paper
 
 # 2. AI判断（消费最新上下文）
-trader analyze context --account paper
+trader analyze latest --account paper
 
 # 3. 规则校验 + 模拟成交
 trader paper execute --account paper
@@ -128,14 +128,7 @@ trader paper execute --account paper
 trader paper report --account paper
 ```
 
-### 早期简化链路（不经上下文，Phase 2/3A）
-
-```bash
-trader watch --code 603127 --code 000021   # 只采行情快照
-trader analyze latest                       # 消费最新快照（无完整上下文）
-```
-
-注意：`paper execute` 要求判断必须带完整 `DecisionContext`，所以早期简化链路走不到模拟成交。
+行情数据直接从 astock 读取，保存在 `context_json` 中，不存独立行情表。
 
 ### 命令清单
 
@@ -145,17 +138,19 @@ trader analyze latest                       # 消费最新快照（无完整上�
 | `astock` | `check` | 验证 astock 二进制可用性 |
 | `replay` | `start` / `resume` | 启动/恢复历史回放 |
 | `status` | - | 查看最新回放运行状态 |
-| `watch` | `snapshot` / `latest` | 采实时快照 / 查看最新快照 |
-| `context` | `capture` / `build` / `replay` / `show` | 采行情+构建上下文 / 用已有快照构建 / 回放构建 / 只读展示 |
-| `analyze` | `latest` / `context` / `show` | 消费快照判断 / 消费上下文判断 / 只读展示判断 |
+| `context` | `capture` / `replay` / `show` | 采行情+构建上下文 / 回放构建 / 只读展示（支持 `--date`/`--until` 按日期查询） |
+| `context reasoning` | `add` / `list` | 追加/列出 LLM 推理链（观察→假设→验证→结论） |
+| `context tool-call` | `add` / `list` | 追加/列出 astock 工具调用记录（AI 盘中调用的工具+参数+结果） |
+| `analyze` | `latest` / `context` / `show` | 消费最新上下文判断 / 消费指定上下文判断 / 只读展示判断 |
+| `brief` | - | 跨资源聚合状态摘要（不预取行情） |
 | `account` | `init` / `show` / `update` | 创建/查看/更新独立账户 |
 | `position` | `set` / `list` | 设置/列出持仓 |
-| `thesis` | `set` / `list` / `link` | 创建/列出/关联预期 |
-| `pool` | `set` / `member` / `show` | 创建固定池/添加成员/查看 |
+| `thesis` | `set` / `list` / `link` | 创建/列出(`--active-only`)/关联预期 |
+| `pool` | `set` / `member` / `show` / `list` | 创建固定池/添加成员/查看单个/列出全部 |
 | `risk` | `set` / `list` / `link` | 创建/列出/关联风险因子 |
 | `plan` | `set` / `list` | 创建/列出结构化交易预案 |
 | `evidence` | `add` / `list` | 添加/列出催化证据 |
-| `paper` | `execute` / `settle` / `orders` / `fills` / `events` / `audit` / `report` | 模拟交易全流程 |
+| `paper` | `execute` / `settle` / `orders` / `fills` / `events` / `audit` / `report` / `history` | 模拟交易全流程 |
 
 ## 五、执行流程详解
 
@@ -221,8 +216,8 @@ JudgmentReport
 src/trading_engine/
 ├── __init__.py            # 版本
 ├── __main__.py            # python -m trading_engine 入口
-├── cli.py                 # Typer CLI 主入口（config/astock/replay/watch/analyze/
-│                          #   account/position/thesis/pool/risk/plan）
+├── cli.py                 # Typer CLI 主入口（config/astock/replay/analyze/
+│                          #   account/position/thesis/pool/risk/plan/brief）
 ├── config.py              # 配置加载（repo_root, astock_binary, data_dir）
 ├── errors.py              # 异常类型
 ├── protocols.py           # MarketDataProvider / TradingClock / ExecutionBroker 接口
@@ -230,11 +225,12 @@ src/trading_engine/
 ├── live.py                # 实时影子数据（LiveMarketData + 市场发现）
 ├── replay.py              # 历史回放（ReplayClock / ReplayMarketData / ReplayEngine）
 ├── models.py              # 基础数据模型（快照/报价/判断/账户/持仓/预期/池/风险/预案）
-├── context_models.py      # 决策上下文模型（DecisionContext 及全部子结构）
+├── context_models.py      # 决策上下文模型（DecisionContext + ReasoningRecord + ToolCallRecord 及全部子结构）
 ├── context.py             # 上下文构建器（DecisionContextBuilder）
-├── context_store.py       # 上下文存储（内容寻址 context_snapshots + 证据）
-├── context_cli.py         # context / evidence 命令组
+├── context_store.py       # 上下文存储（内容寻址 context_snapshots + 证据 + 推理链 + 工具调用记录）
+├── context_cli.py         # context / evidence / reasoning / tool-call 命令组
 ├── analysis.py            # 只读判断节点（ReadOnlyAnalyzer + ConservativeShadowProvider）
+├── brief.py               # BriefGenerator（跨资源聚合状态摘要）
 ├── paper.py               # 模拟交易经纪人（PaperBroker）
 ├── paper_models.py        # 模拟交易模型（订单/成交/事件/审计/策略）
 ├── paper_store.py         # 模拟交易存储
@@ -250,18 +246,29 @@ src/trading_engine/
 | 0 | 工程骨架 | 已完成 |
 | 1 | 可控历史回放 | 已完成 |
 | 2 | 实时影子数据 | 已完成 |
-| 3 | 只读 AI 判断 | 进行中（除外部 LLM provider 外均已完成） |
+| 3 | 只读 AI 判断 | 已完成（除外部 LLM provider 外） |
 | 4 | 模拟交易闭环 | 已完成 |
-| 5 | 完整研究工作流 | 进行中（结构化上下文已完成，语义判断依赖外部 LLM） |
-| 6 | 虚拟账户实时执行 | 未开始 |
+| 5 | 精简重构 | 已完成（删 tools/watch，行情统一走 astock，context 全量留存 + LLM 推理链） |
+| 6 | 实时看盘循环 | 未开始 |
 
-### Phase 3 已完成子项
+### Phase 5 已完成内容
 
-- 3A 结构化只读判断节点
-- 3B-1 独立账户与持仓
-- 3B-2 独立研究状态（预期/观察池/风险因子）
-- 3B-3 证据与综合上下文
-- 3B-4 完整决策上下文 v2（预期类型/阶段/催化锚/传导链/交易预案/市场发现/历史观察）
+- 删 `tools` 命令族 -- 查询回归资源命令（`account show`/`position list`/`thesis list --active-only`/`pool list`/etc.），保留 `brief`
+- 删 `watch` 命令 + `live_snapshots` 表 -- 行情不单独存表，brain 直接调 astock
+- 改造 context capture -- 行情从 astock 直读，存入 `context_json`，不存独立行情表
+- 改造 analyze -- `ReadOnlyAnalyzer.analyze()` 接收 `DecisionContextRecord`（行情已在 context 内）
+- 改造 paper execute -- staleness 检测改为 `_assert_core_context_fresh`（比对当前 SQLite 状态 vs context 捕获时状态）
+- 加 LLM reasoning -- `reasoning_records` 表 + `ReasoningRecord` 模型 + `trader context reasoning add/list` 命令
+- 默认账户名统一为 "paper"
+
+### 看盘循环完善（Phase 6 准备）
+
+- **A1 证据瘦身** -- 砍掉 `kind=market`（与 astock 行情重复），加 `kind=policy`；最终 KINDS = `{announcement, news, industry, policy, other}`；旧 DB 的 `market` 行迁移为 `other`，旧 `context_json` 中的 `"kind":"market"` 也自动修补
+- **A2 池成员 causal_chain** -- `WatchPoolMember` + `PoolMemberSignalContext` 加 `causal_chain: str | None`，CLI `pool member --causal-chain` 设置，`pool show` 展示，context 透传
+- **A3 预期 bet_pct** -- `ThesisState` 加 `bet_pct: Decimal | None`（0-100），CLI `thesis set --bet` 设置，`thesis list` 展示，`brief` 输出
+- **B1 context show 按日期查询** -- `context show --date 2026-07-28 --until 10:00`，`get_context_by_date()` 方法按上海时区过滤
+- **B2 tool_call 记录** -- `tool_call_records` 表 + `ToolCallRecord` 模型 + `context tool-call add/list` 命令，记录 AI 盘中调用的 astock 工具+参数+结果
+- **D2 paper history** -- `paper history` 命令聚合 fills+events+orders 的日级摘要
 
 ### 已知缺口
 
@@ -295,16 +302,35 @@ uv run pytest tests
 | `TRADER_REPO_ROOT` | 仓库根目录 | 自动发现（含 `astock/` 和 `trading_engine/` 的目录） |
 | `TRADER_ASTOCK_BINARY` | astock 二进制路径 | `<repo_root>/astock/astock` |
 | `TRADER_DATA_DIR` | 数据目录 | `<repo_root>/trading_engine/data` |
+| `TRADER_LLM_PROVIDER` | analyze 的 LLM provider（shadow 或 deepseek） | 空（shadow） |
+| `TRADER_LLM_API_KEY` | DeepSeek API key（provider=deepseek 时必填） | 空 |
+| `TRADER_LLM_BASE_URL` | DeepSeek API base URL（Anthropic 兼容） | `https://api.deepseek.com/anthropic` |
+| `TRADER_LLM_MODEL` | DeepSeek 模型名 | `deepseek-v4-flash` |
+
+### LLM provider
+
+`trader analyze --provider deepseek` 会把当轮 L0 上下文（指数/持仓/强势板块/主题池，约 3KB 文本）发给 DeepSeek，要求其对每只持仓股输出结构化判断（WAIT/RESEARCH/BUY/SELL + 置信度 + 理由 + 证据）。非持仓的主题池成员自动 WAIT。返回的 BUY/SELL 仍须经 `trader paper execute` 的硬规则校验（T+1/主板/整手/风险预算）方可成交。
+
+```bash
+export TRADER_LLM_API_KEY=sk-xxx
+trader context replay --date 20260807 --until 09:35   # 构建上下文
+trader analyze latest --provider deepseek              # DeepSeek 判断
+trader paper execute                                    # 规则校验后模拟成交
+```
+
+实现见 `src/trading_engine/llm_provider.py`（`DeepSeekProvider`，Anthropic 兼容 API，thinking 关闭 + 容错 JSON 解析）。
 
 ### 数据职责
 
 | 数据 | 存储 | 说明 |
 |------|------|------|
-| 行情 | astock CLI | 不感知 ClickHouse 或 TDX |
+| 行情 | astock CLI | brain 直接调用；trader 不做行情代理 |
 | 运行状态 | SQLite | run / checkpoint / 错误 / 恢复 |
-| 实时快照 | SQLite | 经过校验的只读行情 |
 | 独立账户 | SQLite | 现金 / 持仓 / 上下文基础状态 |
 | 订单和成交 | SQLite | 经过规则校验的模拟执行记录 |
+| 决策上下文 | SQLite (context_snapshots) | 完整决策快照：行情+状态+证据+历史，冻结去重 |
+| LLM 推理链 | SQLite (reasoning_records) | 每轮 context 的观察->假设->验证->结论 |
+| 工具调用记录 | SQLite (tool_call_records) | AI 盘中调用的 astock 工具+参数+结果，绑定到 context |
 | 决策审计 | SQLite | 输入摘要 / AI提案 / 规则校验 / 执行结果 |
 | 研究知识 | SQLite | 预期 / 固定池 / 催化 / 风险因子 |
 | 人类可读报告 | Markdown | 从结构化状态生成 |

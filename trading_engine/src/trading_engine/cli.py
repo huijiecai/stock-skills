@@ -1,24 +1,23 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 import typer
 
 from trading_engine import __version__
-from trading_engine.analysis import ReadOnlyAnalyzer
+from trading_engine.analysis import ConservativeShadowProvider, ReadOnlyAnalyzer
 from trading_engine.astock import AstockClient
 from trading_engine.config import TraderSettings
 from trading_engine.context_cli import context_app, evidence_app
 from trading_engine.context_store import ContextStore
+from trading_engine.dates import parse_trading_date
 from trading_engine.errors import PortfolioError, ReplayError, TradingEngineError
 from trading_engine.live import LiveMarketData
 from trading_engine.models import (
     AccountState,
     JudgmentRecord,
-    LiveQuote,
-    LiveSnapshotRecord,
     PositionState,
     RiskFactorState,
     ThesisState,
@@ -27,13 +26,15 @@ from trading_engine.models import (
     WatchPoolState,
 )
 from trading_engine.paper_cli import paper_app
-from trading_engine.tools_cli import tools_app, brief_command
+from trading_engine.paper_store import PaperStore
+from trading_engine.brief import BriefGenerator
 from trading_engine.replay import (
     ReplayEngine,
     ReplayMarketData,
     parse_clock_time,
 )
 from trading_engine.storage import ReplayStore
+from trading_engine.watch import watch_app
 
 
 app = typer.Typer(
@@ -48,10 +49,6 @@ replay_app = typer.Typer(
     help="Run deterministic historical market replay.",
     invoke_without_command=True,
 )
-watch_app = typer.Typer(
-    help="Capture validated real-time market snapshots in shadow mode.",
-    invoke_without_command=True,
-)
 analyze_app = typer.Typer(
     help="Generate auditable read-only judgments from persisted snapshots."
 )
@@ -64,7 +61,6 @@ plan_app = typer.Typer(help="Manage structured daily if-then trade plans.")
 app.add_typer(config_app, name="config")
 app.add_typer(astock_app, name="astock")
 app.add_typer(replay_app, name="replay")
-app.add_typer(watch_app, name="watch")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(account_app, name="account")
 app.add_typer(position_app, name="position")
@@ -75,7 +71,7 @@ app.add_typer(plan_app, name="plan")
 app.add_typer(evidence_app, name="evidence")
 app.add_typer(context_app, name="context")
 app.add_typer(paper_app, name="paper")
-app.add_typer(tools_app, name="tools")
+app.add_typer(watch_app, name="watch")
 
 
 @app.command("brief")
@@ -86,9 +82,18 @@ def brief(
 ) -> None:
     """Generate minimal state summary for brain startup.
 
-    Does NOT pre-fetch market data. Call fetch-* tools for quotes.
+    Does NOT fetch market data. Call astock directly for quotes.
     """
-    brief_command(account_name)
+    try:
+        settings = TraderSettings.load()
+        database = settings.data_dir / "trader.db"
+        result = BriefGenerator(
+            ReplayStore(database), PaperStore(database)
+        ).generate(account_name)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(json.dumps(result, indent=2, ensure_ascii=False, default=str))
 
 
 @app.callback()
@@ -207,58 +212,25 @@ def replay_status() -> None:
     typer.echo(run.model_dump_json(indent=2))
 
 
-@watch_app.callback()
-def watch_snapshot(
-    context: typer.Context,
-    codes: list[str] | None = typer.Option(
-        None,
-        "--code",
-        help="Stock code to observe; repeat for multiple stocks.",
-    ),
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the persisted snapshot as JSON.",
-    ),
-) -> None:
-    if context.invoked_subcommand is not None:
-        return
-    try:
-        normalized_codes = _normalize_codes(codes or [])
-        settings = TraderSettings.load()
-        snapshot = LiveMarketData(
-            AstockClient(settings.astock_binary), normalized_codes
-        ).snapshot()
-        record = ReplayStore(
-            settings.data_dir / "trader.db"
-        ).record_live_snapshot(snapshot)
-    except TradingEngineError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
-    _print_live_snapshot(record, json_output)
+def _build_provider(provider_name: str | None):
+    """Return a JudgmentProvider instance or None for the default shadow."""
+    if not provider_name:
+        return None
+    name = provider_name.lower()
+    if name in {"shadow", "default", ""}:
+        return None
+    if name == "deepseek":
+        from trading_engine.llm_provider import DeepSeekProvider
 
-
-@watch_app.command("latest")
-def watch_latest(
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the persisted snapshot as JSON.",
-    ),
-) -> None:
-    """Show the latest persisted real-time shadow snapshot."""
-    settings = TraderSettings.load()
-    record = ReplayStore(
-        settings.data_dir / "trader.db"
-    ).latest_live_snapshot()
-    if record is None:
-        typer.echo("no live shadow snapshot exists", err=True)
-        raise typer.Exit(code=1)
-    _print_live_snapshot(record, json_output)
+        return DeepSeekProvider()
+    raise TradingEngineError(f"unknown provider: {provider_name}")
 
 
 @analyze_app.command("latest")
 def analyze_latest(
+    account_name: str = typer.Option(
+        "paper", "--account", help="Account name."
+    ),
     json_output: bool = typer.Option(
         False,
         "--json",
@@ -271,17 +243,27 @@ def analyze_latest(
         max=5,
         help="Maximum provider attempts before recording a failure.",
     ),
+    provider: str = typer.Option(
+        None,
+        "--provider",
+        envvar="TRADER_LLM_PROVIDER",
+        help="LLM provider: shadow (default) or deepseek.",
+    ),
 ) -> None:
     """Analyze the latest real-time snapshot without executing trades."""
     try:
         settings = TraderSettings.load()
-        store = ReplayStore(settings.data_dir / "trader.db")
-        snapshot = store.latest_live_snapshot()
-        if snapshot is None:
+        database = settings.data_dir / "trader.db"
+        context_record = ContextStore(database).latest_context(account_name)
+        if context_record is None:
             raise TradingEngineError(
-                "no live shadow snapshot exists; run `trader watch --code ...` first"
+                "no decision context exists; run `trader context capture` first"
             )
-        record = ReadOnlyAnalyzer(store, max_attempts=attempts).analyze(snapshot)
+        record = ReadOnlyAnalyzer(
+            ReplayStore(database),
+            provider=_build_provider(provider),
+            max_attempts=attempts,
+        ).analyze(context_record)
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -318,7 +300,7 @@ def analyze_show(
 @analyze_app.command("context")
 def analyze_context(
     account_name: str = typer.Option(
-        "default", "--account", help="Account name."
+        "paper", "--account", help="Account name."
     ),
     attempts: int = typer.Option(
         2,
@@ -328,23 +310,27 @@ def analyze_context(
         help="Maximum provider attempts before recording a failure.",
     ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+    provider: str = typer.Option(
+        None,
+        "--provider",
+        envvar="TRADER_LLM_PROVIDER",
+        help="LLM provider: shadow (default) or deepseek.",
+    ),
 ) -> None:
     """Analyze the latest complete decision context without executing trades."""
     try:
         settings = TraderSettings.load()
         database = settings.data_dir / "trader.db"
-        store = ReplayStore(database)
         context_record = ContextStore(database).latest_context(account_name)
         if context_record is None:
             raise TradingEngineError(
                 "no decision context exists; run `trader context capture` first"
             )
-        market_record = store.get_market_snapshot(
-            context_record.context.market_snapshot_id
-        )
-        record = ReadOnlyAnalyzer(store, max_attempts=attempts).analyze(
-            market_record, context_record
-        )
+        record = ReadOnlyAnalyzer(
+            ReplayStore(database),
+            provider=_build_provider(provider),
+            max_attempts=attempts,
+        ).analyze(context_record)
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
@@ -361,7 +347,7 @@ def account_init(
         "--initial-cash",
         help="Initial capital in CNY; defaults to current cash.",
     ),
-    name: str = typer.Option("default", "--name", help="Account name."),
+    name: str = typer.Option("paper", "--name", help="Account name."),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """Create a new independent account in the engine database."""
@@ -379,7 +365,7 @@ def account_init(
 
 @account_app.command("show")
 def account_show(
-    name: str = typer.Option("default", "--name", help="Account name."),
+    name: str = typer.Option("paper", "--name", help="Account name."),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """Show account state stored in the engine database."""
@@ -393,7 +379,7 @@ def account_show(
 
 @account_app.command("update")
 def account_update(
-    name: str = typer.Option("default", "--name", help="Account name."),
+    name: str = typer.Option("paper", "--name", help="Account name."),
     cash: str | None = typer.Option(None, "--cash", help="Current cash in CNY."),
     cooldown: bool | None = typer.Option(
         None,
@@ -433,7 +419,7 @@ def position_set(
         help="Most recent position change date in YYYY-MM-DD format.",
     ),
     account_name: str = typer.Option(
-        "default", "--account", help="Account name."
+        "paper", "--account", help="Account name."
     ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
@@ -457,7 +443,7 @@ def position_set(
 @position_app.command("list")
 def position_list(
     account_name: str = typer.Option(
-        "default", "--account", help="Account name."
+        "paper", "--account", help="Account name."
     ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
@@ -512,6 +498,11 @@ def thesis_set(
         "--confirmation",
         help="Market behavior that confirms the thesis for trading.",
     ),
+    bet_pct: str | None = typer.Option(
+        None,
+        "--bet",
+        help="Bet size as percentage of total assets (0-100).",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """Create or replace one thesis in the engine database."""
@@ -529,6 +520,7 @@ def thesis_set(
             transmission_chain,
             linkage_conclusion,
             confirmation_condition,
+            _parse_decimal(bet_pct, "bet") if bet_pct is not None else None,
         )
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
@@ -538,6 +530,9 @@ def thesis_set(
 
 @thesis_app.command("list")
 def thesis_list(
+    active_only: bool = typer.Option(
+        False, "--active-only", help="Only show active/watch theses."
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """List theses stored by the independent engine."""
@@ -546,6 +541,8 @@ def thesis_list(
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
+    if active_only:
+        theses = tuple(thesis for thesis in theses if thesis.status in {"active", "watch"})
     _print_theses(theses, json_output)
 
 
@@ -554,7 +551,7 @@ def thesis_link(
     key: str = typer.Option(..., "--key", help="Thesis key."),
     code: str = typer.Option(..., "--code", help="Position stock code."),
     account_name: str = typer.Option(
-        "default", "--account", help="Account name."
+        "paper", "--account", help="Account name."
     ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
@@ -615,12 +612,17 @@ def pool_member(
         "--relationship",
         help="direct, volume, adjacent, cost_pressure, or research.",
     ),
+    causal_chain: str | None = typer.Option(
+        None,
+        "--causal-chain",
+        help="Free-text causal transmission chain for this member.",
+    ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
     """Create or replace one member of a fixed watch pool."""
     try:
         member = _store().set_watch_pool_member(
-            pool_key, code, role, tradable, relationship
+            pool_key, code, role, tradable, relationship, causal_chain
         )
     except TradingEngineError as exc:
         typer.echo(str(exc), err=True)
@@ -631,7 +633,8 @@ def pool_member(
         typer.echo(
             f"已保存固定池成员 {member.pool_key}/{member.code} "
             f"role={member.role} relationship={member.relationship} "
-            f"tradable={str(member.tradable).lower()}"
+            f"tradable={str(member.tradable).lower()} "
+            f"causal_chain={member.causal_chain or '-'}"
         )
 
 
@@ -649,6 +652,40 @@ def pool_show(
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     _print_watch_pool(pool, members, json_output)
+
+
+@pool_app.command("list")
+def pool_list(
+    status: str | None = typer.Option(
+        None, "--status", help="Filter by active/dormant/archived status."
+    ),
+    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
+) -> None:
+    """List all fixed watch pools and their members."""
+    try:
+        store = _store()
+        pools = store.list_watch_pools()
+        if status is not None:
+            pools = tuple(pool for pool in pools if pool.monitoring_status == status)
+    except TradingEngineError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(code=1) from exc
+    if json_output:
+        result = [
+            {
+                **pool.model_dump(mode="json"),
+                "members": [
+                    member.model_dump(mode="json")
+                    for member in store.list_watch_pool_members(pool.key)
+                ],
+            }
+            for pool in pools
+        ]
+        typer.echo(json.dumps(result, indent=2, ensure_ascii=False))
+    else:
+        for pool in pools:
+            members = store.list_watch_pool_members(pool.key)
+            _print_watch_pool(pool, members, False)
 
 
 @plan_app.command("set")
@@ -795,7 +832,7 @@ def risk_link(
     key: str = typer.Option(..., "--key", help="Risk factor key."),
     code: str = typer.Option(..., "--code", help="Position stock code."),
     account_name: str = typer.Option(
-        "default", "--account", help="Account name."
+        "paper", "--account", help="Account name."
     ),
     json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
 ) -> None:
@@ -830,9 +867,9 @@ def _store() -> ReplayStore:
 
 def _parse_date(value: str) -> date:
     try:
-        return datetime.strptime(value, "%Y%m%d").date()
-    except ValueError as exc:
-        raise ReplayError("date must use YYYYMMDD format") from exc
+        return parse_trading_date(value)
+    except TradingEngineError as exc:
+        raise ReplayError(str(exc)) from exc
 
 
 def _parse_iso_date(value: str) -> date:
@@ -859,32 +896,6 @@ def _normalize_codes(values: list[str]) -> tuple[str, ...]:
     if invalid:
         raise ReplayError(f"invalid stock code: {', '.join(invalid)}")
     return normalized
-
-
-def _print_live_snapshot(
-    record: LiveSnapshotRecord, json_output: bool
-) -> None:
-    if json_output:
-        typer.echo(record.model_dump_json(indent=2))
-        return
-
-    snapshot = record.snapshot
-    typer.echo(
-        f"实时影子快照 {snapshot.as_of.strftime('%Y-%m-%d %H:%M:%S')} "
-        f"id={record.id}"
-    )
-    typer.echo("模式：只读影子，不执行交易")
-    typer.echo("")
-    typer.echo(
-        f"{'代码':<8} {'现价':>10} {'昨收':>10} "
-        f"{'涨跌%':>9} {'成交额(亿)':>12}"
-    )
-    for raw_quote in snapshot.payload["quotes"]:
-        quote = LiveQuote.model_validate(raw_quote)
-        typer.echo(
-            f"{quote.code:<8} {quote.price:>10.2f} {quote.pre_close:>10.2f} "
-            f"{quote.change_pct:>+8.2f}% {quote.amount / 1e8:>12.2f}"
-        )
 
 
 def _print_judgment(record: JudgmentRecord, json_output: bool) -> None:
@@ -965,9 +976,12 @@ def _print_theses(
         )
         return
     typer.echo("独立预期")
-    typer.echo(f"{'KEY':<24} {'状态':<12} 标题")
+    typer.echo(f"{'KEY':<24} {'状态':<12} {'下注%':>8} 标题")
     for thesis in theses:
-        typer.echo(f"{thesis.key:<24} {thesis.status:<12} {thesis.title}")
+        bet = f"{thesis.bet_pct:.2f}" if thesis.bet_pct is not None else "-"
+        typer.echo(
+            f"{thesis.key:<24} {thesis.status:<12} {bet:>8} {thesis.title}"
+        )
 
 
 def _print_watch_pool(
@@ -993,11 +1007,11 @@ def _print_watch_pool(
         f"固定池 {pool.key}  name={pool.name} "
         f"status={pool.monitoring_status} thesis={pool.thesis_key or '-'}"
     )
-    typer.echo(f"{'代码':<8} {'角色':<10} {'关系':<16} {'可交易':<8}")
+    typer.echo(f"{'代码':<8} {'角色':<10} {'关系':<16} {'可交易':<8} 传导链")
     for member in members:
         typer.echo(
             f"{member.code:<8} {member.role:<10} {member.relationship:<16} "
-            f"{str(member.tradable).lower():<8}"
+            f"{str(member.tradable).lower():<8} {member.causal_chain or '-'}"
         )
 
 

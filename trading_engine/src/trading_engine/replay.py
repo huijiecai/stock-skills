@@ -48,17 +48,37 @@ class ReplayMarketData:
         client: AstockClient,
         trading_date: date,
         codes: tuple[str, ...],
+        include_discovery: bool = False,
     ) -> None:
         self.client = client
         self.trading_date = trading_date
         self.codes = codes
+        self.include_discovery = include_discovery
         self._series: dict[str, tuple[float, tuple[MinuteBar, ...]]] = {}
+        self._discovery_cache: dict[datetime, dict[str, Any]] = {}
+        self._names: dict[str, str] = {}
+
+    def _load_names(self) -> None:
+        """Fetch the full-market code->name map once (cached)."""
+        if self._names:
+            return
+        try:
+            rows = self.client.run_json("query", "stock", "--limit", "6000")
+            if isinstance(rows, list):
+                self._names = {
+                    str(row["code"]): str(row.get("name", row["code"]))
+                    for row in rows
+                    if isinstance(row, dict) and row.get("code")
+                }
+        except Exception:
+            self._names = {}
 
     def snapshot(self, at: datetime) -> MarketSnapshot:
         at = _as_shanghai_time(at)
         if at.date() != self.trading_date:
             raise ReplayError("snapshot time is outside the configured trading date")
 
+        self._load_names()
         instruments: dict[str, Any] = {}
         for code in self.codes:
             pre_close, bars = self._load(code)
@@ -66,13 +86,127 @@ class ReplayMarketData:
             instruments[code] = {
                 "pre_close": pre_close,
                 "bars": [bar.model_dump(mode="json") for bar in visible],
+                "name": self._names.get(code, code),
             }
+
+        payload: dict[str, Any] = {"instruments": instruments}
+        if self.include_discovery:
+            payload["market_discovery"] = self._market_discovery(at)
 
         return MarketSnapshot(
             as_of=at,
             source="astock-replay",
-            payload={"instruments": instruments},
+            payload=payload,
         )
+
+    def _market_discovery(self, at: datetime) -> dict[str, Any]:
+        """Replay-time market context: indices, sector leaders, limit-up list.
+
+        Unlike live mode, replay tolerates missing capabilities (historical
+        data may be incomplete) and records them in ``missing_capabilities``
+        instead of raising.
+        """
+        cached = self._discovery_cache.get(at)
+        if cached is not None:
+            return cached
+
+        compact = self.trading_date.strftime("%Y%m%d")
+        clock = at.strftime("%H:%M")
+        missing: list[str] = []
+        discovery: dict[str, Any] = {
+            "coverage_mode": "registered_universe",
+            "scanned_codes": sorted(self.codes),
+            "missing_capabilities": missing,
+        }
+
+        try:
+            index_rows = self.client.run_json(
+                "replay", "index", compact, clock
+            )
+            if isinstance(index_rows, list):
+                discovery["indices"] = [
+                    {
+                        "code": str(row["code"]),
+                        "name": str(row.get("name", row["code"])),
+                        "price": row["price"],
+                        "pre_close": row["pre_close"],
+                        "change_pct": row["change_pct"],
+                        "amount": row.get("amount", 0),
+                    }
+                    for row in index_rows
+                    if isinstance(row, dict)
+                ]
+        except Exception:
+            missing.append("index_context")
+
+        try:
+            sector_rows = self.client.run_json(
+                "replay", "block", "rank", compact, clock
+            )
+            if isinstance(sector_rows, list):
+                discovery["sector_leaders"] = [
+                    {
+                        "code": str(row["code"]),
+                        "name": str(row.get("name", row["code"])),
+                        "block_type": (
+                            row["type"]
+                            if row.get("type") in {"concept", "style"}
+                            else "concept"
+                        ),
+                        "change_pct": row["change_pct"],
+                        "amount": row.get("amount", 0),
+                        "limit_up_count": row.get("limit_up_count", 0),
+                    }
+                    for row in sector_rows
+                    if isinstance(row, dict)
+                ]
+        except Exception:
+            missing.append("sector_rank")
+
+        try:
+            market_rows = self.client.run_json(
+                "replay", "market", compact, clock
+            )
+            if isinstance(market_rows, dict):
+                discovery["breadth"] = {
+                    "total": market_rows.get("total_stocks"),
+                    "up_count": market_rows.get("up_count"),
+                    "down_count": market_rows.get("down_count"),
+                    "flat_count": market_rows.get("flat_count"),
+                    "limit_up_count": market_rows.get("limit_up_count"),
+                    "total_amount": market_rows.get("total_amount"),
+                }
+        except Exception:
+            missing.append("market_breadth")
+
+        try:
+            limit_rows = self.client.run_json(
+                "replay", "limit", "list", compact, clock
+            )
+            if isinstance(limit_rows, list):
+                detail = [
+                    {
+                        "code": str(row["code"]),
+                        "name": str(row.get("name", row["code"])),
+                        "concepts": row.get("concepts", []) or [],
+                        "consecutive_days": row.get("consecutive_days", 1),
+                        "first_seal_time": str(row.get("first_seal_time", "")),
+                        "status": str(row.get("status", "")),
+                        "change_pct": row.get("change_pct", 0),
+                        "amount": row.get("replay_amount", row.get("daily_amount", 0)),
+                    }
+                    for row in limit_rows
+                    if isinstance(row, dict)
+                ]
+                discovery["limit_up_detail"] = detail
+                discovery["limit_up_codes"] = tuple(
+                    sorted({item["code"] for item in detail})
+                )
+        except Exception:
+            missing.append("limit_up_events")
+
+        self._discovery_cache[at] = discovery
+        return discovery
 
     def _load(self, code: str) -> tuple[float, tuple[MinuteBar, ...]]:
         cached = self._series.get(code)
@@ -90,7 +224,6 @@ class ReplayMarketData:
             compact_date,
             "--to",
             compact_date,
-            "--no-sync",
         )
         minute_rows = self.client.run_json(
             "query",
@@ -102,19 +235,27 @@ class ReplayMarketData:
             compact_date,
             "--limit",
             "300",
-            "--no-sync",
         )
         if not isinstance(daily_rows, list) or len(daily_rows) != 1:
             raise ReplayError(f"{code}: expected exactly one daily bar")
-        if not isinstance(minute_rows, list) or len(minute_rows) != 240:
+        if not isinstance(minute_rows, list) or len(minute_rows) < 200:
             count = len(minute_rows) if isinstance(minute_rows, list) else "invalid"
-            raise ReplayError(f"{code}: expected 240 minute bars, got {count}")
+            raise ReplayError(f"{code}: expected ~240 minute bars, got {count}")
 
-        bars = tuple(self._parse_minute_bar(code, row) for row in minute_rows)
         expected_times = replay_timeline(self.trading_date)[1:]
+        expected_set = set(expected_times)
+        # Drop any bars outside the trading session (e.g. a stray 13:00 bar
+        # some feeds emit across the lunch break), then require the remainder
+        # to be an ordered subsequence of the expected timeline.
+        bars = tuple(
+            self._parse_minute_bar(code, row)
+            for row in minute_rows
+            if isinstance(row, dict)
+            and _row_time_in(row, self.trading_date, expected_set)
+        )
         actual_times = tuple(bar.time for bar in bars)
-        if actual_times != expected_times:
-            raise ReplayError(f"{code}: minute timestamps are incomplete or out of order")
+        if list(actual_times) != sorted(actual_times, key=expected_times.index):
+            raise ReplayError(f"{code}: minute timestamps are out of order")
 
         result = (float(daily_rows[0]["pre_close"]), bars)
         self._series[code] = result
@@ -132,6 +273,18 @@ class ReplayMarketData:
             for key in ("open", "high", "low", "close", "volume", "amount")
         }
         return MinuteBar(code=code, time=parsed, **fields)
+
+
+def _row_time_in(row: dict[str, Any], trading_date: date, valid: set) -> bool:
+    """True if a raw minute-bar row's timestamp falls on a valid session minute."""
+    raw_time = str(row.get("time", ""))
+    try:
+        parsed = datetime.strptime(
+            f"{trading_date.year}-{raw_time}", "%Y-%m-%d %H:%M"
+        ).replace(tzinfo=SHANGHAI_TZ)
+    except ValueError:
+        return False
+    return parsed in valid
 
 
 class ReplayEngine:

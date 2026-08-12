@@ -76,20 +76,35 @@ class DiscoveryAstockClient:
                 }
             ]
         if arguments[:2] == ("live", "index"):
-            return [
-                {
-                    "code": code,
-                    "price": 1000 + index,
-                    "pre_close": 990 + index,
-                    "change_pct": 1.01,
-                    "volume": 1_000_000,
-                    "amount": 10_000_000_000,
-                    "open": 995,
-                    "high": 1010,
-                    "low": 985,
-                }
-                for index, code in enumerate(arguments[2:])
-            ]
+            return {
+                "fetched_at": "2026-07-27T11:30:00+08:00",
+                "source": "tdx",
+                "requests": 3,
+                "elapsed_ms": 200,
+                "indices": [
+                    {
+                        "code": code,
+                        "price": 1000 + index,
+                        "pre_close": 990 + index,
+                        "change_pct": 1.01,
+                        "volume": 1_000_000,
+                        "amount": 10_000_000_000,
+                        "open": 995,
+                        "high": 1010,
+                        "low": 985,
+                    }
+                    for index, code in enumerate(arguments[2:])
+                ],
+                "breadth": {
+                    "as_of": "2026-07-27T11:30:00+08:00",
+                    "up_count": 3200,
+                    "down_count": 1800,
+                    "markets": [
+                        {"scope": "sh", "up_count": 1400, "down_count": 900},
+                        {"scope": "sz", "up_count": 1800, "down_count": 900},
+                    ],
+                },
+            }
         raise AssertionError(arguments)
 
 
@@ -156,4 +171,6 @@ def test_live_snapshot_can_capture_full_market_discovery() -> None:
         "沪深300",
         "中证1000",
     }
+    assert discovery["breadth"]["up_count"] == 3200
+    assert discovery["breadth"]["down_count"] == 1800
     assert discovery["missing_capabilities"] == []

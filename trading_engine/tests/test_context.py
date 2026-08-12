@@ -45,9 +45,9 @@ def _seed_context_state(
     database = tmp_path / "trader.db"
     store = ReplayStore(database)
     context_store = ContextStore(database)
-    store.create_account("default", Decimal("100000"), Decimal("50000"))
+    store.create_account("paper", Decimal("100000"), Decimal("50000"))
     store.upsert_position(
-        "default",
+        "paper",
         "603127",
         "昭衍新药",
         300,
@@ -63,14 +63,14 @@ def _seed_context_state(
         "需求完成定价",
         "需求被否定",
     )
-    store.link_position_thesis("default", "603127", thesis.key)
+    store.link_position_thesis("paper", "603127", thesis.key)
     pool = store.upsert_watch_pool(
         "innovation_pool", "创新药直接受益池", thesis.key
     )
     store.set_watch_pool_member(pool.key, "603127", "direct", True)
     store.set_watch_pool_member(pool.key, "300255", "research", False)
     factor = store.upsert_risk_factor("growth", "成长风格", Decimal("60"))
-    store.link_position_risk_factor("default", "603127", factor.key)
+    store.link_position_risk_factor("paper", "603127", factor.key)
     context_store.add_evidence(
         thesis_key=thesis.key,
         kind="announcement",
@@ -114,18 +114,14 @@ def _backdate_core_state(database: Path, timestamp: datetime) -> None:
             connection.execute(f"UPDATE {table} SET created_at = ?", (value,))
 
 
-def _live_snapshot(
-    store: ReplayStore, include_pool_member: bool = True
-):
+def _live_snapshot(include_pool_member: bool = True) -> MarketSnapshot:
     quotes = [_quote("603127", 52, 50)]
     if include_pool_member:
         quotes.append(_quote("300255", 20, 19))
-    return store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=AS_OF,
-            source="astock-live",
-            payload={"mode": "shadow", "quotes": quotes},
-        )
+    return MarketSnapshot(
+        as_of=AS_OF,
+        source="astock-live",
+        payload={"mode": "shadow", "quotes": quotes},
     )
 
 
@@ -133,10 +129,10 @@ def test_complete_context_is_deterministic_and_excludes_future_evidence(
     tmp_path: Path,
 ) -> None:
     store, context_store, builder = _seed_context_state(tmp_path)
-    market_record = _live_snapshot(store)
+    snapshot = _live_snapshot()
 
-    first = builder.build(market_record)
-    second = builder.build(market_record)
+    first = builder.build(snapshot, "paper")
+    second = builder.build(snapshot, "paper")
 
     assert first.id == second.id
     assert first.fingerprint == second.fingerprint
@@ -147,24 +143,21 @@ def test_complete_context_is_deterministic_and_excludes_future_evidence(
     assert first.context.pools[0].coverage_pct == Decimal("100.0000")
     assert first.context.evidence[0].summary == "可观察的历史证据"
     assert first.context.excluded_future_evidence_count == 1
-    assert context_store.latest_context("default") == first
+    assert context_store.latest_context("paper") == first
 
 
 def test_live_context_accepts_zero_session_range_before_first_trade(
     tmp_path: Path,
 ) -> None:
-    store = ReplayStore(tmp_path / "trader.db")
     quote = _quote("603127", 50, 50)
     quote.update({"open": 0, "high": 0, "low": 0})
-    market_record = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=AS_OF,
-            source="astock-live",
-            payload={"mode": "shadow", "quotes": [quote]},
-        )
+    snapshot = MarketSnapshot(
+        as_of=AS_OF,
+        source="astock-live",
+        payload={"mode": "shadow", "quotes": [quote]},
     )
 
-    context_quote = extract_context_quotes(market_record)[0]
+    context_quote = extract_context_quotes(snapshot)[0]
 
     assert context_quote.open == Decimal("0")
     assert context_quote.high == Decimal("0")
@@ -176,7 +169,7 @@ def test_missing_pool_quote_blocks_judgment_without_losing_position_context(
 ) -> None:
     store, _, builder = _seed_context_state(tmp_path)
 
-    record = builder.build(_live_snapshot(store, include_pool_member=False))
+    record = builder.build(_live_snapshot(include_pool_member=False), "paper")
 
     assert record.context.ready_for_judgment is False
     assert record.context.positions[0].position.code == "603127"
@@ -186,37 +179,33 @@ def test_missing_pool_quote_blocks_judgment_without_losing_position_context(
 
 def test_missing_position_quote_and_future_state_fail_closed(tmp_path: Path) -> None:
     store, _, builder = _seed_context_state(tmp_path)
-    missing_position = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=AS_OF,
-            source="astock-live",
-            payload={"mode": "shadow", "quotes": [_quote("300255", 20, 19)]},
-        )
+    missing_position = MarketSnapshot(
+        as_of=AS_OF,
+        source="astock-live",
+        payload={"mode": "shadow", "quotes": [_quote("300255", 20, 19)]},
     )
     with pytest.raises(ContextError, match="missing position quote"):
-        builder.build(missing_position)
+        builder.build(missing_position, "paper")
 
-    historical = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=datetime(2026, 7, 23, 10, 30, tzinfo=SHANGHAI),
-            source="astock-live",
-            payload={
-                "mode": "shadow",
-                "quotes": [
-                    _quote("603127", 52, 50),
-                    _quote("300255", 20, 19),
-                ],
-            },
-        )
+    historical = MarketSnapshot(
+        as_of=datetime(2026, 7, 23, 10, 30, tzinfo=SHANGHAI),
+        source="astock-live",
+        payload={
+            "mode": "shadow",
+            "quotes": [
+                _quote("603127", 52, 50),
+                _quote("300255", 20, 19),
+            ],
+        },
     )
     with pytest.raises(ContextError, match="updated after the market snapshot"):
-        builder.build(historical)
+        builder.build(historical, "paper")
 
 
 def test_position_buy_date_after_market_snapshot_is_rejected(tmp_path: Path) -> None:
     store, _, builder = _seed_context_state(tmp_path)
     store.upsert_position(
-        "default",
+        "paper",
         "603127",
         "昭衍新药",
         300,
@@ -227,13 +216,12 @@ def test_position_buy_date_after_market_snapshot_is_rejected(tmp_path: Path) -> 
     _backdate_core_state(store.database, AS_OF.replace(hour=9, minute=10))
 
     with pytest.raises(ContextError, match="buy date after"):
-        builder.build(_live_snapshot(store))
+        builder.build(_live_snapshot(), "paper")
 
 
 def test_replay_quote_rejects_future_bar_and_uses_only_visible_bars(
     tmp_path: Path,
 ) -> None:
-    store = ReplayStore(tmp_path / "trader.db")
     visible_bar = {
         "code": "603127",
         "time": AS_OF - timedelta(minutes=1),
@@ -244,36 +232,105 @@ def test_replay_quote_rejects_future_bar_and_uses_only_visible_bars(
         "volume": 100,
         "amount": 5100,
     }
-    record = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=AS_OF,
-            source="astock-replay",
-            payload={
-                "instruments": {
-                    "603127": {"pre_close": 50, "bars": [visible_bar]}
-                }
-            },
-        )
+    snapshot = MarketSnapshot(
+        as_of=AS_OF,
+        source="astock-replay",
+        payload={
+            "instruments": {
+                "603127": {"pre_close": 50, "bars": [visible_bar]}
+            }
+        },
     )
 
-    quote = extract_context_quotes(record)[0]
+    quote = extract_context_quotes(snapshot)[0]
     assert quote.price == Decimal("51.0")
     assert quote.volume == 100
 
     future_bar = {**visible_bar, "time": AS_OF + timedelta(minutes=1)}
-    future_record = store.record_market_snapshot(
-        record.snapshot.model_copy(
-            update={
-                "payload": {
-                    "instruments": {
-                        "603127": {"pre_close": 50, "bars": [future_bar]}
-                    }
+    future_snapshot = snapshot.model_copy(
+        update={
+            "payload": {
+                "instruments": {
+                    "603127": {"pre_close": 50, "bars": [future_bar]}
                 }
             }
-        )
+        }
     )
     with pytest.raises(ContextError, match="future bar"):
-        extract_context_quotes(future_record)
+        extract_context_quotes(future_snapshot)
+
+
+def test_replay_build_works_without_backdating_core_state(
+    tmp_path: Path,
+) -> None:
+    """Replay must not reject core state updated after the replay as_of.
+
+    Live mode guards against future data via ``updated_at > as_of``, but in
+    replay the as_of is historical while the core state carries the real
+    wall-clock update time. The no-future-data guarantee is enforced
+    separately (bars and evidence are filtered by as_of).
+    """
+    store, _, builder = _seed_context_state(tmp_path)
+    database = tmp_path / "trader.db"
+    # Simulate a live database: core state updated AFTER the replay as_of.
+    future = (datetime.now().astimezone()).isoformat()
+    with sqlite3.connect(database) as connection:
+        for table in (
+            "accounts",
+            "positions",
+            "theses",
+            "watch_pools",
+            "watch_pool_members",
+            "risk_factors",
+            "trade_plans",
+        ):
+            connection.execute(
+                f"UPDATE {table} SET updated_at = ?", (future,)
+            )
+        for table in ("position_theses", "position_risk_factors"):
+            connection.execute(f"UPDATE {table} SET created_at = ?", (future,))
+
+    snapshot = MarketSnapshot(
+        as_of=AS_OF,
+        source="astock-replay",
+        payload={
+            "instruments": {
+                "603127": {
+                    "pre_close": 50,
+                    "bars": [
+                        {
+                            "code": "603127",
+                            "time": AS_OF - timedelta(minutes=1),
+                            "open": 50,
+                            "high": 52,
+                            "low": 49,
+                            "close": 51,
+                            "volume": 100,
+                            "amount": 5100,
+                        }
+                    ],
+                },
+                "300255": {
+                    "pre_close": 19,
+                    "bars": [
+                        {
+                            "code": "300255",
+                            "time": AS_OF - timedelta(minutes=1),
+                            "open": 19,
+                            "high": 20,
+                            "low": 19,
+                            "close": 20,
+                            "volume": 100,
+                            "amount": 2000,
+                        }
+                    ],
+                },
+            }
+        },
+    )
+    record = builder.build(snapshot, "paper")
+    assert record.context.market_source == "astock-replay"
+    assert record.context.ready_for_judgment is True
 
 
 def test_complete_replay_context_uses_same_contract_deterministically(
@@ -298,28 +355,26 @@ def test_complete_replay_context_uses_same_contract_deterministically(
             ],
         }
 
-    market_record = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=AS_OF,
-            source="astock-replay",
-            payload={
-                "instruments": {
-                    "603127": instrument("603127", 52, 50),
-                    "300255": instrument("300255", 20, 19),
-                }
-            },
-        )
+    market_snapshot = MarketSnapshot(
+        as_of=AS_OF,
+        source="astock-replay",
+        payload={
+            "instruments": {
+                "603127": instrument("603127", 52, 50),
+                "300255": instrument("300255", 20, 19),
+            }
+        },
     )
 
-    first = builder.build(market_record)
-    second = builder.build(market_record)
+    first = builder.build(market_snapshot, "paper")
+    second = builder.build(market_snapshot, "paper")
 
     assert first.id == second.id
     assert first.context.market_source == "astock-replay"
     assert first.context.ready_for_judgment is True
     assert first.context.excluded_future_evidence_count == 1
 
-    judgment = ReadOnlyAnalyzer(store).analyze(market_record, first)
+    judgment = ReadOnlyAnalyzer(store).analyze(first)
     assert judgment.input_context.decision_context_id == first.id
     assert judgment.input_context.decision_context_fingerprint == first.fingerprint
     assert judgment.input_context.domain_context is not None
@@ -330,41 +385,60 @@ def test_complete_replay_context_uses_same_contract_deterministically(
     }
 
 
-def test_context_cli_build_and_show_use_persisted_independent_state(
+def test_context_cli_capture_and_show_use_persisted_independent_state(
     tmp_path: Path, monkeypatch
 ) -> None:
-    store, _, _ = _seed_context_state(tmp_path)
-    _live_snapshot(store)
+    _seed_context_state(tmp_path)
     settings = TraderSettings(
         repo_root=tmp_path,
         astock_binary=tmp_path / "astock",
         data_dir=tmp_path,
     )
+
+    class StubLiveMarketData:
+        def __init__(self, _client, codes, include_discovery=False) -> None:
+            assert codes == ("300255", "603127")
+            assert include_discovery is True
+
+        def snapshot(self):
+            return MarketSnapshot(
+                as_of=AS_OF,
+                source="astock-live",
+                payload={
+                    "mode": "shadow",
+                    "quotes": [
+                        _quote("603127", 52, 50),
+                        _quote("300255", 20, 19),
+                    ],
+                },
+            )
+
     monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
     monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
+    monkeypatch.setattr("trading_engine.context_cli.LiveMarketData", StubLiveMarketData)
 
-    build_result = runner.invoke(app, ["context", "build", "--json"])
+    capture_result = runner.invoke(app, ["context", "capture", "--json"])
     show_result = runner.invoke(app, ["context", "show", "--json"])
     analyze_result = runner.invoke(app, ["analyze", "context", "--json"])
 
-    assert build_result.exit_code == 0
+    assert capture_result.exit_code == 0
     assert show_result.exit_code == 0
-    built = json.loads(build_result.stdout)
+    captured = json.loads(capture_result.stdout)
     shown = json.loads(show_result.stdout)
-    assert built["id"] == shown["id"]
-    assert built["context"]["ready_for_judgment"] is True
+    assert captured["id"] == shown["id"]
+    assert captured["context"]["ready_for_judgment"] is True
     assert analyze_result.exit_code == 0
     analyzed = json.loads(analyze_result.stdout)
-    assert analyzed["input_context"]["decision_context_id"] == built["id"]
+    assert analyzed["input_context"]["decision_context_id"] == captured["id"]
 
 
 def test_analyzer_refuses_blocked_context(tmp_path: Path) -> None:
     store, _, builder = _seed_context_state(tmp_path)
-    market_record = _live_snapshot(store, include_pool_member=False)
-    context_record = builder.build(market_record)
+    snapshot = _live_snapshot(include_pool_member=False)
+    context_record = builder.build(snapshot, "paper")
 
     with pytest.raises(JudgmentError, match="decision context is blocked"):
-        ReadOnlyAnalyzer(store).analyze(market_record, context_record)
+        ReadOnlyAnalyzer(store).analyze(context_record)
 
 
 def test_context_contains_plans_dormant_pools_paths_and_observation_history(
@@ -447,7 +521,7 @@ def test_context_contains_plans_dormant_pools_paths_and_observation_history(
     )
     _backdate_core_state(store.database, AS_OF.replace(hour=9, minute=10))
 
-    codes = builder.required_live_codes("default", AS_OF.date())
+    codes = builder.required_live_codes("paper", AS_OF.date())
     assert "000636" in codes
     assert "300408" in codes
 
@@ -466,20 +540,18 @@ def test_context_contains_plans_dormant_pools_paths_and_observation_history(
             _quote("603678", 42, 40),
             _quote("603989", 31, 30),
         ]
-        return store.record_market_snapshot(
-            MarketSnapshot(
-                as_of=at,
-                source="astock-live",
-                payload={"mode": "shadow", "quotes": rows},
-            )
+        return MarketSnapshot(
+            as_of=at,
+            source="astock-live",
+            payload={"mode": "shadow", "quotes": rows},
         )
 
     first_market = market(AS_OF.replace(hour=9, minute=35), 42)
-    first = builder.build(first_market)
+    first = builder.build(first_market, "paper")
     assert first.context.ready_for_judgment is True
-    ReadOnlyAnalyzer(store).analyze(first_market, first)
+    ReadOnlyAnalyzer(store).analyze(first)
 
-    second = builder.build(market(AS_OF.replace(hour=9, minute=50), 43))
+    second = builder.build(market(AS_OF.replace(hour=9, minute=50), 43), "paper")
 
     mlcc_context = next(
         item for item in second.context.pools if item.pool.key == "mlcc_pool"
@@ -554,9 +626,12 @@ def test_context_replay_cli_uses_required_codes_and_same_builder(
     )
 
     class StubReplayMarketData:
-        def __init__(self, _client, trading_date, codes) -> None:
+        def __init__(
+            self, _client, trading_date, codes, include_discovery=False
+        ) -> None:
             assert trading_date == AS_OF.date()
             assert codes == ("300255", "603127")
+            assert include_discovery is True
 
         def snapshot(self, at):
             assert at == AS_OF

@@ -23,7 +23,7 @@ class CatalystEvidence(BaseModel):
     id: str
     thesis_id: str
     thesis_key: str
-    kind: Literal["announcement", "news", "industry", "market", "other"]
+    kind: Literal["announcement", "news", "industry", "policy", "other"]
     source_name: str = Field(min_length=1)
     source_url: str | None = None
     published_at: datetime
@@ -46,6 +46,7 @@ class ContextQuote(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     code: str = Field(pattern=r"^\d{6}$")
+    name: str | None = None
     observed_at: datetime
     price: Decimal = Field(gt=0)
     pre_close: Decimal = Field(ge=0)
@@ -79,11 +80,13 @@ class PoolMemberSignalContext(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     code: str = Field(pattern=r"^\d{6}$")
+    name: str | None = None
     role: Literal["direct", "research"]
     relationship: Literal[
         "direct", "volume", "adjacent", "cost_pressure", "research"
     ]
     tradable: bool
+    causal_chain: str | None = None
     change_pct: Decimal
     amount: Decimal = Field(ge=0)
     change_rank: int = Field(ge=1)
@@ -314,4 +317,31 @@ class DecisionContextRecord(BaseModel):
     id: str
     fingerprint: str = Field(pattern=r"^[a-f0-9]{64}$")
     context: DecisionContext
+    created_at: datetime
+
+
+class ReasoningRecord(BaseModel):
+    """One LLM reasoning chain attached to a decision context snapshot."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    context_id: str
+    observed: str = Field(min_length=1)
+    hypothesis: str = Field(min_length=1)
+    verified: str = Field(min_length=1)
+    conclusion: str = Field(min_length=1)
+    created_at: datetime
+
+
+class ToolCallRecord(BaseModel):
+    """One immutable astock tool call attached to a decision context snapshot."""
+
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    id: str
+    context_id: str
+    tool: str = Field(min_length=1)
+    arguments: str = Field(min_length=1)
+    result: str = Field(min_length=1)
     created_at: datetime

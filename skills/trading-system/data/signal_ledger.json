@@ -306,6 +306,68 @@
       "fingerprint_hash": "89416df151",
       "status": "cancelled",
       "cancel_reason": "账户复核发现09:36已按出口B首日减仓100股；11:28无委托、无成交，避免首日重复减仓超过30%-50%"
+    },
+    {
+      "id": "出口B-20260807-01",
+      "direction": "AI服务器/高端MLCC",
+      "kind": "出口B",
+      "date": "20260807",
+      "fingerprint": "mlcc-pool-0of5-three-points-fenghua-broke-support-no-reclaim",
+      "fingerprint_hash": "10bb39ccd4",
+      "status": "consumed",
+      "code": "000636",
+      "action": "sell-all",
+      "consumed_at": "2026-08-07 09:43"
+    },
+    {
+      "id": "BUY-20260810-01",
+      "direction": "煤炭/动力煤涨价",
+      "kind": "BUY",
+      "date": "20260810",
+      "fingerprint": "thermal_coal-0937-pool8of8-pingmei-confirmation",
+      "fingerprint_hash": "44eecef3fc",
+      "status": "consumed",
+      "code": "601666",
+      "action": "BUY",
+      "consumed_at": "2026-08-10T09:38:40+08:00"
+    },
+    {
+      "id": "出口B-2026-08-10-01",
+      "direction": "存储芯片-超级周期",
+      "kind": "出口B",
+      "date": "2026-08-10",
+      "fingerprint": "存储池0/8全跌+太极连续3分钟创新低19.02+外盘存储分化",
+      "fingerprint_hash": "a47f5de571",
+      "status": "consumed",
+      "code": "600667",
+      "action": "减仓500股@18.92",
+      "consumed_at": "2026-08-10 09:43"
+    },
+    {
+      "id": "出口B-20260810-01",
+      "direction": "存储芯片",
+      "kind": "出口B",
+      "date": "20260810",
+      "fingerprint": "storage-0941-pool1of8-taiji-rebound-failed-volume-weakness",
+      "fingerprint_hash": "d6d3da0783",
+      "status": "cancelled",
+      "code": "600667",
+      "action": "SELL",
+      "consumed_at": "2026-08-10T09:43:54+08:00",
+      "canceled_at": "2026-08-10 09:51",
+      "cancel_reason": "并发重复：同一存储池退化与太极反抽失败证据已由出口B-2026-08-10-01登记并消费，对应实际减仓500股@18.92；本信号不得重复计数"
+    },
+    {
+      "id": "出口B-2026-08-10-02",
+      "direction": "CPO/光模块",
+      "kind": "出口B",
+      "date": "2026-08-10",
+      "fingerprint": "CPO池0/7全跌连续4观察点+亨通跌破昨收59.52至59.10+高点低点递减承接消失",
+      "fingerprint_hash": "dd62b2567f",
+      "status": "consumed",
+      "code": "600487",
+      "action": "清仓300股@59.10",
+      "consumed_at": "2026-08-10 09:44"
     }
   ]
 }

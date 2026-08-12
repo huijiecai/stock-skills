@@ -2,6 +2,7 @@ package tdx
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/huijiecai/stock/astock/internal/model"
 	"github.com/injoyai/tdx/protocol"
@@ -32,6 +33,7 @@ func (c *Client) GetQuotes(codes []string) ([]*model.Quote, error) {
 	}
 
 	out := make([]*model.Quote, 0, len(codes))
+	snapshotAt := liveSnapshotTime()
 
 	// 股票走 cli.GetQuote（上游会 AddPrefix、验证响应数量、按请求顺序返回）
 	if len(stockCodes) > 0 {
@@ -45,7 +47,7 @@ func (c *Client) GetQuotes(codes []string) ([]*model.Quote, error) {
 			if i >= len(stockCodes) {
 				break
 			}
-			out = append(out, mapQuote(stockCodes[i], q))
+			out = append(out, mapQuote(stockCodes[i], q, snapshotAt))
 		}
 	}
 
@@ -87,23 +89,27 @@ func (c *Client) GetIndexQuotes(codes []string) ([]*model.Quote, error) {
 		)
 	}
 	out := make([]*model.Quote, 0, len(codes))
+	snapshotAt := liveSnapshotTime()
 	for i, q := range resp {
-		out = append(out, mapQuote(codes[i], q))
+		out = append(out, mapQuote(codes[i], q, snapshotAt))
 	}
 	return out, nil
 }
 
 // mapQuote 将 protocol.Quote 转为 model.Quote。Code 取请求原始代码（响应中的 Code 不可信）。
-func mapQuote(code string, q *protocol.Quote) *model.Quote {
+func mapQuote(code string, q *protocol.Quote, snapshotAt time.Time) *model.Quote {
 	quote := &model.Quote{
-		Code:     code,
-		Price:    q.K.Close.Float64(),
-		PreClose: q.K.Last.Float64(),
-		Open:     q.K.Open.Float64(),
-		High:     q.K.High.Float64(),
-		Low:      q.K.Low.Float64(),
-		Volume:   int64(q.TotalHand),
-		Amount:   q.Amount,
+		Code:       code,
+		TradeDate:  snapshotAt.Format("2006-01-02"),
+		AsOf:       snapshotAt.Format(time.RFC3339),
+		Price:      q.K.Close.Float64(),
+		PreClose:   q.K.Last.Float64(),
+		Open:       q.K.Open.Float64(),
+		High:       q.K.High.Float64(),
+		Low:        q.K.Low.Float64(),
+		Volume:     int64(q.TotalHand),
+		VolumeUnit: "hand",
+		Amount:     q.Amount,
 	}
 	if quote.PreClose > 0 {
 		quote.ChangePct = (quote.Price - quote.PreClose) / quote.PreClose * 100
@@ -137,14 +143,9 @@ func (c *Client) GetTradeAll(code string) ([]*model.Tick, error) {
 	}
 
 	out := make([]*model.Tick, 0, len(resp.List))
+	snapshotAt := liveSnapshotTime()
 	for _, t := range resp.List {
-		out = append(out, &model.Tick{
-			Code:   code,
-			Time:   t.Time.Format("15:04:05"),
-			Price:  t.Price.Float64(),
-			Volume: int64(t.Volume),
-			Amount: float64(t.Volume) * t.Price.Float64(),
-		})
+		out = append(out, mapTrade(code, t, snapshotAt))
 	}
 	return out, nil
 }
@@ -169,14 +170,51 @@ func (c *Client) GetMinute(code string, dataType model.DataType) ([]*model.Tick,
 	}
 
 	out := make([]*model.Tick, 0, len(resp.List))
+	snapshotAt := liveSnapshotTime()
 	for _, m := range resp.List {
-		out = append(out, &model.Tick{
-			Code:   code,
-			Time:   m.Time,
-			Price:  m.Price.Float64(),
-			Volume: int64(m.Number),
-			Amount: float64(m.Number) * m.Price.Float64(),
-		})
+		out = append(out, mapMinute(code, m, snapshotAt))
 	}
 	return out, nil
+}
+
+var shanghaiLocation = time.FixedZone("Asia/Shanghai", 8*60*60)
+
+func liveSnapshotTime() time.Time {
+	return time.Now().In(shanghaiLocation)
+}
+
+func mapTrade(code string, trade *protocol.Trade, snapshotAt time.Time) *model.Tick {
+	side := "neutral"
+	switch trade.Status {
+	case 0:
+		side = "buy"
+	case 1:
+		side = "sell"
+	}
+	return &model.Tick{
+		Code:       code,
+		TradeDate:  trade.Time.Format("2006-01-02"),
+		AsOf:       snapshotAt.Format(time.RFC3339),
+		Time:       trade.Time.Format("15:04:05"),
+		Price:      trade.Price.Float64(),
+		Volume:     int64(trade.Volume),
+		VolumeUnit: "hand",
+		Amount:     float64(trade.Volume) * 100 * trade.Price.Float64(),
+		Side:       side,
+		OrderCount: trade.Number,
+	}
+}
+
+func mapMinute(code string, minute protocol.PriceNumber, snapshotAt time.Time) *model.Tick {
+	return &model.Tick{
+		Code:            code,
+		TradeDate:       snapshotAt.Format("2006-01-02"),
+		AsOf:            snapshotAt.Format(time.RFC3339),
+		Time:            minute.Time,
+		Price:           minute.Price.Float64(),
+		Volume:          int64(minute.Number),
+		VolumeUnit:      "hand",
+		Amount:          float64(minute.Number) * 100 * minute.Price.Float64(),
+		AmountEstimated: true,
+	}
 }

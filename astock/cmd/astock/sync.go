@@ -21,7 +21,7 @@ func init() {
 func newSyncCmd() *cobra.Command {
 	syncCmd := &cobra.Command{
 		Use:   "sync",
-		Short: "从 TDX 拉数据写入 ClickHouse",
+		Short: "同步行情和本地派生数据到 ClickHouse",
 	}
 
 	// --- sync meta ---
@@ -38,11 +38,41 @@ func newSyncCmd() *cobra.Command {
 			defer close()
 
 			fmt.Println("→ 拉取全市场标的列表...")
-			n, err := ssync.Meta(ctx, ch, tc)
+			result, err := ssync.Meta(ctx, ch, tc)
 			if err != nil {
 				return err
 			}
-			fmt.Printf("✓ 写入 securities %d 行\n", n)
+			fmt.Printf("✓ 写入 securities %d 行；新股 %d，只补上市日期 %d\n",
+				result.Written, result.NewStocks, result.ListDatesFilled)
+			if len(result.PendingStocks) > 0 {
+				fmt.Printf("↷ 跳过待上市/暂无交易数据 %d 只：%s\n", len(result.PendingStocks), result.PendingSummary())
+			}
+			return nil
+		},
+	})
+
+	// --- sync calendar ---
+	// 本地回填，不访问 TDX；用于已有 kline_daily 数据的首次修复。
+	syncCmd.AddCommand(&cobra.Command{
+		Use:   "calendar",
+		Short: "从指数日线回填交易日历（本地只读行情表）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			ch, err := dwh.New(ctx, cfg)
+			if err != nil {
+				return err
+			}
+			defer ch.Close()
+
+			inserted, total, err := ssync.RefreshTradeCalendarFromDaily(ctx, ch)
+			if err != nil {
+				return err
+			}
+			if total == 0 {
+				return fmt.Errorf("无法生成交易日历：kline_daily 中没有指数日线")
+			}
+			fmt.Printf("✓ trade_cal 新增 %d 个交易日，当前共 %d 个交易日\n", inserted, total)
 			return nil
 		},
 	})

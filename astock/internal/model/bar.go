@@ -21,10 +21,16 @@ type Bar struct {
 }
 
 type Tick struct {
-	Code      string  `json:"code"`
-	Time      string  `json:"time"`
-	Price     float64 `json:"price"`
-	Volume    int64   `json:"volume"`
-	Amount    float64 `json:"amount"`
-	AvgPrice  float64 `json:"avg_price,omitempty"`
+	Code            string  `json:"code"`
+	TradeDate       string  `json:"trade_date"`
+	AsOf            string  `json:"as_of"`
+	Time            string  `json:"time"`
+	Price           float64 `json:"price"`
+	Volume          int64   `json:"volume"`
+	VolumeUnit      string  `json:"volume_unit"`
+	Amount          float64 `json:"amount"`
+	AmountEstimated bool    `json:"amount_estimated,omitempty"`
+	Side            string  `json:"side,omitempty"`
+	OrderCount      int     `json:"order_count,omitempty"`
+	AvgPrice        float64 `json:"avg_price,omitempty"`
 }

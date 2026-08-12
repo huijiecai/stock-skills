@@ -42,14 +42,36 @@ func addLiveBlockCmd(liveCmd *cobra.Command) {
 
 // LiveBlockRankRow live block rank 单行。
 type LiveBlockRankRow struct {
-	Code         string  `json:"code"`
-	Name         string  `json:"name"`
-	BlockType    string  `json:"block_type"` // concept/style
-	Price        float64 `json:"price"`
-	PreClose     float64 `json:"pre_close"`
-	ChangePct    float64 `json:"change_pct"`
-	Amount       float64 `json:"amount"`
-	LimitUpCount int     `json:"limit_up_count"`
+	Code            string  `json:"code"`
+	Name            string  `json:"name"`
+	BlockType       string  `json:"block_type"` // concept/style
+	Price           float64 `json:"price"`
+	PreClose        float64 `json:"pre_close"`
+	ChangePct       float64 `json:"change_pct"`
+	Amount          float64 `json:"amount"`
+	MemberCount     int     `json:"member_count"`
+	ValidCount      int     `json:"valid_count"`
+	UpCount         int     `json:"up_count"`
+	DownCount       int     `json:"down_count"`
+	FlatCount       int     `json:"flat_count"`
+	LimitUpCount    int     `json:"limit_up_count"`
+	LimitDownCount  int     `json:"limit_down_count"`
+	MedianChangePct float64 `json:"median_change_pct"`
+}
+
+type liveBlockBreadth struct {
+	MemberCount     int
+	ValidCount      int
+	UpCount         int
+	DownCount       int
+	FlatCount       int
+	LimitUpCount    int
+	LimitDownCount  int
+	MedianChangePct float64
+}
+
+type liveBlockStockQuote struct {
+	price, preClose, high, low, changePct float64
 }
 
 func buildLiveBlockRankCmd() *cobra.Command {
@@ -158,8 +180,8 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 4. 计算各板块涨停数：拉成分股实时报价 + ST判断 + round-half-up 涨停判定
-	limitUpMap := calcLiveLimitUp(ctx, ch, tc, codes)
+	// 4. 拉一次成分股实时报价，聚合各板块广度与涨跌停状态。
+	breadthMap := calcLiveBlockBreadth(ctx, ch, tc, codes)
 
 	// 5. 拼装 + 排序 + 截断
 	rowsOut := make([]*LiveBlockRankRow, 0, len(metas))
@@ -168,10 +190,14 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 		if !ok || p.price == 0 {
 			continue // 板块无实时数据则跳过
 		}
+		breadth := breadthMap[m.code]
 		rowsOut = append(rowsOut, &LiveBlockRankRow{
 			Code: m.code, Name: m.name, BlockType: m.btype,
 			Price: p.price, PreClose: p.preClose, ChangePct: p.change, Amount: p.amount,
-			LimitUpCount: limitUpMap[m.code],
+			MemberCount: breadth.MemberCount, ValidCount: breadth.ValidCount,
+			UpCount: breadth.UpCount, DownCount: breadth.DownCount, FlatCount: breadth.FlatCount,
+			LimitUpCount: breadth.LimitUpCount, LimitDownCount: breadth.LimitDownCount,
+			MedianChangePct: breadth.MedianChangePct,
 		})
 	}
 	sort.Slice(rowsOut, func(i, j int) bool {
@@ -202,7 +228,10 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 		"昨收", 10,
 		"涨跌%", 8,
 		"成交额", 10,
-		"涨停", 4,
+		"有效/成员", 10,
+		"涨/跌/平", 12,
+		"涨停/跌停", 10,
+		"中位涨跌", 10,
 	)
 	for _, r := range rowsOut {
 		t.Row(
@@ -211,19 +240,22 @@ func runLiveBlockRank(cmd *cobra.Command, args []string) error {
 			fmt.Sprintf("%.2f", r.PreClose),
 			fmt.Sprintf("%+.2f%%", r.ChangePct),
 			formatAmount(r.Amount),
-			fmt.Sprintf("%d", r.LimitUpCount),
+			fmt.Sprintf("%d/%d", r.ValidCount, r.MemberCount),
+			fmt.Sprintf("%d/%d/%d", r.UpCount, r.DownCount, r.FlatCount),
+			fmt.Sprintf("%d/%d", r.LimitUpCount, r.LimitDownCount),
+			fmt.Sprintf("%+.2f%%", r.MedianChangePct),
 		)
 	}
 	t.Print()
 	return nil
 }
 
-// calcLiveLimitUp 拉取所有成分股实时报价，计算各板块涨停数。
+// calcLiveBlockBreadth 拉取所有成分股实时报价，计算各板块广度。
 // 逻辑复用 query block rank 的 round-half-up 涨停判定规则：
 //   - ST: 5%, 创业板/科创板: 20%, 北交所: 30%, 主板: 10%
-//   - 涨停条件: price == high AND price == floor(preClose * (1+pctLimit) * 100 + 0.5) / 100
-func calcLiveLimitUp(ctx context.Context, ch *dwh.Client, tc *tdx.Client, blockCodes []string) map[string]int {
-	result := make(map[string]int, len(blockCodes))
+//   - 涨跌停条件还要求最新价等于当日最高/最低价，避免把历史触板算成当前封板
+func calcLiveBlockBreadth(ctx context.Context, ch *dwh.Client, tc *tdx.Client, blockCodes []string) map[string]liveBlockBreadth {
+	result := make(map[string]liveBlockBreadth, len(blockCodes))
 
 	// 1. 从 CH 拉全部 block_constituents + securities ST状态
 	sql := fmt.Sprintf(`
@@ -240,8 +272,8 @@ INNER JOIN %s.securities AS s ON bc.stock_code = s.code AND s.type = 'stock'`,
 
 	// block_code -> []stock_code, stock_code -> name (for ST detection)
 	blockStocks := make(map[string][]string)  // block -> stocks
-	stockNames := make(map[string]string)      // stock -> name
-	uniqueStocks := make(map[string]struct{})  // dedup
+	stockNames := make(map[string]string)     // stock -> name
+	uniqueStocks := make(map[string]struct{}) // dedup
 	for rows.Next() {
 		var blockCode, stockCode, stockName string
 		if err := rows.Scan(&blockCode, &stockCode, &stockName); err != nil {
@@ -258,10 +290,7 @@ INNER JOIN %s.securities AS s ON bc.stock_code = s.code AND s.type = 'stock'`,
 		allCodes = append(allCodes, code)
 	}
 
-	type stockQuote struct {
-		price, preClose, high float64
-	}
-	quoteMap := make(map[string]stockQuote, len(allCodes))
+	quoteMap := make(map[string]liveBlockStockQuote, len(allCodes))
 
 	const batch = 50
 	for i := 0; i < len(allCodes); i += batch {
@@ -274,50 +303,91 @@ INNER JOIN %s.securities AS s ON bc.stock_code = s.code AND s.type = 'stock'`,
 			continue
 		}
 		for _, q := range quotes {
-			quoteMap[q.Code] = stockQuote{q.Price, q.PreClose, q.High}
-		}
-	}
-
-	// 3. 判定每只股票是否涨停
-	isLimitUp := make(map[string]bool, len(allCodes))
-	for code, q := range quoteMap {
-		if q.preClose <= 0 || q.price <= 0 {
-			continue
-		}
-		// 涨停幅度
-		pctLimit := 0.10
-		name := stockNames[code]
-		if contains(name, "ST") {
-			pctLimit = 0.05
-		} else if len(code) >= 3 {
-			prefix := code[:3]
-			switch {
-			case prefix == "300" || prefix == "301":
-				pctLimit = 0.20
-			case prefix == "688" || prefix == "689":
-				pctLimit = 0.20
-			case prefix == "920" || prefix == "430" || prefix == "830" || prefix == "870" || prefix == "880":
-				pctLimit = 0.30
+			quoteMap[q.Code] = liveBlockStockQuote{
+				price: q.Price, preClose: q.PreClose, high: q.High, low: q.Low, changePct: q.ChangePct,
 			}
 		}
-		// round-half-up 涨停价
-		limitPrice := math.Floor(q.preClose*(1+pctLimit)*100+0.5) / 100
-		if q.price == q.high && q.price == limitPrice {
-			isLimitUp[code] = true
-		}
 	}
 
-	// 4. 汇总各板块涨停数
+	return aggregateLiveBlockBreadth(blockCodes, blockStocks, stockNames, quoteMap)
+}
+
+func aggregateLiveBlockBreadth(
+	blockCodes []string,
+	blockStocks map[string][]string,
+	stockNames map[string]string,
+	quoteMap map[string]liveBlockStockQuote,
+) map[string]liveBlockBreadth {
+	result := make(map[string]liveBlockBreadth, len(blockCodes))
 	for _, blockCode := range blockCodes {
-		cnt := 0
-		for _, sc := range blockStocks[blockCode] {
-			if isLimitUp[sc] {
-				cnt++
+		stocks := blockStocks[blockCode]
+		breadth := liveBlockBreadth{MemberCount: len(stocks)}
+		changes := make([]float64, 0, len(stocks))
+		for _, code := range stocks {
+			q, ok := quoteMap[code]
+			if !ok || q.preClose <= 0 || q.price <= 0 {
+				continue
+			}
+			breadth.ValidCount++
+			changes = append(changes, q.changePct)
+			switch {
+			case q.price > q.preClose:
+				breadth.UpCount++
+			case q.price < q.preClose:
+				breadth.DownCount++
+			default:
+				breadth.FlatCount++
+			}
+
+			pctLimit := stockPriceLimitPct(code, stockNames[code])
+			limitUpPrice := roundHalfUpPrice(q.preClose * (1 + pctLimit))
+			limitDownPrice := roundHalfUpPrice(q.preClose * (1 - pctLimit))
+			if q.price == q.high && q.price == limitUpPrice {
+				breadth.LimitUpCount++
+			}
+			if q.price == q.low && q.price == limitDownPrice {
+				breadth.LimitDownCount++
 			}
 		}
-		result[blockCode] = cnt
+		breadth.MedianChangePct = medianFloat64(changes)
+		result[blockCode] = breadth
 	}
 	return result
+}
+
+func stockPriceLimitPct(code, name string) float64 {
+	if contains(name, "ST") {
+		return 0.05
+	}
+	if len(code) < 3 {
+		return 0.10
+	}
+	prefix := code[:3]
+	switch {
+	case prefix == "300" || prefix == "301", prefix == "688" || prefix == "689":
+		return 0.20
+	case prefix == "920" || prefix == "430" || prefix == "830" || prefix == "870" || prefix == "880":
+		return 0.30
+	default:
+		return 0.10
+	}
+}
+
+func roundHalfUpPrice(price float64) float64 {
+	return math.Floor(price*100+0.5) / 100
+}
+
+func medianFloat64(values []float64) float64 {
+	if len(values) == 0 {
+		return 0
+	}
+	sorted := append([]float64(nil), values...)
+	sort.Float64s(sorted)
+	mid := len(sorted) / 2
+	if len(sorted)%2 == 1 {
+		return sorted[mid]
+	}
+	return (sorted[mid-1] + sorted[mid]) / 2
 }
 
 // contains 检查字符串是否包含子串（用于 ST 判定）

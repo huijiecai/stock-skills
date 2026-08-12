@@ -10,23 +10,27 @@ if [ -z "$ASTOCK" ]; then
     ASTOCK="$PROJECT_ROOT/astock/astock"
 fi
 
-JSON=$("$ASTOCK" live market --amount-limit 50 --json 2>/dev/null) || {
-    echo "=== $(date +%H:%M:%S) 全主板异动扫描失败 ==="
+JSON=$("$ASTOCK" live market --limit 50 --sort amount --market all --json 2>/dev/null) || {
+    echo "=== $(date +%H:%M:%S) 全市场异动扫描失败 ==="
     exit 1
 }
 
-if ! echo "$JSON" | jq -e '.coverage_mode == "all_main_board_snapshot"' >/dev/null 2>&1; then
-    echo "=== $(date +%H:%M:%S) 全主板异动扫描数据无效 ==="
+RETURNED=$(echo "$JSON" | jq -r '.returned // 0')
+if [ "$RETURNED" -eq 0 ] 2>/dev/null; then
+    echo "=== $(date +%H:%M:%S) 全市场异动扫描数据为空 ==="
     exit 1
 fi
 
 echo "$JSON" | jq -r '
-    "覆盖: \(.scanned)/\(.universe) 缺失报价:\(.missing_quotes) 失败批次:\(.failed_batches) 候选:\(.candidates|length)",
-    (.candidates[0:40][] |
-      "  CANDIDATE \(.code) \(.name) \(.change_pct|if . >= 0 then "+\(.)" else tostring end)% " +
-      "成交额:\((.amount / 100000000 * 10 | round) / 10)亿 " +
-      "低点反转:\((.rebound_pct * 100 | round) / 100)% " +
-      "信号:\(.reasons|join("/")) 主营:\(.business // "unknown")")
+    "扫描: \(.returned)只 by=\(.sort) 耗时:\(.elapsed_ms)ms",
+    "--- 异动候选(非涨停·按成交额排序) ---",
+    (.rows[] | select(.state != "limit-up" and .state != "limit-down") |
+      "  \(.market) \(.code) \(.name) " +
+      "\(.change_pct | if . >= 0 then "+\((. * 100 | round) / 100)" else "\((. * 100 | round) / 100)" end)% " +
+      "成交:\((.amount / 100000000 * 10 | round) / 10)亿 " +
+      "振幅:\((.amplitude_pct * 100 | round) / 100)% " +
+      "涨速:\((.rise_speed * 100 | round) / 100) " +
+      "\(.state)")
 '
 
 echo "→ 候选仅触发搜索归因；找到具体预期并验证核心关联股成片上涨后，才能确认龙头和买入"

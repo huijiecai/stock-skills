@@ -313,7 +313,7 @@ class PaperStore:
                     account_id TEXT NOT NULL REFERENCES accounts(id),
                     judgment_id TEXT NOT NULL REFERENCES judgments(id),
                     context_id TEXT NOT NULL REFERENCES context_snapshots(id),
-                    snapshot_id TEXT NOT NULL REFERENCES live_snapshots(id),
+                    snapshot_id TEXT NOT NULL,
                     policy_json TEXT NOT NULL,
                     status TEXT NOT NULL CHECK (status = 'completed'),
                     created_at TEXT NOT NULL,
@@ -327,7 +327,7 @@ class PaperStore:
                     judgment_id TEXT NOT NULL REFERENCES judgments(id),
                     proposal_index INTEGER NOT NULL CHECK (proposal_index >= 0),
                     account_id TEXT NOT NULL REFERENCES accounts(id),
-                    snapshot_id TEXT NOT NULL REFERENCES live_snapshots(id),
+                    snapshot_id TEXT NOT NULL,
                     context_id TEXT NOT NULL REFERENCES context_snapshots(id),
                     code TEXT NOT NULL CHECK (
                         length(code) = 6 AND code NOT GLOB '*[^0-9]*'

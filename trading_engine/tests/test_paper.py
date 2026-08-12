@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
+from uuid import uuid4
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -18,8 +19,10 @@ from trading_engine.context import DecisionContextBuilder
 from trading_engine.context_store import ContextStore
 from trading_engine.errors import PaperTradingError
 from trading_engine.models import (
+    JudgmentContext,
     JudgmentProposal,
     JudgmentReport,
+    LiveQuote,
     MarketSnapshot,
 )
 from trading_engine.paper import PaperBroker, is_main_board_code
@@ -147,20 +150,18 @@ def _judgment(
     quantity: int | None,
 ):
     _backdate_core_state(store.database, at - timedelta(minutes=5))
-    market = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=at,
-            source="astock-live",
-            payload={"mode": "shadow", "quotes": [_quote(code, price)]},
-        )
+    snapshot = MarketSnapshot(
+        as_of=at,
+        source="astock-live",
+        payload={"mode": "shadow", "quotes": [_quote(code, price)]},
     )
-    context = DecisionContextBuilder(store, context_store).build(market, "paper")
+    context = DecisionContextBuilder(store, context_store).build(snapshot, "paper")
     assert context.context.ready_for_judgment is True
     return ReadOnlyAnalyzer(
         store,
         provider=StaticTradeProvider(action, quantity),
         max_attempts=1,
-    ).analyze(market, context)
+    ).analyze(context)
 
 
 def _link_bought_position(store: ReplayStore, code: str = "603127") -> None:
@@ -212,15 +213,13 @@ def test_paper_buy_is_atomic_idempotent_and_auditable(tmp_path: Path) -> None:
 
     _link_bought_position(store)
     _backdate_core_state(store.database, DAY_ONE.replace(hour=9, minute=10))
-    next_market = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=DAY_ONE + timedelta(minutes=1),
-            source="astock-live",
-            payload={"mode": "shadow", "quotes": [_quote("603127", 20)]},
-        )
+    next_snapshot = MarketSnapshot(
+        as_of=DAY_ONE + timedelta(minutes=1),
+        source="astock-live",
+        payload={"mode": "shadow", "quotes": [_quote("603127", 20)]},
     )
     next_context = DecisionContextBuilder(store, context_store).build(
-        next_market, "paper"
+        next_snapshot, "paper"
     )
     assert len(next_context.context.execution_history) == 1
     executed = next_context.context.execution_history[0]
@@ -496,20 +495,55 @@ def test_stale_or_price_only_judgment_cannot_execute(tmp_path: Path) -> None:
     )
     store.update_account("paper", cash=Decimal("99999"))
     _backdate_core_state(store.database, DAY_ONE.replace(hour=9, minute=10))
-    with pytest.raises(PaperTradingError, match="stale|updated after"):
+    with pytest.raises(
+        PaperTradingError, match="changed after decision context was captured"
+    ):
         broker.execute_judgment("paper", full_context.id)
     assert paper_store.list_orders("paper") == ()
 
-    market = store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=DAY_ONE + timedelta(hours=1),
-            source="astock-live",
-            payload={"mode": "shadow", "quotes": [_quote("603127", 20)]},
-        )
+    snapshot = MarketSnapshot(
+        as_of=DAY_ONE + timedelta(hours=1),
+        source="astock-live",
+        payload={"mode": "shadow", "quotes": [_quote("603127", 20)]},
     )
-    price_only = ReadOnlyAnalyzer(store).analyze(market)
-    with pytest.raises(PaperTradingError, match="full decision context"):
-        broker.execute_judgment("paper", price_only.id)
+    raw_quotes = [_quote("603127", 20)]
+    quotes = tuple(LiveQuote.model_validate(row) for row in raw_quotes)
+    price_only_context = JudgmentContext(
+        snapshot_id=uuid4().hex,
+        as_of=snapshot.as_of,
+        source=snapshot.source,
+        quotes=quotes,
+        policy="read-only-shadow-v1",
+    )
+    price_only_report = JudgmentReport(
+        snapshot_id=price_only_context.snapshot_id,
+        as_of=snapshot.as_of,
+        provider="shadow-rules",
+        model="conservative-v1",
+        proposals=tuple(
+            JudgmentProposal(
+                code=quote.code,
+                action="WAIT",
+                confidence=0.2,
+                reason="price-only judgment without full decision context",
+                evidence=(f"price_change_pct={quote.change_pct:+.2f}",),
+            )
+            for quote in quotes
+        ),
+    )
+    price_only_judgment = store.record_judgment(
+        price_only_context.snapshot_id,
+        price_only_context,
+        price_only_report,
+        price_only_report.provider,
+        price_only_report.model,
+        1,
+    )
+    with pytest.raises(
+        PaperTradingError,
+        match="judgment with full decision context",
+    ):
+        broker.execute_judgment("paper", price_only_judgment.id)
 
 
 def test_database_failure_rolls_back_the_complete_execution(tmp_path: Path) -> None:

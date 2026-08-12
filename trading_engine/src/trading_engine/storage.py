@@ -14,8 +14,6 @@ from trading_engine.models import (
     JudgmentContext,
     JudgmentRecord,
     JudgmentReport,
-    LiveSnapshotRecord,
-    MarketSnapshot,
     PositionState,
     PositionRiskLink,
     PositionThesisLink,
@@ -169,67 +167,6 @@ class ReplayStore:
                 (run_id,),
             ).fetchone()
         return int(row["count"])
-
-    def record_live_snapshot(self, snapshot: MarketSnapshot) -> LiveSnapshotRecord:
-        snapshot_id = uuid4().hex
-        codes = [row["code"] for row in snapshot.payload.get("quotes", [])]
-        with self._connect() as connection:
-            connection.execute(
-                """
-                INSERT INTO live_snapshots (
-                    id, observed_at, codes_json, snapshot_json
-                ) VALUES (?, ?, ?, ?)
-                """,
-                (
-                    snapshot_id,
-                    snapshot.as_of.isoformat(),
-                    json.dumps(codes),
-                    snapshot.model_dump_json(),
-                ),
-            )
-        return LiveSnapshotRecord(id=snapshot_id, snapshot=snapshot)
-
-    def record_market_snapshot(self, snapshot: MarketSnapshot) -> LiveSnapshotRecord:
-        """Persist a validated live or replay market snapshot."""
-        return self.record_live_snapshot(snapshot)
-
-    def latest_live_snapshot(self) -> LiveSnapshotRecord | None:
-        with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT id, snapshot_json
-                FROM live_snapshots
-                ORDER BY observed_at DESC
-                LIMIT 1
-                """
-            ).fetchone()
-        if row is None:
-            return None
-        return LiveSnapshotRecord(
-            id=row["id"],
-            snapshot=MarketSnapshot.model_validate_json(row["snapshot_json"]),
-        )
-
-    def latest_market_snapshot(self) -> LiveSnapshotRecord | None:
-        """Return the latest persisted live or replay market snapshot."""
-        return self.latest_live_snapshot()
-
-    def get_market_snapshot(self, snapshot_id: str) -> LiveSnapshotRecord:
-        with self._connect() as connection:
-            row = connection.execute(
-                """
-                SELECT id, snapshot_json
-                FROM live_snapshots
-                WHERE id = ?
-                """,
-                (snapshot_id,),
-            ).fetchone()
-        if row is None:
-            raise StorageError(f"market snapshot does not exist: {snapshot_id}")
-        return LiveSnapshotRecord(
-            id=row["id"],
-            snapshot=MarketSnapshot.model_validate_json(row["snapshot_json"]),
-        )
 
     def record_judgment(
         self,
@@ -515,6 +452,7 @@ class ReplayStore:
         transmission_chain: str | None = None,
         linkage_conclusion: str | None = None,
         confirmation_condition: str | None = None,
+        bet_pct: Decimal | None = None,
     ) -> ThesisState:
         normalized_key = _normalize_key(key)
         if status not in THESIS_STATUSES:
@@ -543,6 +481,7 @@ class ReplayStore:
             )
         thesis_id = uuid4().hex
         now = datetime.now().astimezone()
+        bet_bps = _percentage_to_bps(bet_pct) if bet_pct is not None else None
         with self._connect() as connection:
             connection.execute(
                 """
@@ -550,8 +489,8 @@ class ReplayStore:
                     id, key, title, status, summary, realization_condition,
                     invalidation_condition, thesis_type, stage,
                     catalyst_anchor, transmission_chain, linkage_conclusion,
-                    confirmation_condition, created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    confirmation_condition, bet_pct_bps, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(key) DO UPDATE SET
                     title = excluded.title,
                     status = excluded.status,
@@ -564,6 +503,7 @@ class ReplayStore:
                     transmission_chain = excluded.transmission_chain,
                     linkage_conclusion = excluded.linkage_conclusion,
                     confirmation_condition = excluded.confirmation_condition,
+                    bet_pct_bps = excluded.bet_pct_bps,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -580,6 +520,7 @@ class ReplayStore:
                     _optional_text(transmission_chain),
                     linkage_conclusion,
                     _optional_text(confirmation_condition),
+                    bet_bps,
                     now.isoformat(),
                     now.isoformat(),
                 ),
@@ -763,6 +704,7 @@ class ReplayStore:
         role: str,
         tradable: bool,
         relationship: str | None = None,
+        causal_chain: str | None = None,
     ) -> WatchPoolMember:
         normalized_key = _normalize_key(pool_key)
         normalized_code = _validate_code(code)
@@ -781,6 +723,7 @@ class ReplayStore:
             raise StorageError(
                 "adjacent, cost-pressure, and research members cannot be tradable"
             )
+        normalized_causal = _optional_text(causal_chain)
         now = datetime.now().astimezone()
         with self._connect() as connection:
             pool = connection.execute(
@@ -791,13 +734,14 @@ class ReplayStore:
             connection.execute(
                 """
                 INSERT INTO watch_pool_members (
-                    pool_id, code, role, tradable, relationship,
+                    pool_id, code, role, tradable, relationship, causal_chain,
                     created_at, updated_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(pool_id, code) DO UPDATE SET
                     role = excluded.role,
                     tradable = excluded.tradable,
                     relationship = excluded.relationship,
+                    causal_chain = excluded.causal_chain,
                     updated_at = excluded.updated_at
                 """,
                 (
@@ -806,6 +750,7 @@ class ReplayStore:
                     role,
                     int(tradable),
                     resolved_relationship,
+                    normalized_causal,
                     now.isoformat(),
                     now.isoformat(),
                 ),
@@ -1188,16 +1133,9 @@ class ReplayStore:
                     UNIQUE (run_id, replay_time)
                 );
 
-                CREATE TABLE IF NOT EXISTS live_snapshots (
-                    id TEXT PRIMARY KEY,
-                    observed_at TEXT NOT NULL,
-                    codes_json TEXT NOT NULL,
-                    snapshot_json TEXT NOT NULL
-                );
-
                 CREATE TABLE IF NOT EXISTS judgments (
                     id TEXT PRIMARY KEY,
-                    snapshot_id TEXT NOT NULL REFERENCES live_snapshots(id),
+                    snapshot_id TEXT NOT NULL,
                     provider TEXT NOT NULL,
                     model TEXT NOT NULL,
                     status TEXT NOT NULL CHECK (status IN ('completed', 'failed')),
@@ -1373,6 +1311,10 @@ class ReplayStore:
                     connection.execute(
                         f"ALTER TABLE theses ADD COLUMN {column} {definition}"
                     )
+            if "bet_pct_bps" not in thesis_columns:
+                connection.execute(
+                    "ALTER TABLE theses ADD COLUMN bet_pct_bps INTEGER"
+                )
             pool_columns = _column_names(connection, "watch_pools")
             if "monitoring_status" not in pool_columns:
                 connection.execute(
@@ -1402,6 +1344,10 @@ class ReplayStore:
                         ELSE 'direct'
                     END
                     """
+                )
+            if "causal_chain" not in member_columns:
+                connection.execute(
+                    "ALTER TABLE watch_pool_members ADD COLUMN causal_chain TEXT"
                 )
 
     def _connect(self) -> sqlite3.Connection:
@@ -1538,6 +1484,7 @@ def _position_from_row(row: sqlite3.Row) -> PositionState:
 
 
 def _thesis_from_row(row: sqlite3.Row) -> ThesisState:
+    bet_bps = row["bet_pct_bps"]
     return ThesisState(
         id=row["id"],
         key=row["key"],
@@ -1552,6 +1499,9 @@ def _thesis_from_row(row: sqlite3.Row) -> ThesisState:
         transmission_chain=row["transmission_chain"],
         linkage_conclusion=row["linkage_conclusion"],
         confirmation_condition=row["confirmation_condition"],
+        bet_pct=(
+            Decimal(bet_bps) / 100 if bet_bps is not None else None
+        ),
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )
@@ -1589,6 +1539,7 @@ def _watch_pool_member_from_row(row: sqlite3.Row) -> WatchPoolMember:
         role=row["role"],
         tradable=bool(row["tradable"]),
         relationship=row["relationship"],
+        causal_chain=row["causal_chain"],
         created_at=datetime.fromisoformat(row["created_at"]),
         updated_at=datetime.fromisoformat(row["updated_at"]),
     )

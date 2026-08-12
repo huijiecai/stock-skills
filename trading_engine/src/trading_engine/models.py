@@ -82,13 +82,6 @@ class LiveQuote(BaseModel):
     low: float = Field(ge=0)
 
 
-class LiveSnapshotRecord(BaseModel):
-    model_config = ConfigDict(frozen=True)
-
-    id: str
-    snapshot: MarketSnapshot
-
-
 class JudgmentContext(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
@@ -201,6 +194,7 @@ class ThesisState(BaseModel):
         "company", "sub_industry", "end_demand", "unresolved"
     ] | None = None
     confirmation_condition: str | None = None
+    bet_pct: Decimal | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -240,6 +234,7 @@ class WatchPoolMember(BaseModel):
     relationship: Literal[
         "direct", "volume", "adjacent", "cost_pressure", "research"
     ] = "direct"
+    causal_chain: str | None = None
     created_at: datetime
     updated_at: datetime
 

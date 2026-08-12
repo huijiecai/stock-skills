@@ -117,6 +117,32 @@ func (c *Client) GetKlineMinute(code string, dataType model.DataType, freq model
 	return all, nil
 }
 
+// GetIndexBreadth 拉取指数最新一分钟 K 线中携带的上涨/下跌家数。
+// 这是 TDX 指数协议的原始统计口径，不根据成分股行情二次计算。
+func (c *Client) GetIndexBreadth(scope, name, code string) (*model.BreadthPoint, error) {
+	cli, err := c.Raw()
+	if err != nil {
+		return nil, err
+	}
+	resp, err := cli.GetIndexMinute(IndexCode(code), 0, 1)
+	if err != nil {
+		return nil, fmt.Errorf("get index breadth %s: %w", code, err)
+	}
+	if resp == nil || len(resp.List) == 0 {
+		return nil, fmt.Errorf("get index breadth %s: empty response", code)
+	}
+	k := resp.List[len(resp.List)-1]
+	return &model.BreadthPoint{
+		Scope:     scope,
+		Name:      name,
+		Code:      code,
+		AsOf:      k.Time.Format(time.RFC3339),
+		UpCount:   k.UpCount,
+		DownCount: k.DownCount,
+		Valid:     k.UpCount > 0 || k.DownCount > 0,
+	}, nil
+}
+
 // klineToBars 把 injoyai 的 KlineResp 转为 model.Bar 切片。
 func klineToBars(code string, dataType model.DataType, freq model.Freq, resp *protocol.KlineResp) []*model.Bar {
 	if resp == nil {

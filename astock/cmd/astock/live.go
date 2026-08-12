@@ -35,6 +35,9 @@ func newLiveCmd() *cobra.Command {
 			jsonOut := isJSON(cmd)
 			tc := tdx.New()
 			defer tc.Close()
+			if err := requireRealtime(tc); err != nil {
+				return err
+			}
 
 			quotes, err := tc.GetQuotes(args)
 			if err != nil {
@@ -74,28 +77,9 @@ func newLiveCmd() *cobra.Command {
 
 	indexCmd := &cobra.Command{
 		Use:   "index <code> [code2...]",
-		Short: "实时指数报价（显式指数语义）",
+		Short: "实时指数报价 + 全市场涨跌家数",
 		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			jsonOut := isJSON(cmd)
-			tc := tdx.New()
-			defer tc.Close()
-
-			quotes, err := tc.GetIndexQuotes(args)
-			if err != nil {
-				return err
-			}
-			if jsonOut {
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(quotes)
-			}
-			for _, q := range quotes {
-				fmt.Printf("%s  %.2f  %+.2f%%  成交额 %.0f\n",
-					q.Code, q.Price, q.ChangePct, q.Amount)
-			}
-			return nil
-		},
+		RunE:  runLiveIndex,
 	}
 	liveCmd.AddCommand(indexCmd)
 
@@ -111,6 +95,9 @@ func newLiveCmd() *cobra.Command {
 			jsonOut := isJSON(cmd)
 			tc := tdx.New()
 			defer tc.Close()
+			if err := requireRealtime(tc); err != nil {
+				return err
+			}
 
 			ticks, err := tc.GetTradeAll(args[0])
 			if err != nil {
@@ -126,11 +113,13 @@ func newLiveCmd() *cobra.Command {
 				return enc.Encode(ticks)
 			}
 
-			t := newTable("时间", 10, "价格", 10, "成交量(手)", 10, "金额", 12)
+			t := newTable("时间", 10, "价格", 10, "成交量(手)", 10, "方向", 6, "单数", 6, "金额", 12)
 			for _, tk := range ticks {
 				t.Row(tk.Time,
 					fmt.Sprintf("%.2f", tk.Price),
 					fmt.Sprintf("%d", tk.Volume),
+					tk.Side,
+					fmt.Sprintf("%d", tk.OrderCount),
 					fmt.Sprintf("%.0f", tk.Amount))
 			}
 			t.Print()
@@ -149,6 +138,9 @@ func newLiveCmd() *cobra.Command {
 			jsonOut := isJSON(cmd)
 			tc := tdx.New()
 			defer tc.Close()
+			if err := requireRealtime(tc); err != nil {
+				return err
+			}
 
 			dataType := model.TypeStock
 			// --type 显式指定优先；否则自动判断纯指数/板块代码
@@ -188,4 +180,15 @@ func newLiveCmd() *cobra.Command {
 	liveCmd.AddCommand(buildLiveMarketCmd())
 
 	return liveCmd
+}
+
+func requireRealtime(tc *tdx.Client) error {
+	ok, reason, err := tc.IsRealtimeNow()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return fmt.Errorf("拒绝：%s（历史数据请用 query/replay）", reason)
+	}
+	return nil
 }

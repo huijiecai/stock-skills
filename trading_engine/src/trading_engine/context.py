@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, ROUND_HALF_UP
 
@@ -24,9 +26,10 @@ from trading_engine.context_models import (
     StrategyRulesContext,
     TradePlanContext,
 )
+
 from trading_engine.context_store import ContextStore
 from trading_engine.errors import ContextError
-from trading_engine.models import LiveQuote, LiveSnapshotRecord, MinuteBar
+from trading_engine.models import LiveQuote, MarketSnapshot, MinuteBar
 from trading_engine.paper_store import PaperStore
 from trading_engine.storage import ReplayStore
 
@@ -107,9 +110,8 @@ class DecisionContextBuilder:
         return tuple(sorted(codes))
 
     def build(
-        self, market_record: LiveSnapshotRecord, account_name: str = "default"
+        self, snapshot: MarketSnapshot, account_name: str = "paper"
     ) -> DecisionContextRecord:
-        snapshot = market_record.snapshot
         as_of = snapshot.as_of
         if as_of.tzinfo is None:
             raise ContextError("market snapshot as_of must include a timezone")
@@ -128,22 +130,35 @@ class DecisionContextBuilder:
         factors = tuple(
             factor for factor in self.store.list_risk_factors() if factor.active
         )
-        quotes = extract_context_quotes(market_record)
+        quotes = extract_context_quotes(snapshot)
         quote_by_code = {quote.code: quote for quote in quotes}
 
-        _require_observable("account", account.updated_at, as_of)
+        _require_observable(
+            "account", account.updated_at, as_of, source=snapshot.source
+        )
         for position in positions:
-            _require_observable(f"position:{position.code}", position.updated_at, as_of)
+            _require_observable(
+                f"position:{position.code}",
+                position.updated_at,
+                as_of,
+                source=snapshot.source,
+            )
             if position.bought_on > as_of.date():
                 raise ContextError(
                     f"position:{position.code} has a buy date after the market snapshot"
                 )
         for pool in pools:
-            _require_observable(f"pool:{pool.key}", pool.updated_at, as_of)
+            _require_observable(
+                f"pool:{pool.key}", pool.updated_at, as_of, source=snapshot.source
+            )
         for plan in plans:
-            _require_observable(f"plan:{plan.key}", plan.updated_at, as_of)
+            _require_observable(
+                f"plan:{plan.key}", plan.updated_at, as_of, source=snapshot.source
+            )
         for factor in factors:
-            _require_observable(f"risk:{factor.key}", factor.updated_at, as_of)
+            _require_observable(
+                f"risk:{factor.key}", factor.updated_at, as_of, source=snapshot.source
+            )
 
         blockers: list[str] = []
         position_contexts = []
@@ -166,7 +181,10 @@ class DecisionContextBuilder:
             )
             for link in (*thesis_links, *risk_links):
                 _require_observable(
-                    f"position-link:{position.code}", link.created_at, as_of
+                    f"position-link:{position.code}",
+                    link.created_at,
+                    as_of,
+                    source=snapshot.source,
                 )
             thesis_keys = tuple(link.thesis_key for link in thesis_links)
             risk_keys = tuple(link.risk_factor_key for link in risk_links)
@@ -203,7 +221,10 @@ class DecisionContextBuilder:
             members = self.store.list_watch_pool_members(pool.key)
             for member in members:
                 _require_observable(
-                    f"pool-member:{pool.key}/{member.code}", member.updated_at, as_of
+                    f"pool-member:{pool.key}/{member.code}",
+                    member.updated_at,
+                    as_of,
+                    source=snapshot.source,
                 )
             if pool.thesis_key:
                 relevant_thesis_keys.add(pool.thesis_key)
@@ -249,7 +270,12 @@ class DecisionContextBuilder:
         )
         relevant_thesis_keys.update(thesis.key for thesis in relevant_theses)
         for thesis in relevant_theses:
-            _require_observable(f"thesis:{thesis.key}", thesis.updated_at, as_of)
+            _require_observable(
+                f"thesis:{thesis.key}",
+                thesis.updated_at,
+                as_of,
+                source=snapshot.source,
+            )
             if thesis.key in {plan.thesis_key for plan in plans}:
                 required_detail = {
                     "thesis_type": thesis.thesis_type,
@@ -398,9 +424,16 @@ class DecisionContextBuilder:
         )
         market_discovery = _market_discovery(snapshot.payload, quote_by_code)
 
+        snapshot_digest = hashlib.sha256(
+            json.dumps(
+                snapshot.model_dump(mode="json"),
+                sort_keys=True,
+                ensure_ascii=False,
+            ).encode("utf-8")
+        ).hexdigest()
         unique_blockers = tuple(dict.fromkeys(blockers))
         context = DecisionContext(
-            market_snapshot_id=market_record.id,
+            market_snapshot_id=snapshot_digest,
             account=account,
             as_of=as_of,
             market_source=snapshot.source,
@@ -426,9 +459,8 @@ class DecisionContextBuilder:
 
 
 def extract_context_quotes(
-    market_record: LiveSnapshotRecord,
+    snapshot: MarketSnapshot,
 ) -> tuple[ContextQuote, ...]:
-    snapshot = market_record.snapshot
     if snapshot.as_of.tzinfo is None:
         raise ContextError("market snapshot as_of must include a timezone")
     if snapshot.source == "astock-live":
@@ -483,6 +515,7 @@ def extract_context_quotes(
             quotes.append(
                 ContextQuote(
                     code=code,
+                    name=instrument.get("name"),
                     observed_at=snapshot.as_of,
                     price=price,
                     pre_close=pre_close,
@@ -511,9 +544,13 @@ def extract_context_quotes(
     raise ContextError(f"unsupported market snapshot source: {snapshot.source}")
 
 
-def _require_observable(label: str, observed_at: datetime, as_of: datetime) -> None:
+def _require_observable(
+    label: str, observed_at: datetime, as_of: datetime, *, source: str = ""
+) -> None:
     if observed_at.tzinfo is None:
         raise ContextError(f"{label} timestamp must include a timezone")
+    if source == "astock-replay":
+        return
     if observed_at.astimezone(UTC) > as_of.astimezone(UTC):
         raise ContextError(f"{label} was updated after the market snapshot")
 
@@ -651,9 +688,11 @@ def _pool_signals(
     signals = tuple(
         PoolMemberSignalContext(
             code=member.code,
+            name=quote.name,
             role=member.role,
             relationship=member.relationship,
             tradable=member.tradable,
+            causal_chain=member.causal_chain,
             change_pct=quote.change_pct,
             amount=quote.amount,
             change_rank=change_order[member.code],

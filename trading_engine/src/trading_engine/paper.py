@@ -6,7 +6,6 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 
-from trading_engine.context import DecisionContextBuilder
 from trading_engine.context_models import DecisionContext, DecisionContextRecord
 from trading_engine.context_store import ContextStore
 from trading_engine.errors import PaperTradingError
@@ -57,15 +56,6 @@ class PaperBroker:
         if existing is not None:
             return existing
         context_record = self._validate_input(judgment, account_name)
-
-        market_record = self.store.get_market_snapshot(judgment.snapshot_id)
-        rebuilt = DecisionContextBuilder(self.store, self.context_store).build(
-            market_record, account_name
-        )
-        if rebuilt.fingerprint != context_record.fingerprint:
-            raise PaperTradingError(
-                "decision context is stale; capture and analyze a fresh context"
-            )
 
         try:
             execution_id = self._execute_transaction(

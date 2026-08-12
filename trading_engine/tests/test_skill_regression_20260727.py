@@ -347,65 +347,63 @@ def _market(store: ReplayStore, at: datetime, changes: dict[str, float]):
         "limit_up": candidate["change_pct"] >= 9.5,
         "reasons": ["strong_move"],
     }
-    return store.record_market_snapshot(
-        MarketSnapshot(
-            as_of=at,
-            source="astock-live",
-            payload={
-                "mode": "shadow",
-                "quotes": rows,
-                "market_discovery": {
-                    "coverage_mode": "full_market",
-                    "scanned_codes": all_codes,
-                    "universe_count": 3200,
-                    "scanned_count": 3198,
-                    "missing_quote_count": 2,
-                    "failed_batches": 0,
-                    "candidate_codes": [candidate_code],
-                    "candidates": [discovery_candidate],
-                    "top_amount": [discovery_candidate],
-                    "sector_leaders": [
-                        {
-                            "code": "sh880507",
-                            "name": discovery_candidate["sector"],
-                            "block_type": "concept",
-                            "change_pct": 4.4,
-                            "amount": 12_000_000_000,
-                            "limit_up_count": 2,
-                        }
-                    ],
-                    "indices": [
-                        {
-                            "code": "000001",
-                            "name": "上证指数",
-                            "price": 3800,
-                            "pre_close": 3790,
-                            "change_pct": 0.26,
-                            "amount": 500_000_000_000,
-                        },
-                        {
-                            "code": "000852",
-                            "name": "中证1000",
-                            "price": 7200,
-                            "pre_close": 7120,
-                            "change_pct": 1.12,
-                            "amount": 400_000_000_000,
-                        },
-                    ],
-                    "limit_up_codes": [],
-                    "missing_capabilities": [],
-                },
+    return MarketSnapshot(
+        as_of=at,
+        source="astock-live",
+        payload={
+            "mode": "shadow",
+            "quotes": rows,
+            "market_discovery": {
+                "coverage_mode": "full_market",
+                "scanned_codes": all_codes,
+                "universe_count": 3200,
+                "scanned_count": 3198,
+                "missing_quote_count": 2,
+                "failed_batches": 0,
+                "candidate_codes": [candidate_code],
+                "candidates": [discovery_candidate],
+                "top_amount": [discovery_candidate],
+                "sector_leaders": [
+                    {
+                        "code": "sh880507",
+                        "name": discovery_candidate["sector"],
+                        "block_type": "concept",
+                        "change_pct": 4.4,
+                        "amount": 12_000_000_000,
+                        "limit_up_count": 2,
+                    }
+                ],
+                "indices": [
+                    {
+                        "code": "000001",
+                        "name": "上证指数",
+                        "price": 3800,
+                        "pre_close": 3790,
+                        "change_pct": 0.26,
+                        "amount": 500_000_000_000,
+                    },
+                    {
+                        "code": "000852",
+                        "name": "中证1000",
+                        "price": 7200,
+                        "pre_close": 7120,
+                        "change_pct": 1.12,
+                        "amount": 400_000_000_000,
+                    },
+                ],
+                "limit_up_codes": [],
+                "missing_capabilities": [],
             },
-        )
+        },
     )
 
 
-def _analyze_buy(store, market, context, target_code: str, quantity: int):
+def _analyze_buy(store, context, target_code: str, quantity: int):
     return ReadOnlyAnalyzer(
         store,
         BuyOnlyProvider(target_code, quantity),
         max_attempts=1,
-    ).analyze(market, context)
+    ).analyze(context)
 
 
 def test_20260727_context_reproduces_skill_trade_preconditions(tmp_path: Path) -> None:
@@ -453,7 +451,7 @@ def test_20260727_context_reproduces_skill_trade_preconditions(tmp_path: Path) -
     )
     assert great_wall.path.one_word_limit_like is False
     armor_judgment = _analyze_buy(
-        store, armor_market, armor_context, "601606", 500
+        store, armor_context, "601606", 500
     )
     armor_execution = PaperBroker(
         store, context_store, paper_store
@@ -533,7 +531,7 @@ def test_20260727_context_reproduces_skill_trade_preconditions(tmp_path: Path) -
     )
 
     mlcc_judgment = _analyze_buy(
-        store, mlcc_market, mlcc_context, "000636", 500
+        store, mlcc_context, "000636", 500
     )
     mlcc_execution = PaperBroker(
         store, context_store, paper_store
