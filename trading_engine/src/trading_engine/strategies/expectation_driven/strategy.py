@@ -109,6 +109,20 @@ def register_tools(agent: Agent) -> None:
     only adds the three strategy-specific tools.
     """
 
+    def _snapshot(deps):
+        """Build a market snapshot: Live (TDX real-time) or Replay (historical)."""
+        from trading_engine.context import extract_context_quotes
+        codes = deps.builder.required_live_codes(deps.account, deps.trading_date)
+        if getattr(deps, "live", False):
+            from trading_engine.live import LiveMarketData
+            provider = LiveMarketData(deps.client, codes, include_discovery=True)
+        else:
+            from trading_engine.replay import ReplayMarketData
+            provider = ReplayMarketData(
+                deps.client, deps.trading_date, codes, include_discovery=True
+            )
+        return provider.snapshot(deps.at)
+
     @agent.tool
     def get_open_context(ctx: RunContext) -> str:
         """加载开盘会话上下文:持仓+预期(兑现/失效条件)+主题池+盘前预案+规则。开盘时调一次,整天对照。"""
@@ -123,16 +137,15 @@ def register_tools(agent: Agent) -> None:
         d = ctx.deps
         return format_heartbeat(
             d.builder, d.store, d.settings, d.account, d.trading_date, d.at,
+            live=getattr(d, "live", False),
         )
 
     @agent.tool
     def probe_pool(ctx: RunContext, pool_key: str) -> str:
         """查看某主题池全部成员明细(谁领涨/谁掉队/成交额)。用于持仓触发§4.1或池突变时深析。"""
         from trading_engine.watch import format_probe_pool
-        from trading_engine.replay import ReplayMarketData
         from trading_engine.context import extract_context_quotes
         d = ctx.deps
-        codes = d.builder.required_live_codes(d.account, d.trading_date)
-        provider = ReplayMarketData(d.client, d.trading_date, codes, include_discovery=True)
-        quotes = extract_context_quotes(provider.snapshot(d.at))
+        snapshot = _snapshot(d)
+        quotes = extract_context_quotes(snapshot)
         return format_probe_pool(d.store, pool_key, {q.code: q for q in quotes})

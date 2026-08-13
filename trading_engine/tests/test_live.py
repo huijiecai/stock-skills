@@ -37,7 +37,7 @@ class DiscoveryAstockClient:
     def run_json(self, *arguments: str):
         if arguments[:2] == ("live", "quote"):
             return [_quote("000636")]
-        if arguments == ("live", "market"):
+        if arguments[:2] == ("live", "market"):
             candidate = {
                 "code": "000636",
                 "name": "风华高科",
@@ -50,17 +50,13 @@ class DiscoveryAstockClient:
                 "amount": 6_500_000_000,
                 "low": 40.01,
                 "rebound_pct": 10.52,
-                "limit_up": True,
+                "state": "limit_up",
                 "reasons": ["limit_up", "strong_move"],
             }
             return {
-                "coverage_mode": "all_main_board_snapshot",
-                "universe": 3200,
-                "scanned": 3195,
-                "missing_quotes": 5,
-                "failed_batches": 1,
-                "top_amount": [candidate],
-                "candidates": [candidate],
+                "as_of": "2026-07-27T11:30:00+08:00",
+                "returned": 1,
+                "rows": [candidate],
             }
         if arguments == ("live", "block", "rank", "--limit", "50"):
             return [
@@ -154,9 +150,9 @@ def test_live_snapshot_can_capture_full_market_discovery() -> None:
     snapshot = provider.snapshot(OBSERVED_AT)
 
     discovery = snapshot.payload["market_discovery"]
-    assert discovery["coverage_mode"] == "full_market"
-    assert discovery["universe_count"] == 3200
-    assert discovery["scanned_count"] == 3195
+    assert discovery["coverage_mode"] == "candidate_universe"
+    assert discovery["universe_count"] == 1
+    assert discovery["scanned_count"] == 1
     assert discovery["limit_up_codes"] == ("000636",)
     assert discovery["candidates"][0]["reasons"] == [
         "limit_up",

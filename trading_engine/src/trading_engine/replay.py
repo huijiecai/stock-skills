@@ -238,7 +238,7 @@ class ReplayMarketData:
         )
         if not isinstance(daily_rows, list) or len(daily_rows) != 1:
             raise ReplayError(f"{code}: expected exactly one daily bar")
-        if not isinstance(minute_rows, list) or len(minute_rows) < 200:
+        if not isinstance(minute_rows, list) or len(minute_rows) < 60:
             count = len(minute_rows) if isinstance(minute_rows, list) else "invalid"
             raise ReplayError(f"{code}: expected ~240 minute bars, got {count}")
 

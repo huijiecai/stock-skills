@@ -91,15 +91,18 @@ class LiveMarketData:
         )
 
     def _market_discovery(self) -> dict:
-        market = self.client.run_json("live", "market")
+        # live market returns {rows: [...], returned, ...} — rows are the
+        # top stocks by the requested sort. Treat them as candidates.
+        market = self.client.run_json(
+            "live", "market", "--limit", "50", "--sort", "amount", "--market", "all",
+        )
         if not isinstance(market, dict):
             raise LiveDataError("astock live market returned a non-object payload")
-        candidates = market.get("candidates")
-        top_amount = market.get("top_amount")
-        if not isinstance(candidates, list) or not isinstance(top_amount, list):
-            raise LiveDataError(
-                "astock live market omitted candidates or top_amount"
-            )
+        rows = market.get("rows")
+        if not isinstance(rows, list):
+            raise LiveDataError("astock live market omitted rows")
+        candidates = rows
+        top_amount = rows  # same payload (sorted by amount)
 
         sector_leaders = self.client.run_json(
             "live", "block", "rank", "--limit", "50"
@@ -131,23 +134,18 @@ class LiveMarketData:
                     for row in candidates
                     if isinstance(row, dict)
                     and row.get("code")
-                    and row.get("limit_up") is True
+                    and row.get("state") in {"limit_up", "limits"}
                 }
             )
         )
-        coverage_mode = market.get("coverage_mode")
-        if coverage_mode == "all_main_board_snapshot":
-            coverage_mode = "full_market"
-        elif coverage_mode not in {"candidate_universe", "registered_universe"}:
-            coverage_mode = "candidate_universe"
 
         return {
-            "coverage_mode": coverage_mode,
+            "coverage_mode": "candidate_universe",
             "scanned_codes": sorted(discovered_codes),
-            "universe_count": market.get("universe"),
-            "scanned_count": market.get("scanned"),
-            "missing_quote_count": market.get("missing_quotes"),
-            "failed_batches": market.get("failed_batches"),
+            "universe_count": market.get("returned"),
+            "scanned_count": len(rows),
+            "missing_quote_count": 0,
+            "failed_batches": 0,
             "candidate_codes": sorted(
                 {
                     str(row.get("code"))
@@ -165,7 +163,7 @@ class LiveMarketData:
                     "price": row["price"],
                     "pre_close": row["pre_close"],
                     "change_pct": row["change_pct"],
-                    "amount": row["amount"],
+                    "amount": row.get("amount", 0),
                 }
                 for row in indices
             ],

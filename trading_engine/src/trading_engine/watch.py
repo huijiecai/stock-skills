@@ -168,11 +168,17 @@ def format_heartbeat(
     account_name: str,
     trading_date: date,
     at: datetime,
+    *,
+    live: bool = False,
 ) -> str:
     """Render one heartbeat: index + positions (with §4.1 markers) + pool X-Y + limit-up detail."""
     client = AstockClient(settings.astock_binary, timeout_seconds=60)
     codes = builder.required_live_codes(account_name, trading_date)
-    provider = ReplayMarketData(client, trading_date, codes, include_discovery=True)
+    if live:
+        from trading_engine.live import LiveMarketData
+        provider = LiveMarketData(client, codes, include_discovery=True)
+    else:
+        provider = ReplayMarketData(client, trading_date, codes, include_discovery=True)
     snapshot = provider.snapshot(at)
 
     discovery = snapshot.payload.get("market_discovery") or {}
@@ -447,6 +453,14 @@ def watch_run(
         None, "--max-rounds", min=1,
         help="Limit to first N heartbeats (for testing).",
     ),
+    live: bool = typer.Option(
+        False, "--live",
+        help="Live mode: use TDX real-time data (no ClickHouse sync needed).",
+    ),
+    verbose: bool = typer.Option(
+        False, "--verbose",
+        help="Print the full prompt sent to the LLM each round (debug).",
+    ),
 ) -> None:
     """Run an autonomous agent watch session (open → heartbeats → probes → trades)."""
     try:
@@ -469,6 +483,8 @@ def watch_run(
             register_strategy_tools=strategy_mod.register_tools,
             account=account_name,
             max_rounds=max_rounds,
+            live=live,
+            verbose=verbose,
             on_event=on_event,
         )
     except TradingEngineError as exc:

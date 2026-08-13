@@ -57,8 +57,9 @@ HEARTBEAT_TIMES = [
 class TradingDeps:
     """Dependencies injected into every agent tool call for one heartbeat.
 
-    ``at`` and ``quote_by_code`` are refreshed each heartbeat by the runtime;
-    tools that need a snapshot read it through ``_snapshot_at``.
+    ``at`` is refreshed each heartbeat by the runtime; tools read the current
+    timestamp from it. ``live`` selects the data source: True = TDX real-time
+    (LiveMarketData, no pre-sync needed), False = historical replay.
     """
     store: ReplayStore
     context_store: ContextStore
@@ -69,6 +70,7 @@ class TradingDeps:
     account: str
     trading_date: date
     at: datetime
+    live: bool = False
 
 
 @dataclass
@@ -125,7 +127,11 @@ def build_agent(
         codes = d.builder.required_live_codes(d.account, d.trading_date)
         if code not in codes:
             codes = tuple(sorted(set(codes) | {code}))
-        provider = ReplayMarketData(d.client, d.trading_date, codes, include_discovery=True)
+        if getattr(d, "live", False):
+            from trading_engine.live import LiveMarketData
+            provider = LiveMarketData(d.client, codes, include_discovery=False)
+        else:
+            provider = ReplayMarketData(d.client, d.trading_date, codes, include_discovery=True)
         quotes = extract_context_quotes(provider.snapshot(d.at))
         from trading_engine.watch import format_probe_code
         q = next((x for x in quotes if x.code == code), None)
@@ -159,6 +165,8 @@ def run_watch_session(
     base_url: str | None = None,
     times: list[str] | None = None,
     max_rounds: int | None = None,
+    live: bool = False,
+    verbose: bool = False,
     on_event: Any = None,
 ) -> WatchSession:
     """Run a full trading-day agent session. Returns the session record.
@@ -197,14 +205,32 @@ def run_watch_session(
         store=store, context_store=context_store, paper_store=paper_store,
         builder=builder, settings=settings, client=client,
         account=account, trading_date=trading_date, at=trading_date,
+        live=live,
     )
 
-    for index, hhmm in enumerate(heartbeat_times):
-        clock = replay_time(trading_date, parse_clock_time(hhmm))
+    # Build the round schedule: live = continuous loop (each round takes a few
+    # seconds for data+LLM, which is the natural pace — like a human glancing
+    # at the screen, thinking, glancing again). Replay = step through fixed
+    # observation timestamps (compressed replay of a whole day).
+    from zoneinfo import ZoneInfo
+    SHANGHAI = ZoneInfo("Asia/Shanghai")
+    if live:
+        # Live: keep looping until max_rounds (or indefinitely if None).
+        rounds = max_rounds if max_rounds else 9999
+        schedule = [(f"实时#{i + 1}", None) for i in range(rounds)]
+    else:
+        rounds = heartbeat_times[:max_rounds] if max_rounds else heartbeat_times
+        schedule = [(hhmm, "replay") for hhmm in rounds]
+
+    for index, (label, mode) in enumerate(schedule):
+        if live:
+            clock = datetime.now(SHANGHAI)
+            hhmm = clock.strftime("%H:%M")
+        else:
+            clock = replay_time(trading_date, parse_clock_time(label))
         deps.at = clock  # tools read the current heartbeat timestamp from here
         session.heartbeats_seen += 1
         if index == 0:
-            # First round = open: load session context AND look at the market.
             prompt = (
                 f"【开盘 {hhmm}】新交易日开始。请先调用 get_open_context 加载持仓+预期+池+预案,"
                 f"再调用 get_heartbeat 查看开盘市场,然后开始判断。"
@@ -212,6 +238,8 @@ def run_watch_session(
         else:
             prompt = f"【新的一轮 {hhmm}】请调用 get_heartbeat 查看市场,然后判断。"
         prev_len = len(session.messages)
+        if verbose and on_event:
+            on_event(_dump_prompt(system_prompt, session.messages, prompt))
         result = agent.run_sync(
             prompt,
             deps=deps,
@@ -317,12 +345,37 @@ def _close_summary(session: WatchSession, store: ReplayStore, account: str) -> s
     return "\n".join(lines)
 
 
-def _summarize_tool_calls(messages: list) -> str:
-    """Extract a one-line summary of tool calls from PydanticAI messages.
+def _dump_prompt(system_prompt: str, history: list, current_prompt: str) -> str:
+    """Render a human-readable view of what gets sent to the LLM each round.
 
-    Returns e.g. ``"get_heartbeat | probe_pool(创新药) | trade(SELL,603127,200)"``.
-    Empty string if no tools were called.
+    Shows: system prompt length, each prior message (role + snippet),
+    and the current round's prompt — so you can see the full context the
+    LLM receives (it is stateless; every call carries all history).
     """
+    lines = ["─" * 60, f"📤 发给 DeepSeek 的完整内容({len(history) + 1} 条消息):"]
+    lines.append(f"  [system] ({len(system_prompt)} 字) {system_prompt[:80]}...")
+    for msg in history:
+        role = type(msg).__name__
+        parts = getattr(msg, "parts", [])
+        snippets = []
+        for p in parts:
+            ptype = getattr(p, "type", type(p).__name__)
+            if ptype == "text":
+                snippets.append(f"text:{getattr(p,'content','')[:50]}")
+            elif ptype == "tool_call":
+                snippets.append(f"→{getattr(p,'tool_name','?')}({getattr(p,'args','')})")
+            elif ptype == "tool_return":
+                snippets.append(f"←{getattr(p,'tool_name','?')}:{str(getattr(p,'content',''))[:40]}")
+            else:
+                snippets.append(ptype)
+        lines.append(f"  [{role}] {' | '.join(snippets)[:90]}")
+    lines.append(f"  [本轮 user] {current_prompt}")
+    lines.append("─" * 60)
+    return "\n".join(lines) + "\n"
+
+
+def _summarize_tool_calls(messages: list) -> str:
+    """Extract a one-line summary of tool calls from PydanticAI messages."""
     parts: list[str] = []
     for msg in messages:
         for part in getattr(msg, "parts", []):
