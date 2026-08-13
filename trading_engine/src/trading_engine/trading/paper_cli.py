@@ -8,18 +8,18 @@ from decimal import Decimal
 import typer
 
 from trading_engine.config import TraderSettings
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context_store import ContextStore
 from trading_engine.errors import PaperTradingError, TradingEngineError
-from trading_engine.paper import PaperBroker
-from trading_engine.paper_models import (
+from trading_engine.trading.paper import PaperBroker
+from trading_engine.trading.paper_models import (
     PaperDecisionEvent,
     PaperExecutionResult,
     PaperFill,
     PaperOrder,
 )
-from trading_engine.paper_reports import PaperReportGenerator
-from trading_engine.paper_store import PaperStore
-from trading_engine.storage import ReplayStore
+from trading_engine.trading.paper_reports import PaperReportGenerator
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.store.storage import ReplayStore
 
 
 paper_app = typer.Typer(help="Execute and audit transaction-safe paper trades.")

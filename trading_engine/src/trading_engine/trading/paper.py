@@ -6,13 +6,13 @@ from datetime import UTC, date, datetime
 from decimal import Decimal, ROUND_HALF_UP
 from uuid import uuid4
 
-from trading_engine.context_models import DecisionContext, DecisionContextRecord
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context_models import DecisionContext, DecisionContextRecord
+from trading_engine.market.context_store import ContextStore
 from trading_engine.errors import PaperTradingError
-from trading_engine.models import JudgmentProposal, JudgmentRecord
-from trading_engine.paper_models import PaperExecutionResult, PaperPolicy, PaperRuleCheck
-from trading_engine.paper_store import PaperStore
-from trading_engine.storage import ReplayStore
+from trading_engine.store.models import JudgmentProposal, JudgmentRecord
+from trading_engine.trading.paper_models import PaperExecutionResult, PaperPolicy, PaperRuleCheck
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.store.storage import ReplayStore
 
 
 CENT = Decimal("0.01")

@@ -5,25 +5,25 @@ from datetime import datetime
 
 import typer
 
-from trading_engine.astock import AstockClient
+from trading_engine.market.astock import AstockClient
 from trading_engine.config import TraderSettings
-from trading_engine.context import DecisionContextBuilder
-from trading_engine.context_models import (
+from trading_engine.market.context import DecisionContextBuilder
+from trading_engine.market.context_models import (
     CatalystEvidence,
     DecisionContextRecord,
     ReasoningRecord,
     ToolCallRecord,
 )
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context_store import ContextStore
 from trading_engine.dates import parse_trading_date
 from trading_engine.errors import ContextError, StorageError, TradingEngineError
-from trading_engine.live import LiveMarketData
-from trading_engine.replay import (
+from trading_engine.market.live import LiveMarketData
+from trading_engine.market.replay import (
     ReplayMarketData,
     parse_clock_time,
     replay_time,
 )
-from trading_engine.storage import ReplayStore
+from trading_engine.store.storage import ReplayStore
 
 
 context_app = typer.Typer(help="Build auditable decision context snapshots.")

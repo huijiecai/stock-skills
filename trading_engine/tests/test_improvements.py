@@ -18,9 +18,9 @@ from typer.testing import CliRunner
 
 from trading_engine.cli import app
 from trading_engine.config import TraderSettings
-from trading_engine.context_store import ContextStore, EVIDENCE_KINDS
+from trading_engine.market.context_store import ContextStore, EVIDENCE_KINDS
 from trading_engine.errors import ContextError, StorageError
-from trading_engine.storage import ReplayStore
+from trading_engine.store.storage import ReplayStore
 
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -310,8 +310,8 @@ class TestContextShowByDate:
     def _build_context(
         self, store: ReplayStore, ctx_store: ContextStore, as_of: datetime
     ):
-        from trading_engine.context import DecisionContextBuilder
-        from trading_engine.models import MarketSnapshot
+        from trading_engine.market.context import DecisionContextBuilder
+        from trading_engine.store.models import MarketSnapshot
 
         builder = DecisionContextBuilder(store, ctx_store)
         snapshot = MarketSnapshot(
@@ -370,7 +370,7 @@ class TestContextShowByDate:
             astock_binary=tmp_path / "astock",
             data_dir=tmp_path,
         )
-        monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
+        monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
         result = runner.invoke(
             app,
             ["context", "show", "--date", "2026-07-28", "--json"],
@@ -389,7 +389,7 @@ class TestContextShowByDate:
             astock_binary=tmp_path / "astock",
             data_dir=tmp_path,
         )
-        monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
+        monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
         result = runner.invoke(
             app,
             ["context", "show", "--date", "20260728", "--json"],
@@ -408,7 +408,7 @@ class TestContextShowByDate:
             astock_binary=tmp_path / "astock",
             data_dir=tmp_path,
         )
-        monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
+        monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
         result = runner.invoke(
             app,
             ["context", "show", "--date", "2026/07/28", "--json"],
@@ -424,8 +424,8 @@ class TestContextShowByDate:
 
 class TestToolCallRecords:
     def _build_context(self, tmp_path: Path):
-        from trading_engine.context import DecisionContextBuilder
-        from trading_engine.models import MarketSnapshot
+        from trading_engine.market.context import DecisionContextBuilder
+        from trading_engine.store.models import MarketSnapshot
 
         store, ctx_store = _seed_basic(tmp_path)
         builder = DecisionContextBuilder(store, ctx_store)
@@ -507,7 +507,7 @@ class TestToolCallRecords:
             astock_binary=tmp_path / "astock",
             data_dir=tmp_path,
         )
-        monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
+        monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
 
         add_result = runner.invoke(
             app,
@@ -547,7 +547,7 @@ class TestPaperHistory:
             astock_binary=tmp_path / "astock",
             data_dir=tmp_path,
         )
-        monkeypatch.setattr("trading_engine.paper_cli.TraderSettings.load", lambda: settings)
+        monkeypatch.setattr("trading_engine.trading.paper_cli.TraderSettings.load", lambda: settings)
         result = runner.invoke(app, ["paper", "history"])
         assert result.exit_code == 0, result.stdout
         assert "无" in result.stdout
@@ -559,7 +559,7 @@ class TestPaperHistory:
             astock_binary=tmp_path / "astock",
             data_dir=tmp_path,
         )
-        monkeypatch.setattr("trading_engine.paper_cli.TraderSettings.load", lambda: settings)
+        monkeypatch.setattr("trading_engine.trading.paper_cli.TraderSettings.load", lambda: settings)
         result = runner.invoke(app, ["paper", "history", "--json"])
         assert result.exit_code == 0, result.stdout
         assert json.loads(result.stdout) == []

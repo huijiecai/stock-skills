@@ -5,7 +5,7 @@ import json
 from datetime import UTC, date, datetime, time
 from decimal import Decimal, ROUND_HALF_UP
 
-from trading_engine.context_models import (
+from trading_engine.market.context_models import (
     ContextQuote,
     DecisionContext,
     DecisionContextRecord,
@@ -27,11 +27,11 @@ from trading_engine.context_models import (
     TradePlanContext,
 )
 
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context_store import ContextStore
 from trading_engine.errors import ContextError
-from trading_engine.models import LiveQuote, MarketSnapshot, MinuteBar
-from trading_engine.paper_store import PaperStore
-from trading_engine.storage import ReplayStore
+from trading_engine.store.models import LiveQuote, MarketSnapshot, MinuteBar
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.store.storage import ReplayStore
 
 
 CENT = Decimal("0.01")

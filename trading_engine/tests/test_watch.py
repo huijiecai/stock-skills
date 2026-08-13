@@ -9,9 +9,9 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from trading_engine.context_models import ContextQuote, PricePathContext
-from trading_engine.storage import ReplayStore
-from trading_engine.watch import (
+from trading_engine.market.context_models import ContextQuote, PricePathContext
+from trading_engine.store.storage import ReplayStore
+from trading_engine.engine.watch import (
     WEAK_POOL_FRACTION,
     _heartbeat_signals,
     _render_heartbeat_index,
@@ -34,7 +34,7 @@ def _path() -> PricePathContext:
 
 
 def _quote(code: str, name: str, price: float, pre_close: float) -> ContextQuote:
-    from trading_engine.context import _empty_path  # reuse the builder's empty path
+    from trading_engine.market.context import _empty_path  # reuse the builder's empty path
     return ContextQuote(
         code=code, name=name, observed_at=AS_OF,
         price=Decimal(str(price)), pre_close=Decimal(str(pre_close)),

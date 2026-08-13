@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from trading_engine.errors import AstockError
-from trading_engine.models import AstockHealth
+from trading_engine.store.models import AstockHealth
 
 
 class AstockClient:

@@ -6,7 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from trading_engine.models import (
+from trading_engine.store.models import (
     AccountState,
     PositionState,
     RiskFactorState,

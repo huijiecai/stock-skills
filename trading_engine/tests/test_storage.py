@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from trading_engine.errors import StorageError
-from trading_engine.replay import replay_timeline
-from trading_engine.storage import ReplayStore
+from trading_engine.market.replay import replay_timeline
+from trading_engine.store.storage import ReplayStore
 
 
 def test_checkpoint_and_run_update_are_idempotent(tmp_path: Path) -> None:

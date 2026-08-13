@@ -6,7 +6,7 @@ Implements the full expectation-management methodology:
 - Divergence ≠ end (hold while the thesis basis is still being validated)
 
 The engine treats this as just another ``(SYSTEM_PROMPT, register_tools)`` pair;
-nothing in ``trading_engine.agent`` knows about "pools", "theses", or the
+nothing in ``trading_engine.engine.agent`` knows about "pools", "theses", or the
 heartbeat format — those live here.
 """
 

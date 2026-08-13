@@ -9,7 +9,7 @@ from typing import Any, Iterable
 from uuid import uuid4
 
 from trading_engine.errors import StorageError
-from trading_engine.models import (
+from trading_engine.store.models import (
     AccountState,
     JudgmentContext,
     JudgmentRecord,

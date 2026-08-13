@@ -7,9 +7,9 @@ from decimal import Decimal
 from typing import Any
 
 from trading_engine.errors import StorageError
-from trading_engine.paper_store import PaperStore
-from trading_engine.replay import SHANGHAI_TZ
-from trading_engine.storage import ReplayStore
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.market.replay import SHANGHAI_TZ
+from trading_engine.store.storage import ReplayStore
 
 
 class BriefGenerator:

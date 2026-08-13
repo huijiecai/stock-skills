@@ -7,17 +7,15 @@ from decimal import Decimal, InvalidOperation
 import typer
 
 from trading_engine import __version__
-from trading_engine.analysis import ConservativeShadowProvider, ReadOnlyAnalyzer
-from trading_engine.astock import AstockClient
+from trading_engine.market.astock import AstockClient
 from trading_engine.config import TraderSettings
-from trading_engine.context_cli import context_app, evidence_app
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context_cli import context_app, evidence_app
+from trading_engine.market.context_store import ContextStore
 from trading_engine.dates import parse_trading_date
 from trading_engine.errors import PortfolioError, ReplayError, TradingEngineError
-from trading_engine.live import LiveMarketData
-from trading_engine.models import (
+from trading_engine.market.live import LiveMarketData
+from trading_engine.store.models import (
     AccountState,
-    JudgmentRecord,
     PositionState,
     RiskFactorState,
     ThesisState,
@@ -25,16 +23,16 @@ from trading_engine.models import (
     WatchPoolMember,
     WatchPoolState,
 )
-from trading_engine.paper_cli import paper_app
-from trading_engine.paper_store import PaperStore
+from trading_engine.trading.paper_cli import paper_app
+from trading_engine.trading.paper_store import PaperStore
 from trading_engine.brief import BriefGenerator
-from trading_engine.replay import (
+from trading_engine.market.replay import (
     ReplayEngine,
     ReplayMarketData,
     parse_clock_time,
 )
-from trading_engine.storage import ReplayStore
-from trading_engine.watch import watch_app
+from trading_engine.store.storage import ReplayStore
+from trading_engine.engine.watch import watch_app
 
 
 app = typer.Typer(
@@ -49,9 +47,6 @@ replay_app = typer.Typer(
     help="Run deterministic historical market replay.",
     invoke_without_command=True,
 )
-analyze_app = typer.Typer(
-    help="Generate auditable read-only judgments from persisted snapshots."
-)
 account_app = typer.Typer(help="Manage the engine's independent SQLite account.")
 position_app = typer.Typer(help="Manage positions in the independent account.")
 thesis_app = typer.Typer(help="Manage independent investment theses.")
@@ -61,7 +56,6 @@ plan_app = typer.Typer(help="Manage structured daily if-then trade plans.")
 app.add_typer(config_app, name="config")
 app.add_typer(astock_app, name="astock")
 app.add_typer(replay_app, name="replay")
-app.add_typer(analyze_app, name="analyze")
 app.add_typer(account_app, name="account")
 app.add_typer(position_app, name="position")
 app.add_typer(thesis_app, name="thesis")
@@ -210,133 +204,6 @@ def replay_status() -> None:
         typer.echo(str(exc), err=True)
         raise typer.Exit(code=1) from exc
     typer.echo(run.model_dump_json(indent=2))
-
-
-def _build_provider(provider_name: str | None):
-    """Return a JudgmentProvider instance or None for the default shadow."""
-    if not provider_name:
-        return None
-    name = provider_name.lower()
-    if name in {"shadow", "default", ""}:
-        return None
-    if name == "deepseek":
-        from trading_engine.llm_provider import DeepSeekProvider
-
-        return DeepSeekProvider()
-    raise TradingEngineError(f"unknown provider: {provider_name}")
-
-
-@analyze_app.command("latest")
-def analyze_latest(
-    account_name: str = typer.Option(
-        "paper", "--account", help="Account name."
-    ),
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the persisted judgment as JSON.",
-    ),
-    attempts: int = typer.Option(
-        2,
-        "--attempts",
-        min=1,
-        max=5,
-        help="Maximum provider attempts before recording a failure.",
-    ),
-    provider: str = typer.Option(
-        None,
-        "--provider",
-        envvar="TRADER_LLM_PROVIDER",
-        help="LLM provider: shadow (default) or deepseek.",
-    ),
-) -> None:
-    """Analyze the latest real-time snapshot without executing trades."""
-    try:
-        settings = TraderSettings.load()
-        database = settings.data_dir / "trader.db"
-        context_record = ContextStore(database).latest_context(account_name)
-        if context_record is None:
-            raise TradingEngineError(
-                "no decision context exists; run `trader context capture` first"
-            )
-        record = ReadOnlyAnalyzer(
-            ReplayStore(database),
-            provider=_build_provider(provider),
-            max_attempts=attempts,
-        ).analyze(context_record)
-    except TradingEngineError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
-    _print_judgment(record, json_output)
-    if record.status == "failed":
-        raise typer.Exit(code=1)
-
-
-@analyze_app.command("show")
-def analyze_show(
-    json_output: bool = typer.Option(
-        False,
-        "--json",
-        help="Print the latest persisted judgment as JSON.",
-    ),
-) -> None:
-    """Show the latest persisted judgment without running the provider."""
-    try:
-        settings = TraderSettings.load()
-        record = ReplayStore(
-            settings.data_dir / "trader.db"
-        ).latest_judgment()
-    except TradingEngineError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
-    if record is None:
-        typer.echo("no read-only judgment exists", err=True)
-        raise typer.Exit(code=1)
-    _print_judgment(record, json_output)
-    if record.status == "failed":
-        raise typer.Exit(code=1)
-
-
-@analyze_app.command("context")
-def analyze_context(
-    account_name: str = typer.Option(
-        "paper", "--account", help="Account name."
-    ),
-    attempts: int = typer.Option(
-        2,
-        "--attempts",
-        min=1,
-        max=5,
-        help="Maximum provider attempts before recording a failure.",
-    ),
-    json_output: bool = typer.Option(False, "--json", help="Print JSON output."),
-    provider: str = typer.Option(
-        None,
-        "--provider",
-        envvar="TRADER_LLM_PROVIDER",
-        help="LLM provider: shadow (default) or deepseek.",
-    ),
-) -> None:
-    """Analyze the latest complete decision context without executing trades."""
-    try:
-        settings = TraderSettings.load()
-        database = settings.data_dir / "trader.db"
-        context_record = ContextStore(database).latest_context(account_name)
-        if context_record is None:
-            raise TradingEngineError(
-                "no decision context exists; run `trader context capture` first"
-            )
-        record = ReadOnlyAnalyzer(
-            ReplayStore(database),
-            provider=_build_provider(provider),
-            max_attempts=attempts,
-        ).analyze(context_record)
-    except TradingEngineError as exc:
-        typer.echo(str(exc), err=True)
-        raise typer.Exit(code=1) from exc
-    _print_judgment(record, json_output)
-    if record.status == "failed":
-        raise typer.Exit(code=1)
 
 
 @account_app.command("init")
@@ -896,36 +763,6 @@ def _normalize_codes(values: list[str]) -> tuple[str, ...]:
     if invalid:
         raise ReplayError(f"invalid stock code: {', '.join(invalid)}")
     return normalized
-
-
-def _print_judgment(record: JudgmentRecord, json_output: bool) -> None:
-    if json_output:
-        typer.echo(record.model_dump_json(indent=2))
-        return
-    typer.echo(
-        f"只读判断 {record.created_at.strftime('%Y-%m-%d %H:%M:%S')} "
-        f"id={record.id} snapshot={record.snapshot_id}"
-    )
-    typer.echo(
-        f"状态：{record.status}  provider={record.provider} "
-        f"model={record.model} attempts={record.attempts}"
-    )
-    if record.status == "failed":
-        typer.echo(f"错误：{record.error}")
-        return
-    typer.echo("模式：只读提案，不执行交易")
-    typer.echo("")
-    typer.echo(f"{'代码':<8} {'动作':<10} {'置信度':>8}  理由")
-    assert record.report is not None
-    for proposal in record.report.proposals:
-        typer.echo(
-            f"{proposal.code:<8} {proposal.action:<10} "
-            f"{proposal.confidence:>7.0%}  {proposal.reason}"
-        )
-    typer.echo("")
-    typer.echo("限制：")
-    for limitation in record.report.limitations:
-        typer.echo(f"- {limitation}")
 
 
 def _print_account(account: AccountState, json_output: bool) -> None:

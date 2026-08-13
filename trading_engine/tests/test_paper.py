@@ -12,24 +12,24 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
-from trading_engine.analysis import ReadOnlyAnalyzer
+from trading_engine.engine.analysis import ReadOnlyAnalyzer
 from trading_engine.cli import app
 from trading_engine.config import TraderSettings
-from trading_engine.context import DecisionContextBuilder
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context import DecisionContextBuilder
+from trading_engine.market.context_store import ContextStore
 from trading_engine.errors import PaperTradingError
-from trading_engine.models import (
+from trading_engine.store.models import (
     JudgmentContext,
     JudgmentProposal,
     JudgmentReport,
     LiveQuote,
     MarketSnapshot,
 )
-from trading_engine.paper import PaperBroker, is_main_board_code
-from trading_engine.paper_reports import PaperReportGenerator
-from trading_engine.paper_models import PaperPolicy
-from trading_engine.paper_store import PaperStore
-from trading_engine.storage import ReplayStore
+from trading_engine.trading.paper import PaperBroker, is_main_board_code
+from trading_engine.trading.paper_reports import PaperReportGenerator
+from trading_engine.trading.paper_models import PaperPolicy
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.store.storage import ReplayStore
 
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -598,7 +598,7 @@ def test_reports_and_cli_are_generated_from_sqlite(tmp_path: Path, monkeypatch) 
         data_dir=tmp_path,
     )
     monkeypatch.setattr(
-        "trading_engine.paper_cli.TraderSettings.load", lambda: settings
+        "trading_engine.trading.paper_cli.TraderSettings.load", lambda: settings
     )
 
     execution = runner.invoke(

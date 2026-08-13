@@ -9,10 +9,10 @@ from typer.testing import CliRunner
 
 from trading_engine.cli import app
 from trading_engine.config import TraderSettings
-from trading_engine.context import DecisionContextBuilder
-from trading_engine.context_store import ContextStore
-from trading_engine.models import MarketSnapshot, ReplayRun
-from trading_engine.storage import ReplayStore
+from trading_engine.market.context import DecisionContextBuilder
+from trading_engine.market.context_store import ContextStore
+from trading_engine.store.models import MarketSnapshot, ReplayRun
+from trading_engine.store.storage import ReplayStore
 
 
 runner = CliRunner()
@@ -119,95 +119,6 @@ def test_replay_command_parses_date_codes_and_until(monkeypatch) -> None:
     assert result.exit_code == 0
     assert calls == [(date(2026, 7, 23), ("603127",), time(10, 30))]
     assert json.loads(result.stdout)["status"] == "paused"
-
-
-def test_analyze_latest_prints_read_only_proposals(tmp_path: Path, monkeypatch) -> None:
-    observed_at = datetime(
-        2026, 7, 27, 11, 30, tzinfo=ZoneInfo("Asia/Shanghai")
-    )
-    settings = TraderSettings(
-        repo_root=tmp_path,
-        astock_binary=tmp_path / "astock",
-        data_dir=tmp_path / "data",
-    )
-    database = settings.data_dir / "trader.db"
-    store = ReplayStore(database)
-    context_store = ContextStore(database)
-    store.create_account("paper", Decimal("100000"), Decimal("50000"))
-    store.upsert_position(
-        "paper",
-        "603127",
-        "昭衍新药",
-        300,
-        300,
-        Decimal("45.26"),
-        observed_at.date() - timedelta(days=1),
-    )
-    thesis = store.upsert_thesis(
-        "innovation_medicine",
-        "创新药",
-        "active",
-        "研发需求改善",
-        "需求完成定价",
-        "需求被否定",
-    )
-    store.link_position_thesis("paper", "603127", thesis.key)
-    pool = store.upsert_watch_pool(
-        "innovation_pool", "创新药直接受益池", thesis.key
-    )
-    store.set_watch_pool_member(pool.key, "603127", "direct", True)
-    factor = store.upsert_risk_factor("growth", "成长风格", Decimal("60"))
-    store.link_position_risk_factor("paper", "603127", factor.key)
-    context_store.add_evidence(
-        thesis_key=thesis.key,
-        kind="announcement",
-        source_name="交易所公告",
-        published_at=observed_at.replace(hour=9, minute=0),
-        observed_at=observed_at.replace(hour=9, minute=1),
-        summary="可观察的历史证据",
-        stance="supports",
-        reliability="high",
-    )
-    _backdate_state(database, observed_at.replace(hour=9, minute=10))
-    snapshot = MarketSnapshot(
-        as_of=observed_at,
-        source="astock-live",
-        payload={
-            "mode": "shadow",
-            "quotes": [
-                {
-                    "code": "603127",
-                    "price": 49.79,
-                    "pre_close": 45.26,
-                    "change_pct": 10.0088,
-                    "volume": 1,
-                    "amount": 1,
-                    "open": 45.26,
-                    "high": 49.79,
-                    "low": 45.26,
-                }
-            ],
-        },
-    )
-    context_record = DecisionContextBuilder(store, context_store).build(
-        snapshot, "paper"
-    )
-    monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
-
-    result = runner.invoke(app, ["analyze", "latest"])
-
-    assert result.exit_code == 0
-    assert "只读提案，不执行交易" in result.stdout
-    assert "603127" in result.stdout
-    assert "RESEARCH" in result.stdout
-
-    show_result = runner.invoke(app, ["analyze", "show", "--json"])
-    assert show_result.exit_code == 0
-    assert (
-        json.loads(show_result.stdout)["snapshot_id"]
-        == context_record.context.market_snapshot_id
-    )
-
 
 
 def test_independent_account_and_position_cli(tmp_path: Path, monkeypatch) -> None:

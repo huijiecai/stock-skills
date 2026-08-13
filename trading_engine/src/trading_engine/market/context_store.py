@@ -7,7 +7,7 @@ from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import uuid4
 
-from trading_engine.context_models import (
+from trading_engine.market.context_models import (
     CatalystEvidence,
     DecisionContext,
     DecisionContextRecord,
@@ -16,7 +16,7 @@ from trading_engine.context_models import (
     ToolCallRecord,
 )
 from trading_engine.errors import ContextError, StorageError
-from trading_engine.models import JudgmentReport
+from trading_engine.store.models import JudgmentReport
 
 
 EVIDENCE_KINDS = {"announcement", "news", "industry", "policy", "other"}

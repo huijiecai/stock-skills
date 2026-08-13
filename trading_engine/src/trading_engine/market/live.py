@@ -5,10 +5,10 @@ from math import isclose
 
 from pydantic import ValidationError
 
-from trading_engine.astock import AstockClient
+from trading_engine.market.astock import AstockClient
 from trading_engine.errors import LiveDataError
-from trading_engine.models import LiveQuote, MarketSnapshot
-from trading_engine.replay import SHANGHAI_TZ
+from trading_engine.store.models import LiveQuote, MarketSnapshot
+from trading_engine.market.replay import SHANGHAI_TZ
 
 
 MARKET_INDICES = {

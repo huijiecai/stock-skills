@@ -4,9 +4,9 @@ from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
-from trading_engine.paper_models import PaperReportPaths
-from trading_engine.paper_store import PaperStore
-from trading_engine.storage import ReplayStore
+from trading_engine.trading.paper_models import PaperReportPaths
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.store.storage import ReplayStore
 
 
 class PaperReportGenerator:

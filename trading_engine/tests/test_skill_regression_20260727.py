@@ -6,13 +6,13 @@ from decimal import Decimal
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from trading_engine.analysis import ReadOnlyAnalyzer
-from trading_engine.context import DecisionContextBuilder
-from trading_engine.context_store import ContextStore
-from trading_engine.models import JudgmentProposal, JudgmentReport, MarketSnapshot
-from trading_engine.paper import PaperBroker
-from trading_engine.paper_store import PaperStore
-from trading_engine.storage import ReplayStore
+from trading_engine.engine.analysis import ReadOnlyAnalyzer
+from trading_engine.market.context import DecisionContextBuilder
+from trading_engine.market.context_store import ContextStore
+from trading_engine.store.models import JudgmentProposal, JudgmentReport, MarketSnapshot
+from trading_engine.trading.paper import PaperBroker
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.store.storage import ReplayStore
 
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")

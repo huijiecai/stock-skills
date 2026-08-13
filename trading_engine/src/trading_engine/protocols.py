@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Protocol
 
-from trading_engine.models import ExecutionResult, MarketSnapshot, TradeProposal
+from trading_engine.store.models import ExecutionResult, MarketSnapshot, TradeProposal
 
 
 class MarketDataProvider(Protocol):

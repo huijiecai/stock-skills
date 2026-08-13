@@ -25,20 +25,20 @@ from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.settings import ModelSettings
 
-from trading_engine.astock import AstockClient
+from trading_engine.market.astock import AstockClient
 from trading_engine.config import TraderSettings
-from trading_engine.context import DecisionContextBuilder, extract_context_quotes
-from trading_engine.context_store import ContextStore
-from trading_engine.models import (
+from trading_engine.market.context import DecisionContextBuilder, extract_context_quotes
+from trading_engine.market.context_store import ContextStore
+from trading_engine.store.models import (
     JudgmentContext,
     JudgmentProposal,
     JudgmentReport,
     LiveQuote,
 )
-from trading_engine.paper import PaperBroker
-from trading_engine.paper_store import PaperStore
-from trading_engine.replay import ReplayMarketData, parse_clock_time, replay_time
-from trading_engine.storage import ReplayStore
+from trading_engine.trading.paper import PaperBroker
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.market.replay import ReplayMarketData, parse_clock_time, replay_time
+from trading_engine.store.storage import ReplayStore
 
 # Heartbeat timestamps: morning + afternoon sessions, every 5 minutes
 HEARTBEAT_TIMES = [
@@ -128,12 +128,12 @@ def build_agent(
         if code not in codes:
             codes = tuple(sorted(set(codes) | {code}))
         if getattr(d, "live", False):
-            from trading_engine.live import LiveMarketData
+            from trading_engine.market.live import LiveMarketData
             provider = LiveMarketData(d.client, codes, include_discovery=False)
         else:
             provider = ReplayMarketData(d.client, d.trading_date, codes, include_discovery=True)
         quotes = extract_context_quotes(provider.snapshot(d.at))
-        from trading_engine.watch import format_probe_code
+        from trading_engine.engine.watch import format_probe_code
         q = next((x for x in quotes if x.code == code), None)
         return f"{code}: 该时刻无报价" if q is None else format_probe_code(code, q)
 
@@ -227,6 +227,7 @@ def run_watch_session(
             clock = datetime.now(SHANGHAI)
             hhmm = clock.strftime("%H:%M")
         else:
+            hhmm = label
             clock = replay_time(trading_date, parse_clock_time(label))
         deps.at = clock  # tools read the current heartbeat timestamp from here
         session.heartbeats_seen += 1

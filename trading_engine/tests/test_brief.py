@@ -7,8 +7,8 @@ from decimal import Decimal
 from pathlib import Path
 
 from trading_engine.brief import BriefGenerator
-from trading_engine.paper_store import PaperStore
-from trading_engine.storage import ReplayStore
+from trading_engine.trading.paper_store import PaperStore
+from trading_engine.store.storage import ReplayStore
 
 
 def _seed_brief_database(tmp_path: Path) -> ReplayStore:

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from trading_engine.astock import AstockClient
+from trading_engine.market.astock import AstockClient
 
 
 def test_check_reports_version_for_executable(tmp_path: Path) -> None:

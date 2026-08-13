@@ -10,14 +10,14 @@ from zoneinfo import ZoneInfo
 import pytest
 from typer.testing import CliRunner
 
-from trading_engine.analysis import ReadOnlyAnalyzer
+from trading_engine.engine.analysis import ReadOnlyAnalyzer
 from trading_engine.cli import app
 from trading_engine.config import TraderSettings
-from trading_engine.context import DecisionContextBuilder, extract_context_quotes
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context import DecisionContextBuilder, extract_context_quotes
+from trading_engine.market.context_store import ContextStore
 from trading_engine.errors import ContextError, JudgmentError
-from trading_engine.models import MarketSnapshot
-from trading_engine.storage import ReplayStore
+from trading_engine.store.models import MarketSnapshot
+from trading_engine.store.storage import ReplayStore
 
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")
@@ -413,13 +413,12 @@ def test_context_cli_capture_and_show_use_persisted_independent_state(
                 },
             )
 
-    monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
+    monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
     monkeypatch.setattr("trading_engine.cli.TraderSettings.load", lambda: settings)
-    monkeypatch.setattr("trading_engine.context_cli.LiveMarketData", StubLiveMarketData)
+    monkeypatch.setattr("trading_engine.market.context_cli.LiveMarketData", StubLiveMarketData)
 
     capture_result = runner.invoke(app, ["context", "capture", "--json"])
     show_result = runner.invoke(app, ["context", "show", "--json"])
-    analyze_result = runner.invoke(app, ["analyze", "context", "--json"])
 
     assert capture_result.exit_code == 0
     assert show_result.exit_code == 0
@@ -427,9 +426,6 @@ def test_context_cli_capture_and_show_use_persisted_independent_state(
     shown = json.loads(show_result.stdout)
     assert captured["id"] == shown["id"]
     assert captured["context"]["ready_for_judgment"] is True
-    assert analyze_result.exit_code == 0
-    analyzed = json.loads(analyze_result.stdout)
-    assert analyzed["input_context"]["decision_context_id"] == captured["id"]
 
 
 def test_analyzer_refuses_blocked_context(tmp_path: Path) -> None:
@@ -606,8 +602,8 @@ def test_context_capture_requests_positions_and_all_active_pool_members(
                 },
             )
 
-    monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
-    monkeypatch.setattr("trading_engine.context_cli.LiveMarketData", StubLiveMarketData)
+    monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
+    monkeypatch.setattr("trading_engine.market.context_cli.LiveMarketData", StubLiveMarketData)
 
     result = runner.invoke(app, ["context", "capture", "--json"])
 
@@ -674,9 +670,9 @@ def test_context_replay_cli_uses_required_codes_and_same_builder(
                 },
             )
 
-    monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
+    monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
     monkeypatch.setattr(
-        "trading_engine.context_cli.ReplayMarketData", StubReplayMarketData
+        "trading_engine.market.context_cli.ReplayMarketData", StubReplayMarketData
     )
 
     result = runner.invoke(
@@ -714,7 +710,7 @@ def test_evidence_cli_add_and_as_of_filter(tmp_path: Path, monkeypatch) -> None:
         astock_binary=tmp_path / "astock",
         data_dir=tmp_path,
     )
-    monkeypatch.setattr("trading_engine.context_cli.TraderSettings.load", lambda: settings)
+    monkeypatch.setattr("trading_engine.market.context_cli.TraderSettings.load", lambda: settings)
 
     add_result = runner.invoke(
         app,

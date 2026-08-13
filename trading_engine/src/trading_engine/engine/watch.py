@@ -18,9 +18,9 @@ from zoneinfo import ZoneInfo
 
 import typer
 
-from trading_engine.astock import AstockClient
+from trading_engine.market.astock import AstockClient
 from trading_engine.config import TraderSettings
-from trading_engine.context import (
+from trading_engine.market.context import (
     MONITORED_POOL_STATUSES,
     DecisionContextBuilder,
     _pool_signals,
@@ -28,8 +28,8 @@ from trading_engine.context import (
 )
 from trading_engine.dates import parse_trading_date
 from trading_engine.errors import TradingEngineError
-from trading_engine.replay import ReplayMarketData, parse_clock_time, replay_time
-from trading_engine.storage import ReplayStore
+from trading_engine.market.replay import ReplayMarketData, parse_clock_time, replay_time
+from trading_engine.store.storage import ReplayStore
 
 _SHANGHAI = ZoneInfo("Asia/Shanghai")
 
@@ -175,7 +175,7 @@ def format_heartbeat(
     client = AstockClient(settings.astock_binary, timeout_seconds=60)
     codes = builder.required_live_codes(account_name, trading_date)
     if live:
-        from trading_engine.live import LiveMarketData
+        from trading_engine.market.live import LiveMarketData
         provider = LiveMarketData(client, codes, include_discovery=True)
     else:
         provider = ReplayMarketData(client, trading_date, codes, include_discovery=True)
@@ -466,7 +466,7 @@ def watch_run(
     try:
         import importlib
 
-        from trading_engine.agent import run_watch_session
+        from trading_engine.engine.agent import run_watch_session
 
         # Load the strategy package: it must export SYSTEM_PROMPT + register_tools.
         strategy_mod = importlib.import_module(f"trading_engine.strategies.{strategy}")

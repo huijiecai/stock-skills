@@ -4,7 +4,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from trading_engine.errors import LiveDataError
-from trading_engine.live import LiveMarketData
+from trading_engine.market.live import LiveMarketData
 
 
 OBSERVED_AT = datetime(2026, 7, 27, 11, 30, tzinfo=ZoneInfo("Asia/Shanghai"))

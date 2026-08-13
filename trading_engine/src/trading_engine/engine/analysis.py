@@ -1,19 +1,30 @@
+"""Read-only judgment generator (test/audit infrastructure).
+
+Consumes a :class:`DecisionContextRecord` and produces a :class:`JudgmentRecord`
+via a pluggable :class:`JudgmentProvider`. Used by tests to build judgments for
+paper-trade verification, and by the legacy ``analyze`` audit path.
+
+The old ``ConservativeShadowProvider`` and ``DeepSeekProvider`` have been
+removed — the live agent path (``engine.agent``) replaced them. This module
+keeps only the analyzer shell so tests can construct deterministic judgments.
+"""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol
 
 from trading_engine.errors import JudgmentError
-from trading_engine.models import (
+from trading_engine.store.models import (
     JudgmentContext,
     JudgmentProposal,
     JudgmentRecord,
     JudgmentReport,
     LiveQuote,
 )
-from trading_engine.storage import ReplayStore
+from trading_engine.store.storage import ReplayStore
 
 if TYPE_CHECKING:
-    from trading_engine.context_models import DecisionContextRecord
+    from trading_engine.market.context_models import DecisionContextRecord
 
 
 class JudgmentProvider(Protocol):
@@ -24,66 +35,31 @@ class JudgmentProvider(Protocol):
         """Return a structured proposal without executing any action."""
 
 
-class ConservativeShadowProvider:
-    """Deterministic fallback until an external LLM adapter is configured."""
+class StaticShadowProvider:
+    """Deterministic fallback: all WAIT. Used as the default provider when no
+    real LLM is configured (tests, audit, offline)."""
 
-    name = "shadow-rules"
-    model = "conservative-v1"
+    name = "shadow-static"
+    model = "wait-v1"
 
     def judge(self, context: JudgmentContext) -> JudgmentReport:
-        proposals = []
-        for quote in context.quotes:
-            if abs(quote.change_pct) >= 5:
-                action = "RESEARCH"
-                confidence = 0.35
-                reason = (
-                    f"涨跌幅 {quote.change_pct:+.2f}% 达到观察阈值；完整结构化上下文"
-                    "已加载，等待外部LLM检查预期、联动和资金证据。"
-                    if context.domain_context is not None
-                    else (
-                        f"涨跌幅 {quote.change_pct:+.2f}% 达到观察阈值；仅凭价格不能"
-                        "确认预期、板块联动或资金撤退，需要补充证据。"
-                    )
-                )
-                evidence = (f"price_change_pct={quote.change_pct:+.2f}",)
-            else:
-                action = "WAIT"
-                confidence = 0.2
-                reason = (
-                    "完整上下文已通过校验；保守节点未检测到价格触发，等待外部LLM"
-                    "完成语义判断。"
-                    if context.domain_context is not None
-                    else "当前快照没有足够的方向、催化和资金证据，保持只读观察。"
-                )
-                evidence = (f"price_change_pct={quote.change_pct:+.2f}",)
-            proposals.append(
-                JudgmentProposal(
-                    code=quote.code,
-                    action=action,
-                    confidence=confidence,
-                    reason=reason,
-                    evidence=evidence,
-                )
+        proposals = tuple(
+            JudgmentProposal(
+                code=quote.code,
+                action="WAIT",
+                confidence=0.2,
+                reason="static shadow — no signal",
+                evidence=(f"change_pct={quote.change_pct:+.2f}",),
             )
-
-        limitations = (
-            (
-                "完整结构化上下文已载入；当前保守节点只执行确定性价格触发，"
-                "不替代后续LLM语义判断。"
-            ),
-            "BUY/SELL 必须等待外部LLM和代码校验，本节点不会执行交易。",
-        ) if context.domain_context is not None else (
-            "本轮只消费实时价格快照，未读取板块、催化、持仓预期或账户风险数据。",
-            "BUY/SELL 必须等待后续证据节点和代码校验，本节点不会执行交易。",
+            for quote in context.quotes
         )
-
         return JudgmentReport(
             snapshot_id=context.snapshot_id,
             as_of=context.as_of,
             provider=self.name,
             model=self.model,
-            proposals=tuple(proposals),
-            limitations=limitations,
+            proposals=proposals,
+            limitations=("static shadow provider — all WAIT",),
         )
 
 
@@ -97,7 +73,7 @@ class ReadOnlyAnalyzer:
         if max_attempts < 1:
             raise JudgmentError("max_attempts must be at least 1")
         self.store = store
-        self.provider = provider or ConservativeShadowProvider()
+        self.provider = provider
         self.max_attempts = max_attempts
 
     def analyze(
@@ -123,6 +99,9 @@ class ReadOnlyAnalyzer:
             )
         except Exception as exc:
             raise JudgmentError(f"invalid judgment input: {exc}") from exc
+
+        if self.provider is None:
+            self.provider = StaticShadowProvider()
 
         last_error: Exception | None = None
         for attempt in range(1, self.max_attempts + 1):

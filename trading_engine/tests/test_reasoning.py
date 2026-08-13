@@ -12,11 +12,11 @@ from typer.testing import CliRunner
 
 from trading_engine.cli import app
 from trading_engine.config import TraderSettings
-from trading_engine.context import DecisionContextBuilder
-from trading_engine.context_store import ContextStore
+from trading_engine.market.context import DecisionContextBuilder
+from trading_engine.market.context_store import ContextStore
 from trading_engine.errors import ContextError, StorageError
-from trading_engine.models import MarketSnapshot
-from trading_engine.storage import ReplayStore
+from trading_engine.store.models import MarketSnapshot
+from trading_engine.store.storage import ReplayStore
 
 
 SHANGHAI = ZoneInfo("Asia/Shanghai")

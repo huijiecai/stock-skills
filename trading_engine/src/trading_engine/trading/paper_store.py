@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Iterator
 
 from trading_engine.errors import StorageError
-from trading_engine.paper_models import (
+from trading_engine.trading.paper_models import (
     PaperAccountAudit,
     PaperDecisionEvent,
     PaperExecutionResult,
