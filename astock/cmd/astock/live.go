@@ -1,12 +1,16 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/huijiecai/stock/astock/internal/dwh"
 	"github.com/huijiecai/stock/astock/internal/model"
 	"github.com/huijiecai/stock/astock/internal/tdx"
 )
@@ -44,6 +48,10 @@ func newLiveCmd() *cobra.Command {
 				return err
 			}
 
+			// 尽力而为补 name:TDX 报价协议不含股票名,从 securities 表补;
+			// CH 不可用或查不到则留空,不影响行情。
+			fillNames(quotes)
+
 			if jsonOut {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
@@ -51,7 +59,11 @@ func newLiveCmd() *cobra.Command {
 			}
 
 			for _, q := range quotes {
-				fmt.Printf("---- %s ----\n", q.Code)
+				title := q.Code
+				if q.Name != "" {
+					title = q.Code + " " + q.Name
+				}
+				fmt.Printf("---- %s ----\n", title)
 				fmt.Printf("最新: %.2f  涨跌: %+.2f%%  开: %.2f  高: %.2f  低: %.2f\n",
 					q.Price, q.ChangePct, q.Open, q.High, q.Low)
 				fmt.Printf("成交量: %d  成交额: %.0f\n\n", q.Volume, q.Amount)
@@ -191,4 +203,61 @@ func requireRealtime(tc *tdx.Client) error {
 		return fmt.Errorf("拒绝：%s（历史数据请用 query/replay）", reason)
 	}
 	return nil
+}
+
+// fillNames 尽力而为地从 ClickHouse securities 表补全股票名称。
+// TDX 实时报价协议本身不含 name;这里查 sync meta 预填的 securities 表。
+// CH 不可用或查不到 → name 留空,不报错(行情照常输出)。
+func fillNames(quotes []*model.Quote) {
+	codes := make([]string, 0, len(quotes))
+	for _, q := range quotes {
+		if q.Name == "" {
+			codes = append(codes, q.Code)
+		}
+	}
+	if len(codes) == 0 {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ch, err := dwh.New(ctx, cfg)
+	if err != nil {
+		return // CH 不可用,静默跳过
+	}
+	defer ch.Close()
+	names, err := queryNames(ctx, ch, codes)
+	if err != nil {
+		return // 查询失败,静默跳过
+	}
+	for _, q := range quotes {
+		if q.Name == "" {
+			q.Name = names[q.Code]
+		}
+	}
+}
+
+// queryNames 批量从 securities 表查 code→name(一次 SQL)。
+func queryNames(ctx context.Context, ch *dwh.Client, codes []string) (map[string]string, error) {
+	quoted := make([]string, len(codes))
+	for i, c := range codes {
+		quoted[i] = "'" + c + "'"
+	}
+	query := fmt.Sprintf(`
+SELECT code, name FROM %s.securities FINAL
+WHERE type = 'stock' AND code IN (%s)`,
+		ch.DB(), strings.Join(quoted, ","))
+	rows, err := ch.Conn().Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := make(map[string]string)
+	for rows.Next() {
+		var code, name string
+		if err := rows.Scan(&code, &name); err != nil {
+			continue
+		}
+		out[code] = name
+	}
+	return out, nil
 }
