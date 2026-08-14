@@ -13,7 +13,10 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.settings import ModelSettings
 
 from trader.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
-from trader.market import get_block_members, get_block_rank, get_candidates, get_indices, get_kline, get_limit_up, get_quotes
+from trader.tools.account import get_account, get_positions
+from trader.tools.market import get_block_members, get_block_rank, get_candidates, get_indices, get_kline, get_limit_up, get_quotes
+from trader.tools.trading import execute
+from trader.tools.watch import scan_market
 
 
 # ── 建大脑 ──────────────────────────────────────────────
@@ -23,11 +26,15 @@ model = AnthropicModel(
 )
 agent = Agent(
     model,
-    system_prompt="你是A股助手。用户问你股票或指数行情,你用工具查,然后回答。",
+    system_prompt=(
+        "你是A股看盘 agent。每轮会收到时间提示:先调 scan_market 快扫市场,"
+        "然后判断——可用工具深查(get_kline/get_block_members 等),"
+        "或 execute 交易(整手/主板/T+1 规则),或等待。输出简明判断,不啰嗦。"
+    ),
     model_settings=ModelSettings({"anthropic_thinking": {"type": "disabled"}}, max_tokens=300),
 )
 
-# 把工具装到 agent 上(工具实现都在 market.py 里)
+# 把工具装到 agent 上(工具实现都在 tools/ 各域文件里)
 agent.tool(get_quotes)
 agent.tool(get_indices)
 agent.tool(get_kline)
@@ -35,6 +42,10 @@ agent.tool(get_block_rank)
 agent.tool(get_block_members)
 agent.tool(get_candidates)
 agent.tool(get_limit_up)
+agent.tool(get_positions)
+agent.tool(get_account)
+agent.tool(execute)
+agent.tool(scan_market)
 
 
 # ── 跑一轮 ──────────────────────────────────────────────

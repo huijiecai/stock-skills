@@ -4,7 +4,7 @@ docstring 统一格式:<场景>:<验证点>
 """
 import textwrap
 
-from trader import market
+from trader.tools import market
 
 TOOL = "get_quotes"
 REPLAY_DATE = "20260812"

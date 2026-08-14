@@ -13,7 +13,7 @@ from typing import Any
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-ASTOCK = os.path.join(os.path.dirname(__file__), "../../astock/astock")
+ASTOCK = os.path.join(os.path.dirname(__file__), "../../../astock/astock")
 
 # 主流指数(replay 固定重建这批,live 也查这批,保持两边一致)
 INDICES = ["000001", "399001", "399006", "000688", "399300"]

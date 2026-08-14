@@ -6,7 +6,7 @@
 
 docstring 统一格式:<场景>:<验证点>
 """
-from trader import market
+from trader.tools import market
 
 TOOL = "get_indices"  # 本文件测试的工具(-s 输出 [工具名] 标签)
 

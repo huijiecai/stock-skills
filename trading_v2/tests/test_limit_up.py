@@ -6,7 +6,7 @@ docstring 统一格式:<场景>:<验证点>
 """
 import textwrap
 
-from trader import market
+from trader.tools import market
 
 TOOL = "get_limit_up"
 
