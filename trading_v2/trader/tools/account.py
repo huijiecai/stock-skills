@@ -7,7 +7,7 @@ from pydantic_ai import RunContext
 from tabulate import tabulate
 
 from trader.store import default_account
-from trader.tools.market import _fetch_quotes
+from trader.tools.market import _fetch_quotes, _tool_error_text
 
 
 def get_positions(ctx: RunContext[None]) -> str:
@@ -34,3 +34,7 @@ def get_account(ctx: RunContext[None]) -> str:
     cost = sum(p["quantity"] * p["avg_cost"] for p in positions)
     return (f"现金 ¥{cash:,.2f} | 持仓市值 ¥{market_value:,.2f} | "
             f"总资产 ¥{cash + market_value:,.2f} | 浮盈 {market_value - cost:+,.2f}")
+
+
+# get_account 内部查实时行情,非交易日会失败 → 返回错误文本,不崩 run
+get_account = _tool_error_text(get_account)
