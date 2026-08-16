@@ -124,6 +124,13 @@ def run_premarket(date: str, prev_date: str | None = None) -> None:
     print(result.output)
 
 
+def run_close(date: str) -> None:
+    """盘后总结:预期逐个更新 → 收盘逐股扫描(新方向兜底)→ 交易复盘 → 合规自检 → 报告落库。"""
+    print(f"\n{'=' * 60}\n收盘评估与复盘 · {date}\n{'=' * 60}")
+    result = _run_round(load("close", date=date), [], usage_limits=LONG_TASK_LIMITS)
+    print(result.output)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="看盘循环运行器")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -138,6 +145,9 @@ if __name__ == "__main__":
     p.add_argument("prev_date", nargs="?", default=None,
                    help="上一交易日(不传则自动推算)")
 
+    p = sub.add_parser("close", help="盘后总结(预期更新+逐股扫描+复盘+合规)")
+    p.add_argument("date", help="交易日 YYYYMMDD(如 20260812)")
+
     p = sub.add_parser("research", help="预期研究(联网归因→写入预期库)")
     p.add_argument("topic", help="研究主题,如 '光纤供给紧缺涨价'")
 
@@ -150,6 +160,8 @@ if __name__ == "__main__":
         run_replay(args.date, args.interval, args.max_rounds)
     elif args.cmd == "premarket":
         run_premarket(args.date, args.prev_date)
+    elif args.cmd == "close":
+        run_close(args.date)
     elif args.cmd == "research":
         run_research(args.topic)
     else:
