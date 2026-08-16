@@ -5,7 +5,7 @@
 ## 一天三步(完整闭环)
 
 ```bash
-cd trading_v2
+cd trader
 uv run python -m trader.runner premarket 20260817   # ① 盘前:八维催化→预期更新→场景推演→预案落库
 uv run python -m trader.runner live                 # ② 盘中:实时看盘(--sleep 300 每5分钟一轮,Ctrl+C 停)
 uv run python -m trader.runner close 20260817       # ③ 盘后:预期更新→逐股扫描→复盘→合规自检
@@ -18,7 +18,7 @@ uv run python -m trader.runner research "光纤涨价"            # 预期研究
 ## 目录结构
 
 ```
-trading_v2/
+trader/
 ├── trader/
 │   ├── tools/            ← AI 工具(23 个 + 原生联网搜索)
 │   │   ├── market.py     ← 行情 9 个:quotes/indices/kline(time截断)/block_rank/members/candidates/limit_up/market_summary/top_amount
