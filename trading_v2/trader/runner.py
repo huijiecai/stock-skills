@@ -11,16 +11,37 @@
 """
 import argparse
 import time as time_mod
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 
 from pydantic_ai.messages import ModelMessage
 from pydantic_ai.usage import UsageLimits
 
 from trader.agent import agent
 from trader.prompts import load
+from trader.tools.market import _fetch_market_summary
 
 # 盘前/研究这类长任务(八维搜索+多轮工具)放宽请求上限;默认 50 不够用
 LONG_TASK_LIMITS = UsageLimits(request_limit=200)
+
+
+def _prev_trading_day(target: str) -> str:
+    """上一交易日:
+    - 目标日在最新数据之后(为未来/今日做盘前)→ 最新交易日即上一交易日
+    - 目标日已有数据(回放/补跑)→ 从 target-1 起往前试探(节假日自动跳过)
+    """
+    latest = str(_fetch_market_summary("").get("date", "")).replace("-", "")
+    if latest and target > latest:
+        return latest
+    d = datetime.strptime(target, "%Y%m%d") - timedelta(days=1)
+    for _ in range(15):
+        ds = d.strftime("%Y%m%d")
+        try:
+            if _fetch_market_summary(ds).get("date"):
+                return ds
+        except Exception:  # noqa: BLE001 —— 无数据(节假日)继续往前
+            pass
+        d -= timedelta(days=1)
+    raise RuntimeError(f"15 天内找不到 {target} 的上一交易日")
 
 MORNING_START = time(9, 35)   # 回放起点:开盘后 5 分钟
 LUNCH_BREAK = (time(11, 30), time(13, 0))
@@ -89,8 +110,10 @@ def run_research(topic: str) -> None:
     print(result.output)
 
 
-def run_premarket(date: str, prev_date: str) -> None:
-    """盘前分析:启动序列→八维催化扫描→预期更新→场景推演→预案,报告落库。"""
+def run_premarket(date: str, prev_date: str | None = None) -> None:
+    """盘前分析:启动序列→八维催化扫描→预期更新→场景推演→预案,报告落库。
+    prev_date 不传则自动推算上一交易日。"""
+    prev_date = prev_date or _prev_trading_day(date)
     print(f"\n{'=' * 60}\n盘前分析 · 目标日 {date}(上一交易日 {prev_date})\n{'=' * 60}")
     result = _run_round(load("premarket", date=date, prev=prev_date), [],
                         usage_limits=LONG_TASK_LIMITS)
@@ -107,8 +130,9 @@ if __name__ == "__main__":
     p.add_argument("--max-rounds", type=int, default=None, help="最多轮数(调试)")
 
     p = sub.add_parser("premarket", help="盘前分析(八维催化→场景推演→预案,报告落库)")
-    p.add_argument("date", help="目标交易日 YYYYMMDD(如 20260812)")
-    p.add_argument("prev_date", help="上一交易日 YYYYMMDD(如 20260811)")
+    p.add_argument("date", help="目标交易日 YYYYMMDD(如 20260817)")
+    p.add_argument("prev_date", nargs="?", default=None,
+                   help="上一交易日(不传则自动推算)")
 
     p = sub.add_parser("research", help="预期研究(联网归因→写入预期库)")
     p.add_argument("topic", help="研究主题,如 '光纤供给紧缺涨价'")
