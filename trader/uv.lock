@@ -1774,7 +1774,7 @@ wheels = [
 ]
 
 [[package]]
-name = "trading-v2"
+name = "trader"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
