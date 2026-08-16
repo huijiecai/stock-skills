@@ -278,6 +278,40 @@ def _format_limit_up(data: list[dict]) -> str:
                     tablefmt="plain", floatfmt="+.2f")
 
 
+def _fetch_market_summary(date: str = "") -> dict:
+    """底层:市场概览(涨跌家数/涨跌停数/成交额分板,历史收盘)。date 空取最新。"""
+    args = ["query", "market"] + ([date] if date else [])
+    return _astock(*args)
+
+
+def _format_market_summary(d: dict) -> str:
+    if not d:
+        return "无数据"
+    return (f"{d.get('date', '')} 涨{d.get('up_count', 0)}/跌{d.get('down_count', 0)}/平{d.get('flat_count', 0)} "
+            f"涨停{d.get('limit_up_count', 0)} 跌停{d.get('limit_down_count', 0)} "
+            f"总成交{_fmt_amount(d.get('total_amount', 0))}"
+            f"(主板{_fmt_amount(d.get('main_board_amount', 0))} "
+            f"创业板{_fmt_amount(d.get('growth_board_amount', 0))} "
+            f"科创{_fmt_amount(d.get('star_board_amount', 0))})")
+
+
+def _fetch_top_amount(date: str = "", limit: int = 20) -> list[dict]:
+    """底层:成交额前 N(date 空=最新交易日)。"""
+    args = ["query", "stock", "--sort-by", "amount", "--limit", str(limit)]
+    if date:
+        args += ["--date", date]
+    return _astock(*args)
+
+
+def _format_top_amount(data: list[dict]) -> str:
+    if not data:
+        return "无数据"
+    rows = [[s["code"], s.get("name", ""), s.get("close", 0),
+             f"{s.get('pct', 0):+.2f}%", _fmt_amount(s.get("amount", 0))] for s in data]
+    return tabulate(rows, headers=["代码", "名称", "收盘", "涨跌", "成交额"],
+                    tablefmt="plain", floatfmt=".2f")
+
+
 # ── 工具(AI 调用,通用,RunContext[None] + 参数)─────────
 
 def get_quotes(ctx: RunContext[None], codes: list[str], mode: str = "live", date: str = "", time: str = "") -> str:
@@ -336,6 +370,18 @@ def get_limit_up(ctx: RunContext[None], date: str, time: str = "", exclude_st: b
     return _format_limit_up(_fetch_limit_up(date, time or None, exclude_st))
 
 
+def get_market_summary(ctx: RunContext[None], date: str = "") -> str:
+    """查某日市场概览(涨跌家数/涨停跌停数/成交额分板)。date=YYYYMMDD,空=最近交易日。
+    盘前查昨日情绪基线用。
+    """
+    return _format_market_summary(_fetch_market_summary(date))
+
+
+def get_top_amount(ctx: RunContext[None], date: str = "", limit: int = 20) -> str:
+    """查成交额前 N(资金在哪/异动归因)。date=YYYYMMDD,空=最近交易日。"""
+    return _format_top_amount(_fetch_top_amount(date, limit))
+
+
 def is_trading_hours() -> bool:
     """A 股交易时段(粗略:周一~五 09:15-15:05,不含节假日)。"""
     now = datetime.now()
@@ -355,7 +401,8 @@ def _tool_error_text(func):
 
 
 for _n in ("get_quotes", "get_indices", "get_kline", "get_block_rank",
-           "get_block_members", "get_candidates", "get_limit_up"):
+           "get_block_members", "get_candidates", "get_limit_up",
+           "get_market_summary", "get_top_amount"):
     globals()[_n] = _tool_error_text(globals()[_n])
 
 

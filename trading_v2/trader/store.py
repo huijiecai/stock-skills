@@ -451,3 +451,109 @@ def default_expectations() -> Expectations:
     if _expectations is None:
         _expectations = Expectations()
     return _expectations
+
+
+# ══════════════════════════════════════════════════════════
+# 文档库:通用 md 内容存储(盘前报告/研究过程/盘后总结/笔记)
+# prompt 不在此(用 prompts/ 文件,稳定后再迁)
+# ══════════════════════════════════════════════════════════
+
+class Documents:
+    """通用文档库:运行时产出的 md 内容,按 (doc_type, name, trade_date) upsert。"""
+
+    def __init__(self, db_path: Path | str = DB_PATH) -> None:
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def save(self, doc_type: str, content: str, name: str = "",
+             trade_date: str | None = None, ref_id: int | None = None) -> int:
+        """写入/更新(同 doc_type+name+trade_date 覆盖)。返回文档 id。"""
+        now = datetime.now().isoformat(timespec="seconds")
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id FROM documents WHERE doc_type=? AND name=?"
+                " AND IFNULL(trade_date,'')=?",
+                (doc_type, name, trade_date or ""),
+            ).fetchone()
+            if row:
+                conn.execute(
+                    "UPDATE documents SET content=?, ref_id=?, updated_at=? WHERE id=?",
+                    (content, ref_id, now, row["id"]),
+                )
+                doc_id = row["id"]
+            else:
+                cur = conn.execute(
+                    "INSERT INTO documents(doc_type,name,trade_date,ref_id,content,"
+                    "created_at,updated_at) VALUES(?,?,?,?,?,?,?)",
+                    (doc_type, name, trade_date, ref_id, content, now, now),
+                )
+                doc_id = cur.lastrowid
+            conn.commit()
+        return doc_id
+
+    def get(self, doc_type: str, name: str = "", trade_date: str = "") -> str | None:
+        """取文档全文;无则 None(多条时取最新)。"""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT content FROM documents WHERE doc_type=? AND name=?"
+                " AND IFNULL(trade_date,'')=? ORDER BY updated_at DESC LIMIT 1",
+                (doc_type, name, trade_date or ""),
+            ).fetchone()
+        return row["content"] if row else None
+
+    def list(self, doc_type: str | None = None) -> list[dict]:
+        """文档概览(id/类型/名称/日期/字数/更新时间),可按类型过滤。"""
+        with self._connect() as conn:
+            if doc_type:
+                rows = conn.execute(
+                    "SELECT id,doc_type,name,trade_date,ref_id,"
+                    "LENGTH(content) AS size,updated_at FROM documents"
+                    " WHERE doc_type=? ORDER BY updated_at DESC",
+                    (doc_type,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT id,doc_type,name,trade_date,ref_id,"
+                    "LENGTH(content) AS size,updated_at FROM documents"
+                    " ORDER BY updated_at DESC"
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    # ── 内部 ────────────────────────────────────────────
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    doc_type TEXT NOT NULL,
+                    name TEXT NOT NULL DEFAULT '',
+                    trade_date TEXT,
+                    ref_id INTEGER,
+                    content TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE INDEX IF NOT EXISTS documents_lookup
+                    ON documents(doc_type, name, IFNULL(trade_date, ''));
+                """
+            )
+            conn.commit()
+
+
+_documents: Documents | None = None
+
+
+def default_documents() -> Documents:
+    """默认文档库(单例):与账户/预期同一个 SQLite 文件。"""
+    global _documents
+    if _documents is None:
+        _documents = Documents()
+    return _documents

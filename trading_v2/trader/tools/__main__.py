@@ -16,12 +16,14 @@ import inspect
 # 工具注册表:文件 → 工具名(和 agent.py 注册的一致)
 TOOLS = {
     "market": ["get_quotes", "get_indices", "get_kline", "get_block_rank",
-               "get_block_members", "get_candidates", "get_limit_up"],
+               "get_block_members", "get_candidates", "get_limit_up",
+               "get_market_summary", "get_top_amount"],
     "watch": ["scan_market"],
     "account": ["get_positions", "get_account"],
     "trading": ["execute"],
     "knowledge": ["get_expectations", "get_pool", "add_expectation",
-                  "add_pool_member", "update_expectation"],
+                  "add_pool_member", "remove_pool_member", "update_expectation"],
+    "docs": ["save_doc", "get_doc", "list_docs"],
 }
 
 
