@@ -293,12 +293,13 @@ def _fetch_market_summary(date: str = "") -> dict:
 def _format_market_summary(d: dict) -> str:
     if not d:
         return "无数据"
-    return (f"{d.get('date', '')} 涨{d.get('up_count', 0)}/跌{d.get('down_count', 0)}/平{d.get('flat_count', 0)} "
+    body = (f"{d.get('date', '')} 涨{d.get('up_count', 0)}/跌{d.get('down_count', 0)}/平{d.get('flat_count', 0)} "
             f"涨停{d.get('limit_up_count', 0)} 跌停{d.get('limit_down_count', 0)} "
             f"总成交{_fmt_amount(d.get('total_amount', 0))}"
             f"(主板{_fmt_amount(d.get('main_board_amount', 0))} "
             f"创业板{_fmt_amount(d.get('growth_board_amount', 0))} "
             f"科创{_fmt_amount(d.get('star_board_amount', 0))})")
+    return "⚠ 该日收盘统计(全天)——回放盘中时点时这是未来数据,勿用于当时决策\n" + body
 
 
 def _fetch_top_amount(date: str = "", limit: int = 20) -> list[dict]:
@@ -314,8 +315,9 @@ def _format_top_amount(data: list[dict]) -> str:
         return "无数据"
     rows = [[s["code"], s.get("name", ""), s.get("close", 0),
              f"{s.get('pct', 0):+.2f}%", _fmt_amount(s.get("amount", 0))] for s in data]
-    return tabulate(rows, headers=["代码", "名称", "收盘", "涨跌", "成交额"],
-                    tablefmt="plain", floatfmt=".2f")
+    table = tabulate(rows, headers=["代码", "名称", "收盘", "涨跌", "成交额"],
+                     tablefmt="plain", floatfmt=".2f")
+    return "⚠ 该日收盘统计(全天累计)——回放盘中时点时这是未来数据,勿用于当时决策\n" + table
 
 
 # ── 工具(AI 调用,通用,RunContext[None] + 参数)─────────
