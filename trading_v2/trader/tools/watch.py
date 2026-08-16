@@ -7,7 +7,7 @@
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-from trader.store import default_account
+from trader.store import default_account, default_expectations
 from trader.tools.market import (
     _fetch_block_rank,
     _fetch_candidates,
@@ -20,6 +20,33 @@ from trader.tools.market import (
     _format_limit_up,
     _tool_error_text,
 )
+
+
+def get_pool_health(ctx: RunContext[None], expectation_id: int, mode: str = "live",
+                    date: str = "", time: str = "") -> str:
+    """池健康度:某预期的池成员报价 + X/Y 上涨统计。
+    持仓巡检和卖出评估(出口B)必用——用预期自己的固定池,不是板块排名近似。
+    对照 get_pool 里的失效标志(通常写了池阈值,如"池≤2/5")。
+    """
+    e = default_expectations().get(expectation_id)
+    if e is None:
+        return f"预期 {expectation_id} 不存在(先 get_expectations 查 id)"
+    codes = [m["code"] for m in e["pool"]]
+    if not codes:
+        return f"#{expectation_id} {e['direction']}·{e['event']} 池为空"
+    quotes = _fetch_quotes(mode, codes, date, time or None)
+    up = sum(1 for q in quotes if q.get("change_pct", 0) > 0)
+    rows = [[q["code"], q["name"] or q["code"], q["price"],
+             f"{q['change_pct']:+.2f}%"] for q in quotes]
+    table = tabulate(rows, headers=["代码", "名称", "现价", "涨跌"],
+                     tablefmt="plain", floatfmt=".2f")
+    return (f"#{expectation_id} {e['direction']}·{e['event']} [{e['stage']}/{e['status']}]\n"
+            f"池健康度: {up}/{len(quotes)} 上涨\n"
+            f"失效标志(对照): {e['fail_flag'][:70]}\n{table}")
+
+
+# astock 失败(如盘后调 live)返回错误文本给 AI,不崩 run
+get_pool_health = _tool_error_text(get_pool_health)
 
 
 def scan_market(ctx: RunContext[None], mode: str = "live", date: str = "", time: str = "") -> str:

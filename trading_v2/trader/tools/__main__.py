@@ -18,7 +18,7 @@ TOOLS = {
     "market": ["get_quotes", "get_indices", "get_kline", "get_block_rank",
                "get_block_members", "get_candidates", "get_limit_up",
                "get_market_summary", "get_top_amount"],
-    "watch": ["scan_market"],
+    "watch": ["scan_market", "get_pool_health"],
     "account": ["get_positions", "get_account", "get_trades"],
     "trading": ["execute"],
     "knowledge": ["get_expectations", "get_pool", "add_expectation",

@@ -21,7 +21,7 @@ from trader.tools.docs import get_doc, list_docs, save_doc
 from trader.tools.knowledge import add_expectation, add_pool_member, get_expectations, get_pool, remove_pool_member, update_expectation
 from trader.tools.market import get_block_members, get_block_rank, get_candidates, get_indices, get_kline, get_limit_up, get_market_summary, get_quotes, get_top_amount
 from trader.tools.trading import execute
-from trader.tools.watch import scan_market
+from trader.tools.watch import get_pool_health, scan_market
 
 
 # ── 建大脑 ──────────────────────────────────────────────
@@ -49,6 +49,7 @@ agent.tool(get_account)
 agent.tool(get_trades)
 agent.tool(execute, retries=3)
 agent.tool(scan_market)
+agent.tool(get_pool_health)
 agent.tool(get_expectations)
 agent.tool(get_pool)
 agent.tool(add_expectation, retries=3)

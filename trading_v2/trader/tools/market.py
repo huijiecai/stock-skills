@@ -127,9 +127,11 @@ def _format_quotes(data: list[dict]) -> str:
                     tablefmt="plain", floatfmt=".2f")
 
 
-def _fetch_kline(code: str, freq: str = "daily", date: str = "", limit: int = 30, ktype: str = "auto") -> list[dict]:
+def _fetch_kline(code: str, freq: str = "daily", date: str = "", limit: int = 30,
+                 ktype: str = "auto", time: str | None = None) -> list[dict]:
     """底层:查 K 线序列。走 astock query kline(历史库),不依赖 mode/live/replay。
-    ktype=auto 时:code 在 INDICES → index,否则 stock。
+    ktype=auto 时:code 在 INDICES → index,88 开头 → block,否则 stock。
+    time:回放时点(如 "10:30")——分钟线只返回到该时刻,防止未来数据泄漏;日线忽略。
     """
     if ktype == "auto":
         if code in INDICES:
@@ -141,7 +143,11 @@ def _fetch_kline(code: str, freq: str = "daily", date: str = "", limit: int = 30
     args = ["query", "kline", code, "--type", ktype, "--freq", freq, "--limit", str(limit)]
     if date:
         args += ["--date", date]
-    return _astock(*args)
+    data = _astock(*args)
+    if time and freq != "daily":
+        hhmm = time[-5:]  # "10:30"
+        data = [k for k in data if str(k.get("time", ""))[-5:] <= hhmm]
+    return data
 
 
 def _format_kline(data: list[dict]) -> str:
@@ -329,13 +335,15 @@ def get_indices(ctx: RunContext[None], mode: str = "live", date: str = "", time:
     return _format_indices(_fetch_indices(mode, date, time or None))
 
 
-def get_kline(ctx: RunContext[None], code: str, freq: str = "daily", date: str = "", limit: int = 30, ktype: str = "auto") -> str:
+def get_kline(ctx: RunContext[None], code: str, freq: str = "daily", date: str = "",
+              limit: int = 30, ktype: str = "auto", time: str = "") -> str:
     """查 K 线序列(看趋势/分时走势)。
     code:6位代码(指数或个股)。freq:daily(日K,默认)/1m/5m/15m/30m/60m。
-    ktype:auto(默认,自动判断指数/股票)/index/stock。
+    ktype:auto(默认,自动判断指数/股票)/index/stock/block。
     date:分钟线指定某日(YYYYMMDD)。日线用 limit 控制根数(默认30)。
+    time:回放时点(如 10:30)——**分钟线只返回到该时刻**,防止未来数据泄漏;回放查分钟线路径必传。日线忽略。
     """
-    return _format_kline(_fetch_kline(code, freq, date, limit, ktype))
+    return _format_kline(_fetch_kline(code, freq, date, limit, ktype, time or None))
 
 
 def get_block_rank(ctx: RunContext[None], mode: str = "live", date: str = "", time: str = "",

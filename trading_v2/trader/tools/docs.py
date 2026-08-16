@@ -27,6 +27,9 @@ def get_doc(ctx: RunContext[None], doc_type: str, name: str = "", trade_date: st
     """读文档全文。无则明确提示。"""
     content = default_documents().get(doc_type, name=name, trade_date=trade_date)
     if content is None:
+        if doc_type == "premarket":
+            return (f"⚠ 当日({trade_date or '今日'})**没有盘前预案**——今天按方法论自主决策,"
+                    f"禁止引用其他日期的预案,禁止编造'预案里说过'。")
         return f"无 {doc_type} 文档(name={name or '-'}, date={trade_date or '-'})"
     return content
 

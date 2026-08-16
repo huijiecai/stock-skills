@@ -9,7 +9,7 @@ import textwrap
 import pytest
 
 from trader.tools.market import is_trading_hours
-from trader.tools.watch import scan_market
+from trader.tools.watch import get_pool_health, scan_market
 
 TOOL = "scan_market"
 
@@ -61,3 +61,13 @@ def test_scan_position_alert():
         assert "浮盈" in pos_section
     finally:
         store._default = original  # 恢复,避免污染其他测试
+
+
+def test_pool_health():
+    """池健康度:#4 存储池 X/Y 上涨统计 + 失效标志对照(回放 8/14 10:30)。"""
+    out = get_pool_health(None, expectation_id=4, mode="replay", date="20260814", time="10:30")
+    _show("#4 池健康度(8/14 10:30)", out)
+    assert "#4" in out
+    assert "池健康度" in out
+    assert "失效标志" in out
+    assert "/" in out.split("池健康度:")[1].split()[0]  # X/Y 格式
