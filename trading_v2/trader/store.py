@@ -286,22 +286,23 @@ class Expectations:
         return eid
 
     def update(self, expectation_id: int, stage: str | None = None, status: str | None = None,
-               invalid_reason: str | None = None) -> None:
-        """更新阶段/状态;失效时记 invalid_reason。"""
+               invalid_reason: str | None = None, thesis: str | None = None,
+               catalyst: str | None = None, fulfill_flag: str | None = None,
+               fail_flag: str | None = None) -> None:
+        """更新预期:状态字段(stage/status/invalid_reason)或内容字段(thesis/catalyst/兑现/失效)。
+        内容字段用于"重新研究后修正"(Mode B)。"""
         if stage is not None and stage not in self.STAGES:
             raise ValueError(f"stage 非法:{stage}(允许 {self.STAGES})")
         if status is not None and status not in self.STATUSES:
             raise ValueError(f"status 非法:{status}(允许 {self.STATUSES})")
+        fields = {"stage": stage, "status": status, "invalid_reason": invalid_reason,
+                  "thesis": thesis, "catalyst": catalyst,
+                  "fulfill_flag": fulfill_flag, "fail_flag": fail_flag}
         sets, args = [], []
-        if stage is not None:
-            sets.append("stage=?")
-            args.append(stage)
-        if status is not None:
-            sets.append("status=?")
-            args.append(status)
-        if invalid_reason is not None:
-            sets.append("invalid_reason=?")
-            args.append(invalid_reason)
+        for col, val in fields.items():
+            if val is not None:
+                sets.append(f"{col}=?")
+                args.append(val)
         if not sets:
             raise ValueError("没有要更新的字段")
         sets.append("updated_at=?")
@@ -315,28 +316,35 @@ class Expectations:
 
     def add_pool_member(self, expectation_id: int, code: str, name: str = "",
                         role: str = "related", reason: str = "") -> None:
-        """给已有预期追加单个池成员(逐只追加,避免复杂嵌套参数)。"""
+        """添加/更新池成员:同代码已存在时更新 role/reason/name(重新研究修订池用)。"""
         if role not in self.ROLES:
             raise ValueError(f"role 非法:{role}(允许 {self.ROLES})")
+        now = datetime.now().isoformat(timespec="seconds")
         with self._connect() as conn:
-            try:
-                conn.execute(
-                    "INSERT INTO pool_members(expectation_id,code,name,role,reason)"
-                    " VALUES(?,?,?,?,?)",
-                    (expectation_id, code, name, role, reason),
-                )
-                conn.execute(
-                    "UPDATE expectations SET updated_at=? WHERE id=?",
-                    (datetime.now().isoformat(timespec="seconds"), expectation_id),
-                )
-                conn.commit()
-            except sqlite3.IntegrityError as e:
-                conn.rollback()
-                if not conn.execute(
-                    "SELECT 1 FROM expectations WHERE id=?", (expectation_id,)
-                ).fetchone():
-                    raise ValueError(f"预期 {expectation_id} 不存在") from e
-                raise ValueError(f"{code} 已在该池中") from e
+            if not conn.execute(
+                "SELECT 1 FROM expectations WHERE id=?", (expectation_id,)
+            ).fetchone():
+                raise ValueError(f"预期 {expectation_id} 不存在")
+            conn.execute(
+                "INSERT INTO pool_members(expectation_id,code,name,role,reason)"
+                " VALUES(?,?,?,?,?)"
+                " ON CONFLICT(expectation_id, code)"
+                " DO UPDATE SET name=excluded.name, role=excluded.role, reason=excluded.reason",
+                (expectation_id, code, name, role, reason),
+            )
+            conn.execute("UPDATE expectations SET updated_at=? WHERE id=?", (now, expectation_id))
+            conn.commit()
+
+    def remove_pool_member(self, expectation_id: int, code: str) -> None:
+        """从池中剔除成员(重新研究后调整池用)。"""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM pool_members WHERE expectation_id=? AND code=?",
+                (expectation_id, code),
+            )
+            conn.commit()
+            if cur.rowcount == 0:
+                raise ValueError(f"池成员不存在:{code}(预期 #{expectation_id})")
 
     # ── 读 ──────────────────────────────────────────────
 

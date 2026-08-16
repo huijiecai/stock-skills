@@ -56,30 +56,45 @@ def add_expectation(ctx: RunContext[None], direction: str, event: str, thesis: s
 
 def add_pool_member(ctx: RunContext[None], expectation_id: int, code: str,
                     name: str = "", role: str = "related", reason: str = "") -> str:
-    """给预期追加单个池成员。role=leader(龙头候选)/core(核心直接受益)/related(相关);
+    """添加/更新池成员(同代码已存在则更新 role/reason,重新研究修订池用)。
+    role=leader(龙头候选)/core(核心直接受益)/related(相关,不可执行);
     reason 写清楚为什么受益(如"存储模组占营收70%,涨价直接增厚")。"""
     try:
         default_expectations().add_pool_member(expectation_id, code, name, role, reason)
     except ValueError as e:
         return f"拒绝:{e}"
-    return f"已加 #{expectation_id} 池成员:{code} {name}({role})"
+    return f"已写入 #{expectation_id} 池成员:{code} {name}({role})"
+
+
+def remove_pool_member(ctx: RunContext[None], expectation_id: int, code: str) -> str:
+    """从预期池中剔除成员(重新研究后调整池用)。"""
+    try:
+        default_expectations().remove_pool_member(expectation_id, code)
+    except ValueError as e:
+        return f"拒绝:{e}"
+    return f"已从 #{expectation_id} 池剔除:{code}"
 
 
 def update_expectation(ctx: RunContext[None], expectation_id: int, stage: str = "",
-                       status: str = "", invalid_reason: str = "") -> str:
-    """更新预期。stage:observing/emerging/confirmed/climax/fulfilling/ended;
-    status:researching/active/fulfilled/invalid(失效时必须写 invalid_reason 说明)。"""
+                       status: str = "", invalid_reason: str = "", thesis: str = "",
+                       catalyst: str = "", fulfill_flag: str = "", fail_flag: str = "") -> str:
+    """更新预期。状态:stage(observing/emerging/confirmed/climax/fulfilling/ended)、
+    status(researching/active/fulfilled/invalid,失效必须写 invalid_reason)。
+    内容(重新研究后修正用):thesis/catalyst/fulfill_flag/fail_flag,只改确有变化的。"""
     try:
-        default_expectations().update(expectation_id,
-                                      stage=stage or None, status=status or None,
-                                      invalid_reason=invalid_reason or None)
+        default_expectations().update(
+            expectation_id,
+            stage=stage or None, status=status or None, invalid_reason=invalid_reason or None,
+            thesis=thesis or None, catalyst=catalyst or None,
+            fulfill_flag=fulfill_flag or None, fail_flag=fail_flag or None,
+        )
     except ValueError as e:
         return f"拒绝:{e}"
     parts = [f"已更新 #{expectation_id}"]
-    if stage:
-        parts.append(f"stage→{stage}")
-    if status:
-        parts.append(f"status→{status}")
+    for label, val in [("stage→", stage), ("status→", status), ("逻辑", thesis),
+                       ("催化", catalyst), ("兑现", fulfill_flag), ("失效", fail_flag)]:
+        if val:
+            parts.append(f"{label}{val[:40]}")
     if invalid_reason:
         parts.append(f"原因:{invalid_reason}")
     return " ".join(parts)

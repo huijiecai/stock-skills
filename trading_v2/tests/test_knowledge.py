@@ -107,3 +107,40 @@ def test_get_all_counts(tmp_path):
     row = e.get_all()[0]
     _show("统计", (row["core_count"], row["pool_count"]))
     assert row["core_count"] == 2 and row["pool_count"] == 3
+
+
+def test_update_content_fields(tmp_path):
+    """重新研究修正内容:update 支持 thesis/catalyst/兑现/失效 字段。"""
+    e = _exp(tmp_path)
+    eid = e.add("存储芯片", "存货涨价", "旧逻辑", "旧催化", "旧兑现", "旧失效", POOL)
+    e.update(eid, thesis="新逻辑:Q2合约价再涨", catalyst="新催化:合约价数据")
+    got = e.get(eid)
+    _show("更新后", (got["thesis"], got["catalyst"], got["fulfill_flag"]))
+    assert got["thesis"].startswith("新逻辑")
+    assert got["catalyst"].startswith("新催化")
+    assert got["fulfill_flag"] == "旧兑现"  # 未更新的字段不动
+
+
+def test_pool_member_upsert(tmp_path):
+    """池成员 upsert:同代码重复添加 → 更新 role/reason 而不是报错。"""
+    e = _exp(tmp_path)
+    eid = e.add("存储芯片", "存货涨价", "a", "b", "c", "d",
+                [{"code": "001309", "name": "德明利", "role": "core", "reason": "初判"}])
+    e.add_pool_member(eid, "001309", "德明利", role="leader", reason="重新研究后升级为龙头")
+    got = e.get(eid)
+    _show("upsert 后", got["pool"][0])
+    assert len(got["pool"]) == 1  # 没有重复行
+    assert got["pool"][0]["role"] == "leader"
+    assert "升级为龙头" in got["pool"][0]["reason"]
+
+
+def test_remove_pool_member(tmp_path):
+    """剔除池成员:重新研究调整池。"""
+    e = _exp(tmp_path)
+    eid = e.add("存储芯片", "存货涨价", "a", "b", "c", "d", POOL)
+    e.remove_pool_member(eid, "688083")  # 剔除 related
+    codes = e.pool_codes(eid)
+    _show("剔除后", codes)
+    assert "688083" not in codes and len(codes) == 2
+    with pytest.raises(ValueError, match="池成员不存在"):
+        e.remove_pool_member(eid, "688083")  # 再剔报错
