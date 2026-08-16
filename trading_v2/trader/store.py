@@ -79,7 +79,8 @@ class Account:
         on = on or date.today().isoformat()
         price_c = round(price * 100)
         notional = price_c * quantity
-        now = trade_time or datetime.now().isoformat(timespec="seconds")
+        now = datetime.now().isoformat(timespec="seconds")  # 记录创建时刻(审计,不展示)
+        tt = trade_time or now  # 交易发生时点(回放=回放时刻,实时=当时)
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -113,10 +114,10 @@ class Account:
                 conn.execute(
                     "INSERT INTO fills(code, side, quantity, price_cents, cash_before_cents,"
                     " cash_after_cents, position_before, position_after, created_at,"
-                    " reason, expectation_id, name)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " reason, expectation_id, name, trade_time)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (code, "BUY", quantity, price_c, cash_before, cash_after,
-                     pos_before, pos_before + quantity, now, reason, expectation_id, name),
+                     pos_before, pos_before + quantity, now, reason, expectation_id, name, tt),
                 )
                 conn.commit()
             except Exception:
@@ -130,7 +131,8 @@ class Account:
         """卖出:校验可卖(T+1)、加现金、减仓(成本不变)、记 fill(含决策留痕)。"""
         price_c = round(price * 100)
         notional = price_c * quantity
-        now = trade_time or datetime.now().isoformat(timespec="seconds")
+        now = datetime.now().isoformat(timespec="seconds")  # 记录创建时刻(审计,不展示)
+        tt = trade_time or now  # 交易发生时点
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -153,11 +155,11 @@ class Account:
                 conn.execute(
                     "INSERT INTO fills(code, side, quantity, price_cents, cash_before_cents,"
                     " cash_after_cents, position_before, position_after, created_at,"
-                    " reason, expectation_id, name)"
-                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
+                    " reason, expectation_id, name, trade_time)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
                     (code, "SELL", quantity, price_c, cash_before, cash_after,
                      pos["quantity"], new_qty, now, reason, expectation_id,
-                     pos["name"]),
+                     pos["name"], tt),
                 )
                 conn.commit()
             except Exception:
@@ -234,6 +236,7 @@ class Account:
                 "ALTER TABLE fills ADD COLUMN reason TEXT NOT NULL DEFAULT ''",
                 "ALTER TABLE fills ADD COLUMN expectation_id INTEGER",
                 "ALTER TABLE fills ADD COLUMN name TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE fills ADD COLUMN trade_time TEXT",
             ):
                 try:
                     conn.execute(col_ddl)

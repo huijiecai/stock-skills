@@ -49,7 +49,9 @@ def get_trades(ctx: RunContext[None]) -> str:
     rows = []
     for f in reversed(fills):  # 最新在前
         rows.append([
-            f["id"], f["created_at"][:16], f["code"], f.get("name", ""), f["side"],
+            f["id"],
+            (f.get("trade_time") or f["created_at"])[:16],  # 交易时点(回放=回放时刻)
+            f["code"], f.get("name", ""), f["side"],
             f["quantity"], f["price_cents"] / 100,
             f"#{f['expectation_id']}" if f.get("expectation_id") else "-",
             (f.get("reason") or "-")[:45],

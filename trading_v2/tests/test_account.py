@@ -111,4 +111,5 @@ def test_trade_with_reason(tmp_path):
     assert fills[0]["reason"] == "存储主线确认,放量领涨"
     assert fills[0]["expectation_id"] == 4
     assert fills[0]["name"] == "深科技"
-    assert fills[1]["created_at"] == "2026-08-12 10:30"  # 回放时点替代真实时间
+    assert fills[1]["trade_time"] == "2026-08-12 10:30"   # 交易时点=回放时点
+    assert fills[1]["created_at"] != "2026-08-12 10:30"   # created_at=真实创建时刻
