@@ -15,6 +15,7 @@ from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.settings import ModelSettings
 
 from trader.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
+from trader.prompts import load
 from trader.tools.account import get_account, get_positions
 from trader.tools.knowledge import add_expectation, add_pool_member, get_expectations, get_pool, update_expectation
 from trader.tools.market import get_block_members, get_block_rank, get_candidates, get_indices, get_kline, get_limit_up, get_quotes
@@ -30,11 +31,7 @@ model = AnthropicModel(
 agent = Agent(
     model,
     capabilities=[NativeTool(WebSearchTool(max_uses=3))],  # 联网搜索(server-side,和自定义工具混用)
-    system_prompt=(
-        "你是A股看盘 agent。每轮会收到时间提示:先调 scan_market 快扫市场,"
-        "然后判断——可用工具深查(get_kline/get_block_members 等),"
-        "或 execute 交易(整手/主板/T+1 规则),或等待。输出简明判断,不啰嗦。"
-    ),
+    system_prompt=load("system"),  # prompts/system.md
     model_settings=ModelSettings({"anthropic_thinking": {"type": "disabled"}}, max_tokens=4000),
 )
 

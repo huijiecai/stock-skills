@@ -16,6 +16,7 @@ from datetime import datetime, time
 from pydantic_ai.messages import ModelMessage
 
 from trader.agent import agent
+from trader.prompts import load
 
 MORNING_START = time(9, 35)   # 回放起点:开盘后 5 分钟
 LUNCH_BREAK = (time(11, 30), time(13, 0))
@@ -46,10 +47,7 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None) -> N
         rounds += 1
         clock = hhmm.strftime("%H:%M")
         print(f"\n{'=' * 60}\n第 {rounds} 轮 · 模拟看盘 {date} {clock}\n{'=' * 60}")
-        prompt = (
-            f"【第 {rounds} 轮 · 模拟看盘 {date} {clock}】"
-            f"请调 scan_market(mode='replay', date='{date}', time='{clock}') 快扫,然后判断。"
-        )
+        prompt = load("round_replay", rounds=rounds, date=date, clock=clock)
         result = _run_round(prompt, history)
         history = result.all_messages()
         print(result.output)
@@ -68,7 +66,7 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
         rounds += 1
         now = datetime.now().strftime("%H:%M:%S")
         print(f"\n{'=' * 60}\n第 {rounds} 轮 · 实时看盘 {now}\n{'=' * 60}")
-        prompt = f"【第 {rounds} 轮 · 实时 {now}】请调 scan_market() 快扫,然后判断。"
+        prompt = load("round_live", rounds=rounds, now=now)
         result = _run_round(prompt, history)
         history = result.all_messages()
         print(result.output)
@@ -82,15 +80,7 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
 def run_research(topic: str) -> None:
     """预期研究:对某主题跑一次完整研究(联网归因 → 写入预期库)。"""
     print(f"\n{'=' * 60}\n预期研究 · {topic}\n{'=' * 60}")
-    prompt = (
-        f"【预期研究:{topic}】请完成研究并写入预期库:"
-        f"1) 联网搜索归因(市场在交易什么:具体催化事件、依据、时间线,注来源)"
-        f"2) 先 get_expectations 查重(同方向同事件已存在就不重复写)"
-        f"3) add_expectation 写入(direction/event/thesis/catalyst/兑现标志/失效标志)"
-        f"4) add_pool_member 逐只加池(核心受益股,role=leader/core/related + 具体受益理由)"
-        f"5) 最后总结研究结论(这个预期值不值得跟)"
-    )
-    result = _run_round(prompt, [])
+    result = _run_round(load("research", topic=topic), [])
     print(result.output)
 
 
