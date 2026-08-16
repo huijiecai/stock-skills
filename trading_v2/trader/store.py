@@ -39,12 +39,13 @@ class Account:
         """全部持仓(quantity>0),avg_cost 转为元(展示用)。"""
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT code, quantity, sellable, avg_cost_cents, bought_on"
+                "SELECT code, name, quantity, sellable, avg_cost_cents, bought_on"
                 " FROM positions WHERE quantity > 0 ORDER BY code"
             ).fetchall()
         return [
-            {"code": r["code"], "quantity": r["quantity"], "sellable": r["sellable"],
-             "avg_cost": r["avg_cost_cents"] / 100, "bought_on": r["bought_on"]}
+            {"code": r["code"], "name": r["name"], "quantity": r["quantity"],
+             "sellable": r["sellable"], "avg_cost": r["avg_cost_cents"] / 100,
+             "bought_on": r["bought_on"]}
             for r in rows
         ]
 
@@ -54,8 +55,9 @@ class Account:
             r = conn.execute("SELECT * FROM positions WHERE code = ?", (code,)).fetchone()
         if r is None or r["quantity"] == 0:
             return None
-        return {"code": r["code"], "quantity": r["quantity"], "sellable": r["sellable"],
-                "avg_cost": r["avg_cost_cents"] / 100, "bought_on": r["bought_on"]}
+        return {"code": r["code"], "name": r["name"], "quantity": r["quantity"],
+                "sellable": r["sellable"], "avg_cost": r["avg_cost_cents"] / 100,
+                "bought_on": r["bought_on"]}
 
     def fills(self) -> list[dict]:
         """全部成交记录(审计对账用)。"""
@@ -65,9 +67,10 @@ class Account:
 
     # ── 交易(事务 + fill)───────────────────────────────
 
-    def buy(self, code: str, quantity: int, price: float, on: str | None = None) -> dict:
+    def buy(self, code: str, quantity: int, price: float, on: str | None = None,
+            name: str = "") -> dict:
         """买入:扣现金、加仓(加权成本)、记 fill。
-        on=买入日 YYYY-MM-DD(T+1 依据,默认今天)。
+        on=买入日 YYYY-MM-DD(T+1 依据,默认今天);name=股票名(展示用)。
         """
         on = on or date.today().isoformat()
         price_c = round(price * 100)
@@ -89,15 +92,16 @@ class Account:
                     new_qty = old_qty + quantity
                     new_cost = (old_qty * old_cost + notional) // new_qty
                     conn.execute(
-                        "UPDATE positions SET quantity=?, avg_cost_cents=?, bought_on=? WHERE code=?",
-                        (new_qty, new_cost, on, code),
+                        "UPDATE positions SET quantity=?, avg_cost_cents=?, bought_on=?,"
+                        " name=CASE WHEN ?!='' THEN ? ELSE name END WHERE code=?",
+                        (new_qty, new_cost, on, name, name, code),
                     )
                     pos_before = old_qty
                 else:
                     conn.execute(
-                        "INSERT INTO positions(code, quantity, sellable, avg_cost_cents, bought_on)"
-                        " VALUES(?,?,0,?,?)",
-                        (code, quantity, price_c, on),
+                        "INSERT INTO positions(code, name, quantity, sellable, avg_cost_cents, bought_on)"
+                        " VALUES(?,?,?,?,?,?)",
+                        (code, name, quantity, 0, price_c, on),
                     )
                     pos_before = 0
                 cash_after = cash_before - notional
@@ -189,6 +193,7 @@ class Account:
                 );
                 CREATE TABLE IF NOT EXISTS positions (
                     code TEXT PRIMARY KEY,
+                    name TEXT NOT NULL DEFAULT '',
                     quantity INTEGER NOT NULL CHECK (quantity >= 0),
                     sellable INTEGER NOT NULL CHECK (sellable >= 0 AND sellable <= quantity),
                     avg_cost_cents INTEGER NOT NULL CHECK (avg_cost_cents > 0),
@@ -212,6 +217,11 @@ class Account:
                 conn.execute(
                     "INSERT INTO account(id, cash_cents) VALUES(1, ?)", (self.initial_cash,)
                 )
+            # 旧库迁移:positions 补 name 列
+            try:
+                conn.execute("ALTER TABLE positions ADD COLUMN name TEXT NOT NULL DEFAULT ''")
+            except sqlite3.OperationalError:
+                pass  # 列已存在
             conn.commit()
 
 

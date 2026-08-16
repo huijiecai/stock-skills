@@ -42,7 +42,7 @@ def execute(ctx: RunContext[None], action: str, code: str, quantity: int,
     acct = default_account()
     try:
         if action == "BUY":
-            r = acct.buy(code, quantity, price, on=date or None)  # replay 时 T+1 按回放日算
+            r = acct.buy(code, quantity, price, on=date or None, name=name)  # replay 时 T+1 按回放日算
         else:
             r = acct.sell(code, quantity, price)
     except AccountError as e:

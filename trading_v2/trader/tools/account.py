@@ -11,12 +11,13 @@ from trader.tools.market import _fetch_quotes, _tool_error_text
 
 
 def get_positions(ctx: RunContext[None]) -> str:
-    """查当前持仓(代码/数量/可卖/成本/买入日)。"可卖"受 T+1 限制。"""
+    """查当前持仓(代码/名称/数量/可卖/成本/买入日)。"可卖"受 T+1 限制。"""
     data = default_account().positions()
     if not data:
         return "无持仓"
-    rows = [[p["code"], p["quantity"], p["sellable"], p["avg_cost"], p["bought_on"]] for p in data]
-    return tabulate(rows, headers=["代码", "数量", "可卖", "成本", "买入日"],
+    rows = [[p["code"], p["name"] or "-", p["quantity"], p["sellable"],
+             p["avg_cost"], p["bought_on"]] for p in data]
+    return tabulate(rows, headers=["代码", "名称", "数量", "可卖", "成本", "买入日"],
                     tablefmt="plain", floatfmt=".2f")
 
 
