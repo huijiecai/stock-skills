@@ -1,69 +1,57 @@
 # Trading V2
 
-从零开始的 AI 交易 agent,一步步构建。每一步你都能读懂每一行。
+从零构建的 A 股看盘交易 agent(PydanticAI + DeepSeek)。方法论:预期管理——预期库是真相源,买入前提是"研究过",卖出对照"兑现/失效标志"。
 
 ## 目录结构
 
 ```
 trading_v2/
-├── trader/             ← 包(源码的家)
-│   ├── __init__.py     ← 包标记(空文件,有了它才能 import)
-│   ├── config.py       ← 配置出口:key 从 .env 读,模型名/base_url 默认值
-│   ├── agent.py        ← 大脑:建 Agent + 注册工具(不含业务逻辑)
-│   ├── market.py       ← 看盘域:行情原子工具(get_quote / get_indices / get_quotes)
-│   ├── trading.py      ← 交易域:账户/交易原子工具(trade / query_positions)
-│   ├── watch.py        ← 组合工具:get_heartbeat / probe_pool / probe_stock(积木3-4 加)
-│   └── main.py         ← 入口:建 Deps → 跑心跳循环(积木6 加)
-├── .env                ← 敏感配置:API key(不进 git,自己填)
-├── .env.example        ← .env 的模板(占位符,进 git)
-├── demos/              ← PydanticAI 学习 demo(不进生产)
-├── tests/              ← 测试
-├── pyproject.toml      ← 项目配置(依赖、Python版本、包名)
-├── uv.lock             ← 依赖锁定(自动生成,不用管)
-├── README.md           ← 你在看的这个
-└── TODO.md             ← 构建清单(积木,做完打钩)
+├── trader/
+│   ├── tools/            ← AI 工具(17 个,AI 能调的全在这)
+│   │   ├── market.py     ← 行情:get_quotes / get_indices / get_kline / get_block_* / get_candidates / get_limit_up
+│   │   ├── watch.py      ← scan_market 快扫(指数+持仓+板块+异动,一屏)
+│   │   ├── account.py    ← get_positions / get_account
+│   │   ├── trading.py    ← execute 下单(整手/主板校验 + 实时价成交)
+│   │   └── knowledge.py  ← 预期库读写:get/add/update_expectations, get_pool, add_pool_member
+│   ├── store.py          ← SQLite:账户(持仓/现金/T+1)+ 预期库(多波/池分级/阶段)
+│   ├── agent.py          ← 大脑:17 工具 + 原生联网搜索(NativeTool WebSearchTool)
+│   └── runner.py         ← 看盘循环 + 预期研究入口
+├── tests/                ← 44 个测试(34 passed + 10 live 盘中自动跑)
+├── data/account.db       ← 账户+预期库(SQLite,模拟真相源)
+└── .env                  ← 配置(LLM_API_KEY / LLM_MODEL / LLM_BASE_URL,不进 git)
 ```
 
-### 分层原则
-
-| 层 | 文件 | 干什么 | AI 能看到吗 |
-|---|---|---|---|
-| 原子工具 | market.py / trading.py | 一个函数查一类数据(报价/指数/持仓/下单) | 是(注册后) |
-| 组合工具 | watch.py | 调原子工具,拼成决策视图(心跳/深析) | 是 |
-| 大脑 | agent.py | 建模型 + 注册工具 + 组装 toolset | — |
-| 入口 | main.py | 建运行环境 + 跑循环 | — |
-
-- 文件怎么分 = 给人读的(能力域);toolset 怎么组装 = 给 AI 看的(积木8)
-- 包内 `_` 前缀函数 = 底层实现,AI 看不到
-
-## 怎么跑
+## 常用命令(cd trading_v2)
 
 ```bash
-cd trading_v2
-cp .env.example .env   # 第一次:填入真实 API key
-uv run python -m trader.agent
+# ── 测试单个工具(免费秒出,开发调试用)─────────────────
+uv run python -m trader.tools list                        # 列出全部工具+签名
+uv run python -m trader.tools call get_expectations       # 调用工具
+uv run python -m trader.tools call get_pool expectation_id=2
+uv run python -m trader.tools call scan_market mode=replay date=20260812 time=10:30
+
+# ── 自动回归测试 ────────────────────────────────────────
+uv run pytest                     # 安静模式
+uv run pytest -s                  # 显示每步数据(-v 加测试名)
+
+# ── LLM 端到端(AI 自己组合工具)─────────────────────────
+uv run python -m trader.agent                       # 交互演示
+uv run python -m trader.runner research "光纤涨价"   # 预期研究(联网归因→入库)
+uv run python -m trader.runner replay 20260812 --interval 5   # 模拟看盘(回放,66轮)
+uv run python -m trader.runner replay 20260812 --max-rounds 3 # 调试 3 轮
+uv run python -m trader.runner live --sleep 0        # 实时看盘(默认连续,Ctrl+C 停)
 ```
 
-看到这个算成功:
-```
-AI: 深科技(000021) 现价39.55 涨跌-1.98%
-```
+## 环境
 
-### 配置分两类
+- **.env**:`cp .env.example .env` 后填 DeepSeek key(联网搜索复用同一 key)
+- **ClickHouse**:replay/query 数据依赖 Docker 里的 `astock-clickhouse` 容器,跑之前确认 Docker 起着(`docker ps` 看到 healthy)
+- live 类命令(板块排名/异动榜)盘中专用,盘后自动拒绝并提示用 replay
 
-- **敏感**(API key):放 `.env`,不进 git(根目录 .gitignore 已覆盖)
-- **非敏感**(模型名 / base_url):`trader/config.py` 里的默认值,进 git
-- 新配置统一加进 `config.py`,一处管理
+## 测试三层
 
-## 构建进度
-
-- [x] **积木1**:Agent + 1个工具(查股价)← 当前
-- [ ] 积木2:get_indices(查指数)+ get_quotes(查多只股)
-- [ ] 积木3:get_heartbeat(心跳:指数+持仓价+池健康度)
-- [ ] 积木4:probe_pool + probe_stock(深析)
-- [ ] 积木5:trade(下单 + T+1/整手/主板校验)
-- [ ] 积木6:循环(每轮自动看盘 + message_history 记忆)
-- [ ] 积木7:prompt.md(交易规则,外部文件)
-- [ ] 积木8:toolset + filtered(14:50 后隐藏交易工具)
-
-详细清单见 TODO.md。
+| 层 | 命令 | 成本 | 用途 |
+|---|---|---|---|
+| 单工具 | `python -m trader.tools call ...` | 免费 | 开发调试 |
+| 回归 | `pytest` | 免费 | 改动后护栏 |
+| 端到端 | `runner` / `agent` | 花 token | 验证 AI 行为 |

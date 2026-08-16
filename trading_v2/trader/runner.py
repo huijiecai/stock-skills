@@ -79,6 +79,21 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
             time_mod.sleep(sleep_seconds)
 
 
+def run_research(topic: str) -> None:
+    """预期研究:对某主题跑一次完整研究(联网归因 → 写入预期库)。"""
+    print(f"\n{'=' * 60}\n预期研究 · {topic}\n{'=' * 60}")
+    prompt = (
+        f"【预期研究:{topic}】请完成研究并写入预期库:"
+        f"1) 联网搜索归因(市场在交易什么:具体催化事件、依据、时间线,注来源)"
+        f"2) 先 get_expectations 查重(同方向同事件已存在就不重复写)"
+        f"3) add_expectation 写入(direction/event/thesis/catalyst/兑现标志/失效标志)"
+        f"4) add_pool_member 逐只加池(核心受益股,role=leader/core/related + 具体受益理由)"
+        f"5) 最后总结研究结论(这个预期值不值得跟)"
+    )
+    result = _run_round(prompt, [])
+    print(result.output)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="看盘循环运行器")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -88,6 +103,9 @@ if __name__ == "__main__":
     p.add_argument("--interval", type=int, default=5, help="每轮步进分钟(默认 5)")
     p.add_argument("--max-rounds", type=int, default=None, help="最多轮数(调试)")
 
+    p = sub.add_parser("research", help="预期研究(联网归因→写入预期库)")
+    p.add_argument("topic", help="研究主题,如 '光纤供给紧缺涨价'")
+
     p = sub.add_parser("live", help="实时看盘")
     p.add_argument("--sleep", type=int, default=0, help="轮间等待秒(默认 0:立即下一轮)")
     p.add_argument("--max-rounds", type=int, default=None, help="最多轮数(调试)")
@@ -95,5 +113,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.cmd == "replay":
         run_replay(args.date, args.interval, args.max_rounds)
+    elif args.cmd == "research":
+        run_research(args.topic)
     else:
         run_live(args.sleep, args.max_rounds)
