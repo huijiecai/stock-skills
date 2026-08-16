@@ -60,22 +60,26 @@ class Account:
                 "bought_on": r["bought_on"]}
 
     def fills(self) -> list[dict]:
-        """全部成交记录(审计对账用)。"""
+        """全部成交记录(含决策留痕 reason/expectation_id,复盘用)。"""
         with self._connect() as conn:
-            rows = conn.execute("SELECT * FROM fills ORDER BY id").fetchall()
+            rows = conn.execute(
+                "SELECT * FROM fills ORDER BY id"
+            ).fetchall()
         return [dict(r) for r in rows]
 
     # ── 交易(事务 + fill)───────────────────────────────
 
     def buy(self, code: str, quantity: int, price: float, on: str | None = None,
-            name: str = "") -> dict:
-        """买入:扣现金、加仓(加权成本)、记 fill。
-        on=买入日 YYYY-MM-DD(T+1 依据,默认今天);name=股票名(展示用)。
+            name: str = "", reason: str = "", expectation_id: int | None = None,
+            trade_time: str = "") -> dict:
+        """买入:扣现金、加仓(加权成本)、记 fill(含决策留痕)。
+        on=买入日(T+1 依据);name=股票名;reason=决策依据;expectation_id=关联预期;
+        trade_time=成交时点(回放 "20260814 09:35" 或真实时间)。
         """
         on = on or date.today().isoformat()
         price_c = round(price * 100)
         notional = price_c * quantity
-        now = datetime.now().isoformat(timespec="seconds")
+        now = trade_time or datetime.now().isoformat(timespec="seconds")
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -108,10 +112,11 @@ class Account:
                 conn.execute("UPDATE account SET cash_cents=? WHERE id=1", (cash_after,))
                 conn.execute(
                     "INSERT INTO fills(code, side, quantity, price_cents, cash_before_cents,"
-                    " cash_after_cents, position_before, position_after, created_at)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)",
+                    " cash_after_cents, position_before, position_after, created_at,"
+                    " reason, expectation_id, name)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                     (code, "BUY", quantity, price_c, cash_before, cash_after,
-                     pos_before, pos_before + quantity, now),
+                     pos_before, pos_before + quantity, now, reason, expectation_id, name),
                 )
                 conn.commit()
             except Exception:
@@ -120,11 +125,12 @@ class Account:
         return {"code": code, "side": "BUY", "quantity": quantity, "price": price,
                 "cash_after": cash_after / 100, "position_after": pos_before + quantity}
 
-    def sell(self, code: str, quantity: int, price: float) -> dict:
-        """卖出:校验可卖(T+1)、加现金、减仓(成本不变)、记 fill。"""
+    def sell(self, code: str, quantity: int, price: float, reason: str = "",
+             expectation_id: int | None = None, trade_time: str = "") -> dict:
+        """卖出:校验可卖(T+1)、加现金、减仓(成本不变)、记 fill(含决策留痕)。"""
         price_c = round(price * 100)
         notional = price_c * quantity
-        now = datetime.now().isoformat(timespec="seconds")
+        now = trade_time or datetime.now().isoformat(timespec="seconds")
         with self._connect() as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -146,10 +152,12 @@ class Account:
                 conn.execute("UPDATE account SET cash_cents=? WHERE id=1", (cash_after,))
                 conn.execute(
                     "INSERT INTO fills(code, side, quantity, price_cents, cash_before_cents,"
-                    " cash_after_cents, position_before, position_after, created_at)"
-                    " VALUES(?,?,?,?,?,?,?,?,?)",
+                    " cash_after_cents, position_before, position_after, created_at,"
+                    " reason, expectation_id, name)"
+                    " VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                     (code, "SELL", quantity, price_c, cash_before, cash_after,
-                     pos["quantity"], new_qty, now),
+                     pos["quantity"], new_qty, now, reason, expectation_id,
+                     pos["name"]),
                 )
                 conn.commit()
             except Exception:
@@ -217,11 +225,20 @@ class Account:
                 conn.execute(
                     "INSERT INTO account(id, cash_cents) VALUES(1, ?)", (self.initial_cash,)
                 )
-            # 旧库迁移:positions 补 name 列
+            # 旧库迁移:positions 补 name 列;fills 补决策留痕列
             try:
                 conn.execute("ALTER TABLE positions ADD COLUMN name TEXT NOT NULL DEFAULT ''")
             except sqlite3.OperationalError:
                 pass  # 列已存在
+            for col_ddl in (
+                "ALTER TABLE fills ADD COLUMN reason TEXT NOT NULL DEFAULT ''",
+                "ALTER TABLE fills ADD COLUMN expectation_id INTEGER",
+                "ALTER TABLE fills ADD COLUMN name TEXT NOT NULL DEFAULT ''",
+            ):
+                try:
+                    conn.execute(col_ddl)
+                except sqlite3.OperationalError:
+                    pass  # 列已存在
             conn.commit()
 
 

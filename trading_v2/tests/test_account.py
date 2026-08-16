@@ -96,3 +96,19 @@ def test_fills_chain(tmp_path):
     print(f"  → {len(fills)} 笔 fill,现金链: {[f['cash_after_cents'] for f in fills]}")
     assert len(fills) == 2
     assert fills[0]["cash_after_cents"] == fills[1]["cash_before_cents"]  # 链式
+
+
+def test_trade_with_reason(tmp_path):
+    """决策留痕:买卖的 reason/expectation_id/名称/回放时点 落进 fills。"""
+    a = _acct(tmp_path)
+    a.buy("000021", 100, 40.00, on="2026-08-11", name="深科技",
+          reason="存储主线确认,放量领涨", expectation_id=4)
+    a.settle("2026-08-12")
+    a.sell("000021", 100, 45.00, reason="预期兑现(出口A)", expectation_id=4,
+           trade_time="2026-08-12 10:30")
+    fills = a.fills()
+    print(f"  → 买:{fills[0]['reason']} | 卖:{fills[1]['reason']}")
+    assert fills[0]["reason"] == "存储主线确认,放量领涨"
+    assert fills[0]["expectation_id"] == 4
+    assert fills[0]["name"] == "深科技"
+    assert fills[1]["created_at"] == "2026-08-12 10:30"  # 回放时点替代真实时间

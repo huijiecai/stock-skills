@@ -19,7 +19,7 @@ TOOLS = {
                "get_block_members", "get_candidates", "get_limit_up",
                "get_market_summary", "get_top_amount"],
     "watch": ["scan_market"],
-    "account": ["get_positions", "get_account"],
+    "account": ["get_positions", "get_account", "get_trades"],
     "trading": ["execute"],
     "knowledge": ["get_expectations", "get_pool", "add_expectation",
                   "add_pool_member", "remove_pool_member", "update_expectation"],

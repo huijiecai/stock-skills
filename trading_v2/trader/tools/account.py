@@ -39,3 +39,20 @@ def get_account(ctx: RunContext[None]) -> str:
 
 # get_account 内部查实时行情,非交易日会失败 → 返回错误文本,不崩 run
 get_account = _tool_error_text(get_account)
+
+
+def get_trades(ctx: RunContext[None]) -> str:
+    """查全部成交记录(含每笔的决策留痕:为什么买/卖、关联哪条预期)。复盘用。"""
+    fills = default_account().fills()
+    if not fills:
+        return "无成交记录"
+    rows = []
+    for f in reversed(fills):  # 最新在前
+        rows.append([
+            f["id"], f["created_at"][:16], f["code"], f.get("name", ""), f["side"],
+            f["quantity"], f["price_cents"] / 100,
+            f"#{f['expectation_id']}" if f.get("expectation_id") else "-",
+            (f.get("reason") or "-")[:45],
+        ])
+    return tabulate(rows, headers=["id", "时间", "代码", "名称", "方向", "数量", "价格", "预期", "决策依据"],
+                    tablefmt="plain", floatfmt=".2f")

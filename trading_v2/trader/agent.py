@@ -16,7 +16,7 @@ from pydantic_ai.settings import ModelSettings
 
 from trader.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 from trader.prompts import load
-from trader.tools.account import get_account, get_positions
+from trader.tools.account import get_account, get_positions, get_trades
 from trader.tools.docs import get_doc, list_docs, save_doc
 from trader.tools.knowledge import add_expectation, add_pool_member, get_expectations, get_pool, remove_pool_member, update_expectation
 from trader.tools.market import get_block_members, get_block_rank, get_candidates, get_indices, get_kline, get_limit_up, get_market_summary, get_quotes, get_top_amount
@@ -46,6 +46,7 @@ agent.tool(get_candidates)
 agent.tool(get_limit_up)
 agent.tool(get_positions)
 agent.tool(get_account)
+agent.tool(get_trades)
 agent.tool(execute, retries=3)
 agent.tool(scan_market)
 agent.tool(get_expectations)
