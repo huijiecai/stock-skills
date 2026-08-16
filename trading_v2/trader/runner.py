@@ -22,6 +22,19 @@ LUNCH_BREAK = (time(11, 30), time(13, 0))
 CLOSE = time(15, 0)
 
 
+def _run_round(prompt: str, history: list[ModelMessage], retries: int = 3):
+    """跑一轮,失败重试(偶发 API 错误不崩整个看盘循环)。"""
+    last_err: Exception | None = None
+    for attempt in range(1, retries + 1):
+        try:
+            return agent.run_sync(prompt, message_history=history)
+        except Exception as e:  # noqa: BLE001 —— API 网络抖动/限流等各种偶发
+            last_err = e
+            print(f"  ⚠ 本轮第 {attempt}/{retries} 次失败:{type(e).__name__}: {str(e)[:120]}")
+            time_mod.sleep(2)
+    raise RuntimeError(f"连续 {retries} 次失败,停止看盘: {last_err}")
+
+
 def run_replay(date: str, interval: int = 5, max_rounds: int | None = None) -> None:
     """模拟看盘:回放某日,每轮步进 interval 分钟,午休自动跳过。"""
     history: list[ModelMessage] = []
@@ -37,7 +50,7 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None) -> N
             f"【第 {rounds} 轮 · 模拟看盘 {date} {clock}】"
             f"请调 scan_market(mode='replay', date='{date}', time='{clock}') 快扫,然后判断。"
         )
-        result = agent.run_sync(prompt, message_history=history)
+        result = _run_round(prompt, history)
         history = result.all_messages()
         print(result.output)
         if max_rounds and rounds >= max_rounds:
@@ -56,7 +69,7 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
         now = datetime.now().strftime("%H:%M:%S")
         print(f"\n{'=' * 60}\n第 {rounds} 轮 · 实时看盘 {now}\n{'=' * 60}")
         prompt = f"【第 {rounds} 轮 · 实时 {now}】请调 scan_market() 快扫,然后判断。"
-        result = agent.run_sync(prompt, message_history=history)
+        result = _run_round(prompt, history)
         history = result.all_messages()
         print(result.output)
         if max_rounds and rounds >= max_rounds:

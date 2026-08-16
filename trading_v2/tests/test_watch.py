@@ -6,6 +6,9 @@ docstring 统一格式:<场景>:<验证点>
 """
 import textwrap
 
+import pytest
+
+from trader.tools.market import is_trading_hours
 from trader.tools.watch import scan_market
 
 TOOL = "scan_market"
@@ -16,6 +19,7 @@ def _show(title: str, out: str):
     print(textwrap.indent(out, "    "))
 
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_scan_live():
     """live 快扫:四段齐全(指数/持仓/板块/异动=涨幅榜)。"""
     out = scan_market(None)
@@ -38,6 +42,7 @@ def test_scan_replay():
     assert "3936.52" in out  # 上证 8/12 10:30 固定值(指数段透传)
 
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_scan_position_alert():
     """持仓标警:构造持仓后,±2% 出现 ⚠(用临时库替换默认账户)。"""
     import trader.store as store

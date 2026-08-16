@@ -226,3 +226,220 @@ def default_account() -> Account:
     if _default is None:
         _default = Account()
     return _default
+
+
+# ══════════════════════════════════════════════════════════
+# 预期库:预期条目 + 池成员(与 Account 共用同一个 SQLite 文件)
+# ══════════════════════════════════════════════════════════
+
+class Expectations:
+    """预期库:方向(direction)下的具体预期事件(event),独立生命周期。
+
+    - 同方向可挂多个预期(存储芯片·存货涨价 / 存储芯片·2026年报业绩,多波炒作)
+    - 池成员分 role:leader(龙头候选)/ core(核心直接受益)/ related(相关)
+    - 失效与兑现并列:fail_flag 事前定义,invalid_reason 事后记录
+    - stage 管阶段(影响买点):observing→emerging→confirmed→climax→fulfilling→ended
+    """
+
+    STAGES = ("observing", "emerging", "confirmed", "climax", "fulfilling", "ended")
+    STATUSES = ("researching", "active", "fulfilled", "invalid")
+    ROLES = ("leader", "core", "related")
+
+    def __init__(self, db_path: Path | str = DB_PATH) -> None:
+        self.db_path = Path(db_path)
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    # ── 写 ──────────────────────────────────────────────
+
+    def add(self, direction: str, event: str, thesis: str, catalyst: str,
+            fulfill_flag: str, fail_flag: str, pool: list[dict]) -> int:
+        """新增预期(研究完写入)。pool=[{code,name,role,reason}]。返回 id。"""
+        now = datetime.now().isoformat(timespec="seconds")
+        for m in pool:
+            if m.get("role", "related") not in self.ROLES:
+                raise ValueError(f"pool role 非法:{m.get('role')}(允许 {self.ROLES})")
+        with self._connect() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            try:
+                cur = conn.execute(
+                    "INSERT INTO expectations(direction,event,thesis,catalyst,"
+                    "fulfill_flag,fail_flag,stage,status,created_at,updated_at)"
+                    " VALUES(?,?,?,?,?,?, 'observing','active',?,?)",
+                    (direction, event, thesis, catalyst, fulfill_flag, fail_flag, now, now),
+                )
+                eid = cur.lastrowid
+                for m in pool:
+                    conn.execute(
+                        "INSERT INTO pool_members(expectation_id,code,name,role,reason)"
+                        " VALUES(?,?,?,?,?)",
+                        (eid, m["code"], m.get("name", ""),
+                         m.get("role", "related"), m.get("reason", "")),
+                    )
+                conn.commit()
+            except sqlite3.IntegrityError as e:
+                conn.rollback()
+                raise ValueError(f"写入失败(可能 {direction}·{event} 已存在或池成员重复):{e}") from e
+            except Exception:
+                conn.rollback()
+                raise
+        return eid
+
+    def update(self, expectation_id: int, stage: str | None = None, status: str | None = None,
+               invalid_reason: str | None = None) -> None:
+        """更新阶段/状态;失效时记 invalid_reason。"""
+        if stage is not None and stage not in self.STAGES:
+            raise ValueError(f"stage 非法:{stage}(允许 {self.STAGES})")
+        if status is not None and status not in self.STATUSES:
+            raise ValueError(f"status 非法:{status}(允许 {self.STATUSES})")
+        sets, args = [], []
+        if stage is not None:
+            sets.append("stage=?")
+            args.append(stage)
+        if status is not None:
+            sets.append("status=?")
+            args.append(status)
+        if invalid_reason is not None:
+            sets.append("invalid_reason=?")
+            args.append(invalid_reason)
+        if not sets:
+            raise ValueError("没有要更新的字段")
+        sets.append("updated_at=?")
+        args.append(datetime.now().isoformat(timespec="seconds"))
+        args.append(expectation_id)
+        with self._connect() as conn:
+            cur = conn.execute(f"UPDATE expectations SET {', '.join(sets)} WHERE id=?", args)
+            conn.commit()
+            if cur.rowcount == 0:
+                raise ValueError(f"预期 {expectation_id} 不存在")
+
+    def add_pool_member(self, expectation_id: int, code: str, name: str = "",
+                        role: str = "related", reason: str = "") -> None:
+        """给已有预期追加单个池成员(逐只追加,避免复杂嵌套参数)。"""
+        if role not in self.ROLES:
+            raise ValueError(f"role 非法:{role}(允许 {self.ROLES})")
+        with self._connect() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO pool_members(expectation_id,code,name,role,reason)"
+                    " VALUES(?,?,?,?,?)",
+                    (expectation_id, code, name, role, reason),
+                )
+                conn.execute(
+                    "UPDATE expectations SET updated_at=? WHERE id=?",
+                    (datetime.now().isoformat(timespec="seconds"), expectation_id),
+                )
+                conn.commit()
+            except sqlite3.IntegrityError as e:
+                conn.rollback()
+                if not conn.execute(
+                    "SELECT 1 FROM expectations WHERE id=?", (expectation_id,)
+                ).fetchone():
+                    raise ValueError(f"预期 {expectation_id} 不存在") from e
+                raise ValueError(f"{code} 已在该池中") from e
+
+    # ── 读 ──────────────────────────────────────────────
+
+    def get_all(self) -> list[dict]:
+        """全部预期(倒序),含 核心/池 成员数统计。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT e.*,"
+                " (SELECT COUNT(*) FROM pool_members p WHERE p.expectation_id = e.id) AS pool_count,"
+                " (SELECT COUNT(*) FROM pool_members p WHERE p.expectation_id = e.id"
+                "   AND p.role IN ('leader','core')) AS core_count"
+                " FROM expectations e ORDER BY e.id DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get(self, expectation_id: int) -> dict | None:
+        """单个预期详情(含池成员,leader>core>related 排序)。"""
+        with self._connect() as conn:
+            r = conn.execute(
+                "SELECT * FROM expectations WHERE id = ?", (expectation_id,)
+            ).fetchone()
+            if r is None:
+                return None
+            members = conn.execute(
+                "SELECT code,name,role,reason FROM pool_members WHERE expectation_id = ?"
+                " ORDER BY CASE role WHEN 'leader' THEN 0 WHEN 'core' THEN 1 ELSE 2 END, code",
+                (expectation_id,),
+            ).fetchall()
+        d = dict(r)
+        d["pool"] = [dict(m) for m in members]
+        return d
+
+    def pool_codes(self, expectation_id: int, roles: tuple[str, ...] | None = None) -> list[str]:
+        """某预期的池成员代码;roles 可过滤(如只取 ('leader','core'))。"""
+        if roles is not None:
+            bad = set(roles) - set(self.ROLES)
+            if bad:
+                raise ValueError(f"roles 非法:{bad}")
+        with self._connect() as conn:
+            if roles:
+                marks = ",".join("?" * len(roles))
+                rows = conn.execute(
+                    f"SELECT code FROM pool_members WHERE expectation_id=? AND role IN ({marks})",
+                    (expectation_id, *roles),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT code FROM pool_members WHERE expectation_id=?",
+                    (expectation_id,),
+                ).fetchall()
+        return [r["code"] for r in rows]
+
+    # ── 内部 ────────────────────────────────────────────
+
+    def _connect(self) -> sqlite3.Connection:
+        conn = sqlite3.connect(self.db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    def _init_db(self) -> None:
+        with self._connect() as conn:
+            conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS expectations (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    direction TEXT NOT NULL,
+                    event TEXT NOT NULL,
+                    thesis TEXT NOT NULL,
+                    catalyst TEXT NOT NULL,
+                    fulfill_flag TEXT NOT NULL,
+                    fail_flag TEXT NOT NULL,
+                    stage TEXT NOT NULL DEFAULT 'observing'
+                        CHECK (stage IN ('observing','emerging','confirmed','climax','fulfilling','ended')),
+                    status TEXT NOT NULL DEFAULT 'active'
+                        CHECK (status IN ('researching','active','fulfilled','invalid')),
+                    invalid_reason TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE (direction, event)
+                );
+                CREATE TABLE IF NOT EXISTS pool_members (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    expectation_id INTEGER NOT NULL REFERENCES expectations(id),
+                    code TEXT NOT NULL,
+                    name TEXT NOT NULL DEFAULT '',
+                    role TEXT NOT NULL DEFAULT 'related'
+                        CHECK (role IN ('leader','core','related')),
+                    reason TEXT NOT NULL DEFAULT '',
+                    UNIQUE (expectation_id, code)
+                );
+                CREATE INDEX IF NOT EXISTS pool_members_exp
+                    ON pool_members(expectation_id);
+                """
+            )
+            conn.commit()
+
+
+_expectations: Expectations | None = None
+
+
+def default_expectations() -> Expectations:
+    """默认预期库(单例):与默认账户同一个 SQLite 文件。"""
+    global _expectations
+    if _expectations is None:
+        _expectations = Expectations()
+    return _expectations

@@ -18,6 +18,7 @@ from trader.tools.market import (
     _format_candidates,
     _format_indices,
     _format_limit_up,
+    _tool_error_text,
 )
 
 
@@ -71,3 +72,7 @@ def scan_market(ctx: RunContext[None], mode: str = "live", date: str = "", time:
             parts.append(f"(共 {len(data)} 只触及涨停)")
 
     return "\n".join(parts)
+
+
+# astock 失败(如盘后调 live)返回错误文本给 AI,不崩 run
+scan_market = _tool_error_text(scan_market)

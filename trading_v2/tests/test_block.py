@@ -8,6 +8,9 @@ docstring 统一格式:<场景>:<验证点>
 """
 import textwrap
 
+import pytest
+
+from trader.tools.market import is_trading_hours
 from trader.tools import market
 
 TOOL = "block"
@@ -21,6 +24,7 @@ def _show(label: str, out: str):
 
 # ── get_block_rank ─────────────────────────────────────
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_block_rank_live():
     """get_block_rank live:返回多板块,字段完整(涨跌/涨停/涨跌家数)。"""
     data = market._fetch_block_rank("live", limit=3)
@@ -39,6 +43,7 @@ def test_block_rank_replay():
     assert "change_pct" in data[0]
 
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_block_rank_filter_type():
     """get_block_rank 过滤:block_type=concept 只返回概念板块。"""
     data = market._fetch_block_rank("live", block_type="concept", limit=5)
@@ -49,6 +54,7 @@ def test_block_rank_filter_type():
 
 # ── get_block_members ──────────────────────────────────
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_block_members_live():
     """get_block_members live:880812 成分股,字段同 quotes。"""
     data = market._fetch_block_members("live", "880812", limit=3)

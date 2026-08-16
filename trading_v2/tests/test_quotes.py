@@ -4,6 +4,9 @@ docstring 统一格式:<场景>:<验证点>
 """
 import textwrap
 
+import pytest
+
+from trader.tools.market import is_trading_hours
 from trader.tools import market
 
 TOOL = "get_quotes"
@@ -16,6 +19,7 @@ def _show(label: str, out: str):
     print(textwrap.indent(out, "    "))
 
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_get_quotes_live_multi():
     """live 多股:全字段表格(代码/名称/现价/昨收/涨跌/成交额)。"""
     out = market.get_quotes(ctx=None, codes=["000021", "000636"])

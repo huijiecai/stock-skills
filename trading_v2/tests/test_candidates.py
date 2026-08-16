@@ -6,6 +6,9 @@ docstring 统一格式:<场景>:<验证点>
 """
 import textwrap
 
+import pytest
+
+from trader.tools.market import is_trading_hours
 from trader.tools import market
 
 TOOL = "get_candidates"
@@ -18,6 +21,7 @@ def _show(label: str, out: str):
 
 # ── 底层 _fetch_candidates ─────────────────────────────
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_candidates_default():
     """默认涨幅榜:返回 top 个股,字段完整(涨跌/振幅/涨速/成交额/状态)。"""
     data = market._fetch_candidates(limit=5)
@@ -28,6 +32,7 @@ def test_candidates_default():
     assert "amount" in data[0]
 
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_candidates_state_limit_up():
     """state=limit-up:只返回涨停股(state=limit_up)。"""
     data = market._fetch_candidates(state="limit-up", limit=5)
@@ -36,6 +41,7 @@ def test_candidates_state_limit_up():
     assert all(c.get("state") == "limit_up" for c in data)
 
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_candidates_sort_amount():
     """sort=amount:按成交额排序(放量股,非涨幅)。"""
     data = market._fetch_candidates(sort="amount", limit=5)

@@ -5,9 +5,11 @@
 - 工具(无 _):AI 调用,RunContext[None] + 参数,通用,任何 agent 能用
 - deps 是交易系统阶段才加的"运行环境层",现在不引入
 """
+import functools
 import json
 import os
 import subprocess
+from datetime import datetime, time as dt_time
 from typing import Any
 
 from pydantic_ai import RunContext
@@ -26,11 +28,18 @@ INDICES_NAME = {
 # ── 底层取数(纯函数,不绑 RunContext,任何场景复用)──────
 
 def _astock(*args: str) -> Any:
-    """调 astock 命令(自动加 --json),返回解析后的 JSON。"""
+    """调 astock 命令(自动加 --json),返回解析后的 JSON。
+    astock 输出非 JSON(拒绝/报错,如"盘中专用"命令在盘后调用)时,
+    抛 RuntimeError 带上 astock 的原始错误信息(让 AI 看到原因并换方式)。
+    """
     result = subprocess.run(
         [ASTOCK, *args, "--json"], capture_output=True, text=True
     )
-    return json.loads(result.stdout)
+    out = result.stdout.strip()
+    if out.startswith("[") or out.startswith("{"):
+        return json.loads(out)
+    err = result.stderr.strip() or out or "(无输出)"
+    raise RuntimeError(f"astock 失败({args[0] if args else ''}): {err[:200]}")
 
 
 def _fetch_indices(mode: str, date: str = "", time: str | None = None) -> list[dict]:
@@ -325,6 +334,29 @@ def get_limit_up(ctx: RunContext[None], date: str, time: str = "", exclude_st: b
     实时涨停用 get_candidates(state='limit-up')。
     """
     return _format_limit_up(_fetch_limit_up(date, time or None, exclude_st))
+
+
+def is_trading_hours() -> bool:
+    """A 股交易时段(粗略:周一~五 09:15-15:05,不含节假日)。"""
+    now = datetime.now()
+    return now.weekday() < 5 and dt_time(9, 15) <= now.time() <= dt_time(15, 5)
+
+
+def _tool_error_text(func):
+    """工具包装:astock 失败(如盘后调 live 命令被拒)时返回错误文本,
+    让 AI 看到原因并换方式(如改 replay),而不是崩掉整个 run。"""
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            return func(*args, **kwargs)
+        except RuntimeError as e:
+            return f"工具执行失败:{e}"
+    return wrapper
+
+
+for _n in ("get_quotes", "get_indices", "get_kline", "get_block_rank",
+           "get_block_members", "get_candidates", "get_limit_up"):
+    globals()[_n] = _tool_error_text(globals()[_n])
 
 
 def get_heartbeat(ctx: RunContext[None]) -> str:

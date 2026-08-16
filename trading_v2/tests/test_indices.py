@@ -6,6 +6,9 @@
 
 docstring 统一格式:<场景>:<验证点>
 """
+import pytest
+
+from trader.tools.market import is_trading_hours
 from trader.tools import market
 
 TOOL = "get_indices"  # 本文件测试的工具(-s 输出 [工具名] 标签)
@@ -16,6 +19,7 @@ REPLAY_DATE = "20260812"
 
 # ── 底层 _fetch_indices ────────────────────────────────
 
+@pytest.mark.skipif(not is_trading_hours(), reason="live 命令盘中专用,非交易时段跳过")
 def test_fetch_indices_live_structure():
     """live 模式:返回 5 个主流指数,字段完整、顺序=INDICES。"""
     data = market._fetch_indices("live")

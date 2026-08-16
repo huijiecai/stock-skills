@@ -8,12 +8,15 @@
 deps 是交易系统阶段才加的运行环境层,现在不引入。
 """
 from pydantic_ai import Agent
+from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.models.anthropic import AnthropicModel
+from pydantic_ai.native_tools import WebSearchTool
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.settings import ModelSettings
 
 from trader.config import LLM_API_KEY, LLM_BASE_URL, LLM_MODEL
 from trader.tools.account import get_account, get_positions
+from trader.tools.knowledge import add_expectation, add_pool_member, get_expectations, get_pool, update_expectation
 from trader.tools.market import get_block_members, get_block_rank, get_candidates, get_indices, get_kline, get_limit_up, get_quotes
 from trader.tools.trading import execute
 from trader.tools.watch import scan_market
@@ -26,12 +29,13 @@ model = AnthropicModel(
 )
 agent = Agent(
     model,
+    capabilities=[NativeTool(WebSearchTool(max_uses=3))],  # 联网搜索(server-side,和自定义工具混用)
     system_prompt=(
         "你是A股看盘 agent。每轮会收到时间提示:先调 scan_market 快扫市场,"
         "然后判断——可用工具深查(get_kline/get_block_members 等),"
         "或 execute 交易(整手/主板/T+1 规则),或等待。输出简明判断,不啰嗦。"
     ),
-    model_settings=ModelSettings({"anthropic_thinking": {"type": "disabled"}}, max_tokens=300),
+    model_settings=ModelSettings({"anthropic_thinking": {"type": "disabled"}}, max_tokens=4000),
 )
 
 # 把工具装到 agent 上(工具实现都在 tools/ 各域文件里)
@@ -44,8 +48,13 @@ agent.tool(get_candidates)
 agent.tool(get_limit_up)
 agent.tool(get_positions)
 agent.tool(get_account)
-agent.tool(execute)
+agent.tool(execute, retries=3)
 agent.tool(scan_market)
+agent.tool(get_expectations)
+agent.tool(get_pool)
+agent.tool(add_expectation, retries=3)
+agent.tool(add_pool_member, retries=3)
+agent.tool(update_expectation, retries=3)
 
 
 # ── 跑一轮 ──────────────────────────────────────────────
