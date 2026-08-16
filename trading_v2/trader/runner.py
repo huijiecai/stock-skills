@@ -18,6 +18,7 @@ from pydantic_ai.usage import UsageLimits
 
 from trader.agent import agent
 from trader.prompts import load
+from trader.store import default_account
 from trader.tools.market import _fetch_market_summary
 
 # 盘前/研究这类长任务(八维搜索+多轮工具)放宽请求上限;默认 50 不够用
@@ -63,7 +64,10 @@ def _run_round(prompt: str, history: list[ModelMessage], retries: int = 3,
 
 
 def run_replay(date: str, interval: int = 5, max_rounds: int | None = None) -> None:
-    """模拟看盘:回放某日,每轮步进 interval 分钟,午休自动跳过。"""
+    """模拟看盘:回放某日,每轮步进 interval 分钟,午休自动跳过。
+    每次回放是独立实验:开始时重置账户(空仓+初始现金),预期库/文档保留。"""
+    default_account().reset()
+    print("↺ 已重置模拟账户(空仓 + 初始现金;预期库/文档保留)")
     history: list[ModelMessage] = []
     hhmm = MORNING_START
     rounds = 0

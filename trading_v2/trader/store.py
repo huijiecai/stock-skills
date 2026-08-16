@@ -170,6 +170,16 @@ class Account:
 
     # ── T+1 ─────────────────────────────────────────────
 
+    def reset(self) -> None:
+        """重置模拟账户:现金恢复初始值,清空持仓与成交流水。
+        预期库/文档库不受影响(它们是跨会话知识,不是账户状态)。
+        用途:每次回放(replay)是独立实验,开始前重置,避免上次残留。"""
+        with self._connect() as conn:
+            conn.execute("UPDATE account SET cash_cents=? WHERE id=1", (self.initial_cash,))
+            conn.execute("DELETE FROM positions")
+            conn.execute("DELETE FROM fills")
+            conn.commit()
+
     def settle(self, today: str | None = None) -> int:
         """解锁 T+1:bought_on 早于 today 的持仓全部可卖。返回解锁条数。"""
         today = today or date.today().isoformat()
