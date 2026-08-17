@@ -139,8 +139,15 @@ def day(request: Request, date: str, mode: str = "live"):
     acct = _replay_account(date) if mode == "replay" else default_account()
     positions = acct.positions() if acct else []
     fills = _fills_of(date, mode)
+    docs_store = default_documents()
+    docs_meta = []
+    for dt in ("premarket", "close"):
+        hits = docs_store.list(dt, date)
+        if hits:
+            docs_meta.append({"type": dt, "id": hits[0]["id"], "size": hits[0]["size"]})
     return templates.TemplateResponse(request, "day.html", {
-        "date": date, "mode": mode, "rounds": rounds, "t_rounds": t_rounds,
+        "date": date, "mode": mode, "docs_meta": docs_meta,
+        "rounds": rounds, "t_rounds": t_rounds,
         "usage": _usage_sum(date, mode),
         "cash": (acct.cash() / 100) if acct else 0.0,
         "positions": positions,
@@ -174,6 +181,16 @@ def trades(request: Request, date: str, mode: str = "live"):
         "qm": f"?mode={mode}" if mode != "live" else "",
         "fills": _fills_of(date, mode),
     })
+
+
+@app.get("/doc/{doc_type}/{date}")
+def doc_detail(request: Request, doc_type: str, date: str):
+    if doc_type not in ("premarket", "close", "research", "note"):
+        return templates.TemplateResponse(request, "doc.html", {
+            "doc_type": doc_type, "date": date, "content": None}, status_code=404)
+    content = default_documents().get(doc_type, trade_date=date)
+    return templates.TemplateResponse(request, "doc.html", {
+        "doc_type": doc_type, "date": date, "content": content})
 
 
 @app.get("/expectations")

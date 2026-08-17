@@ -53,3 +53,16 @@ def test_steps_parser():
     steps = _steps(fake)
     assert [s["kind"] for s in steps] == ["prompt", "call", "ret", "text"]
     assert "scan_market" in steps[1]["title"]
+
+
+def test_doc_pages():
+    """盘前/盘后文档页:8/17 有 close,8/18 有 premarket(今晚跑的)。"""
+    r = client.get("/doc/close/20260817")
+    assert r.status_code == 200 and "盘后总结" in r.text
+    r = client.get("/doc/premarket/20260818")
+    assert r.status_code == 200 and "盘前预案" in r.text
+    # 日视图应带文档入口
+    r = client.get("/day/20260817")
+    assert "盘后总结" in r.text and "/doc/close/20260817" in r.text
+    # 白名单外 404
+    assert client.get("/doc/transcript_live/20260817").status_code == 404

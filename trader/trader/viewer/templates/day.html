@@ -26,6 +26,13 @@
     {% if not fills %}<div class="muted">无交易</div>{% endif %}
   </div>
   <div class="card">
+    <h3>当日文档</h3>
+    {% for d in docs_meta %}
+    <div><a href="/doc/{{ d.type }}/{{ date }}">{{ "盘前预案" if d.type == "premarket" else "盘后总结" }}</a>
+      <span class="muted">{{ d.size }} 字</span></div>
+    {% else %}<div class="muted">无</div>{% endfor %}
+  </div>
+  <div class="card">
     <h3>token 消耗</h3>
     <div>{{ usage.rounds }} 轮有思考流 · {{ usage.requests }} 次请求</div>
     <div>输入 {{ "{:,}".format(usage.input_tokens) }} / 输出 {{ "{:,}".format(usage.output_tokens) }} tokens</div>
