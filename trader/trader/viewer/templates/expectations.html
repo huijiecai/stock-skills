@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}预期库{% endblock %}
+{% block nav %}{{ now }}{% endblock %}
+{% block content %}
+<h1>预期库</h1>
+<table>
+  <tr><th>#</th><th>方向</th><th>事件(正在交易什么)</th><th>阶段</th><th>状态</th><th>池</th><th>失效标志(对照)</th></tr>
+  {% for e in expectations %}
+  <tr>
+    <td>{{ e.id }}</td>
+    <td><b>{{ e.direction }}</b></td>
+    <td class="muted">{{ e.event[:60] }}{% if e.event|length > 60 %}…{% endif %}</td>
+    <td><span class="tag stage-{{ e.stage }}">{{ e.stage }}</span></td>
+    <td>{{ e.status }}</td>
+    <td>
+      {% for m in e.pool %}
+      <span class="chip-sm {% if m.role == 'leader' %}leader{% endif %}"
+            title="{{ m.name }} · {{ m.role }}">{{ m.name or m.code }}</span>
+      {% endfor %}
+    </td>
+    <td class="muted">{{ e.fail_flag[:50] }}…</td>
+  </tr>
+  {% endfor %}
+</table>
+<p class="muted">阶段五档:observing → emerging → confirmed → climax → fulfilling → ended;卖出出口B要对照失效标志。</p>
+{% endblock %}

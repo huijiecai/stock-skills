@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}trader viewer{% endblock %}</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<nav>
+  <span class="brand">📊 trader viewer <small>只读</small></span>
+  <a href="/?mode={% if mode is defined and mode == 'replay' %}replay{% endif %}">日视图</a>
+  <a href="/expectations">预期库</a>
+  {% if mode is defined %}<span class="mode-switch">
+    <a class="{{ 'on' if mode == 'live' else '' }}" href="?mode=live">live</a>/
+    <a class="{{ 'on' if mode == 'replay' else '' }}" href="?mode=replay">replay</a>
+  </span>{% endif %}
+  <span class="spacer"></span>
+  <span class="muted">{% block nav %}{% endblock %}</span>
+</nav>
+<main>
+{% block content %}{% endblock %}
+</main>
+<script src="/static/app.js"></script>
+</body>
+</html>

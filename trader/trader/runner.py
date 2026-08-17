@@ -10,11 +10,13 @@
   uv run python -m trader.runner live --sleep 0
 """
 import argparse
+import json
 import re
 import time as time_mod
 from datetime import datetime, time, timedelta
+from pathlib import Path
 
-from pydantic_ai.messages import ModelMessage
+from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.usage import UsageLimits
 
 from trader.agent import agent
@@ -71,18 +73,24 @@ def _run_round(prompt: str, history: list[ModelMessage], retries: int = 3,
 def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
                resume: bool = False) -> None:
     """模拟看盘:回放某日,每轮步进 interval 分钟,午休自动跳过。
-    默认每次回放是独立实验:清掉该日旧 watch_replay 轮日志 + 重置账户(空仓+初始现金),
-    预期库/其他文档保留。--resume 则不清不重置,从该日最大轮号接着回放。"""
+    回放账户完全独立(data/replay_{date}.db,绝不碰 live 账户);
+    默认全新实验(清该日旧 watch_replay/transcript_replay + 重置回放账户),
+    --resume 接续:不清不重置,从该日最大轮号继续。预期库/其他文档始终共享。"""
+    import trader.store as store
+
+    replay_db = Path(__file__).resolve().parent.parent / "data" / f"replay_{date}.db"
+    store._default = store.Account(db_path=replay_db)  # 本进程内所有工具改用回放账户
     if resume:
         done = _last_round("watch_replay", date)
         if not done:
             print("⚠ 没有该日的回放轮日志,无法接续,按全新实验开始")
-        print(f"↺ 接续 {date} 回放:已有 {done} 轮,从第 {done + 1} 轮继续")
+        print(f"↺ 接续 {date} 回放:已有 {done} 轮,从第 {done + 1} 轮继续(回放账户保持原状)")
         rounds, hhmm = done, _resume_clock(date, done)
     else:
         default_documents().delete("watch_replay", date)
+        default_documents().delete("transcript_replay", date)
         default_account().reset()
-        print("↺ 已重置模拟账户并清空该日旧轮日志(空仓+初始现金;预期库/其他文档保留)")
+        print(f"↺ 全新回放实验:{replay_db.name} 已重置(空仓+初始现金,live 账户不受影响)")
         rounds, hhmm = 0, MORNING_START
     history: list[ModelMessage] = []
     while hhmm <= CLOSE:
@@ -94,6 +102,8 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
         prompt = load("round_replay", rounds=rounds, date=date, clock=clock)
         result = _run_round(prompt, history)
         history = _trim_rounds(result.all_messages())
+        _save_transcript("transcript_replay", date, rounds, clock,
+                         result.all_messages(), result.usage())
         print(result.output)
         if max_rounds and rounds >= max_rounds:
             print(f"\n(达到 max_rounds={max_rounds},停止)")
@@ -132,6 +142,22 @@ def _resume_clock(date: str, last_round: int) -> time:
     return MORNING_START
 
 
+def _save_transcript(doc_type: str, trade_date: str, round_no: int, clock: str,
+                     messages: list[ModelMessage], usage) -> None:
+    """每轮完整思考流落库(工具调用/返回/推理的原始消息流,JSON)。
+    viewer 的数据源;落盘失败只警告,绝不影响看盘循环。"""
+    try:
+        content = json.dumps({
+            "round": round_no, "time": clock,
+            "usage": {k: getattr(usage, k, None)
+                      for k in ("requests", "input_tokens", "output_tokens")},
+            "messages": json.loads(ModelMessagesTypeAdapter.dump_json(messages)),
+        }, ensure_ascii=False)
+        default_documents().save(doc_type, content, name=f"r{round_no}", trade_date=trade_date)
+    except Exception as e:  # noqa: BLE001 —— 观测数据,尽力而为
+        print(f"  ⚠ 思考流落盘失败:{type(e).__name__}: {str(e)[:80]}")
+
+
 def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
     """实时看盘:一轮结束马上下一轮(sleep=0 默认不等待),Ctrl+C 停止。
     跨重启接续靠 documents 的轮日志(watch_live/rN/日期):启动时从当天最大轮号接着编号,
@@ -157,6 +183,8 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
         prompt = load("round_live", rounds=rounds, now=now, date=today)
         result = _run_round(prompt, history)
         history = _trim_rounds(result.all_messages())
+        _save_transcript("transcript_live", today, rounds, now,
+                         result.all_messages(), result.usage())
         print(result.output)
         if max_rounds and rounds >= max_rounds:
             print(f"\n(达到 max_rounds={max_rounds},停止)")

@@ -14,7 +14,19 @@ uv run python -m trader.runner close 20260817       # ③ 盘后:预期更新→
 uv run python -m trader.runner replay 20260812 --interval 20  # 模拟看盘(回放,自动重置账户+清旧轮日志)
 uv run python -m trader.runner replay 20260812 --resume       # 接续上次回放(不清不重置,从最大轮号继续)
 uv run python -m trader.runner research "光纤涨价"            # 预期研究(新建/更新自动判断)
+uv run python -m trader.viewer                               # 只读查看器(localhost:8500,审决策链路用)
 ```
+
+## viewer(只读查看器)
+
+`uv run python -m trader.viewer [--port 8500] [--reload]` → 浏览器打开 http://127.0.0.1:8500
+
+- **日视图** `/day/{date}`:账户/当日交易/token 消耗 + 轮次时间线(r1-rN)+ 预期面板
+- **轮详情** `/round/{date}/{n}`:轮日志四小节 + **完整思考流**(📋轮指令 → 🔧工具调用 → ←返回数据 → 💬推理,逐条折叠)+ 该轮 token
+- **交易留痕** `/trades/{date}`:每笔 execute 的决策理由全文
+- **预期库** `/expectations`:阶段/池成员(leader 金色)/失效标志
+- 数据源:live/replay 每轮自动落 `transcript_live/replay` 思考流(documents 表);早于该机制的轮次显示"无思考流"
+- 只读红线:全部 SELECT,不 import 交易代码路径,删掉 viewer/ 目录系统照跑
 
 ## 断点接续(8/17 起)
 

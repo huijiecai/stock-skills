@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}{{ date }} r{{ n }} · 轮详情{% endblock %}
+{% block nav %}<a href="/day/{{ date }}{{ qm }}">← {{ date }} 日视图</a>{% endblock %}
+{% block content %}
+<h1>r{{ n }} <small class="muted">{{ date }}</small></h1>
+
+{% if usage %}
+<p class="usage">本轮:{{ usage.requests }} 次请求 · 输入 {{ "{:,}".format(usage.input_tokens or 0) }} / 输出 {{ "{:,}".format(usage.output_tokens or 0) }} tokens</p>
+{% endif %}
+
+<h2>轮日志(AI 写的四小节)</h2>
+{% if log %}<pre class="log">{{ log }}</pre>{% else %}<p class="warn">该轮没有轮日志。</p>{% endif %}
+
+<h2>完整思考流 <small class="muted">它当时看到什么、怎么想的</small></h2>
+{% if has_transcript %}
+<button class="fold-btn" onclick="foldAll(true)">全部折叠</button>
+<button class="fold-btn" onclick="foldAll(false)">全部展开</button>
+<div class="steps">
+  {% for s in steps %}
+  <details class="step {{ s.kind }}" {% if s.kind == 'text' %}open{% endif %}>
+    <summary>{{ s.title }}</summary>
+    <pre>{{ s.body[:4000] }}{% if s.body|length > 4000 %}
+
+…(截断,原文 {{ s.body|length }} 字){% endif %}</pre>
+  </details>
+  {% endfor %}
+</div>
+{% else %}
+<p class="warn">该轮没有思考流落盘(早于落盘机制上线的轮次)。</p>
+{% endif %}
+{% endblock %}
