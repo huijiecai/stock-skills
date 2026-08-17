@@ -19,6 +19,22 @@ from trader.tools.market import _fetch_quotes, _tool_error_text
 
 MAINBOARD = ("000", "001", "002", "003", "600", "601", "603", "605")
 
+# 单票市值占成本法总资产上限(8/17 剑桥首笔 57.6% 无任何约束,故加硬闸)
+MAX_POSITION_RATIO = 0.40
+
+
+def _check_position_cap(acct, code: str, quantity: int, price: float) -> str | None:
+    """买入后的单票占比 ≤40%(成本法总资产 = 现金 + 全部持仓按成本计)。越限返回拒绝原因。"""
+    positions = acct.positions()
+    total = acct.cash() / 100 + sum(p["quantity"] * p["avg_cost"] for p in positions)
+    held_value = sum(p["quantity"] * p["avg_cost"] for p in positions if p["code"] == code)
+    new_value = held_value + quantity * price
+    if total > 0 and new_value / total > MAX_POSITION_RATIO:
+        max_qty = int(total * MAX_POSITION_RATIO - held_value) // 100 * 100
+        return (f"拒绝:买入后 {code} 占比 {new_value / total:.0%} 超过单票上限 40%"
+                f"(总资产约 ¥{total:,.0f})。最多再买 {max_qty} 股;如需重仓,先在轮日志写明理由后分日建仓")
+    return None
+
 
 def execute(ctx: RunContext[None], action: str, code: str, quantity: int, reason: str,
             expectation_id: int = 0, mode: str = "live", date: str = "",
@@ -50,6 +66,9 @@ def execute(ctx: RunContext[None], action: str, code: str, quantity: int, reason
     acct = default_account()
     try:
         if action == "BUY":
+            cap_err = _check_position_cap(acct, code, quantity, price)
+            if cap_err:
+                return cap_err
             r = acct.buy(code, quantity, price, on=date or None, name=name,
                          reason=reason, expectation_id=expectation_id or None,
                          trade_time=trade_time)  # replay 时 T+1 按回放日算
