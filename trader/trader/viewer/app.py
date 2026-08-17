@@ -5,6 +5,7 @@
 """
 
 import json
+import markdown as md_lib
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -18,6 +19,11 @@ from starlette.requests import Request
 from trader.store import DB_PATH, Account, default_account, default_documents, default_expectations
 
 _VDIR = Path(__file__).resolve().parent
+
+
+def _md(text: str | None) -> str:
+    """md → HTML(自家 agent 产出的文档,本地单用户工具)。"""
+    return md_lib.markdown(text or "", extensions=["tables", "fenced_code"])
 templates = Jinja2Templates(directory=str(_VDIR / "templates"))
 
 app = FastAPI(title="trader viewer(只读)")
@@ -163,10 +169,11 @@ def day(request: Request, date: str, mode: str = "live"):
 @app.get("/round/{date}/{n}")
 def round_detail(request: Request, date: str, n: int, mode: str = "live"):
     log = default_documents().get(_watch(mode), name=f"r{n}", trade_date=date)
+    log_html = _md(log) if log else None
     transcript = _transcript(date, n, mode)
     usage = (transcript or {}).get("usage") or {}
     return templates.TemplateResponse(request, "round.html", {
-        "date": date, "n": n, "log": log, "mode": mode,
+        "date": date, "n": n, "log_html": log_html, "mode": mode,
         "qm": f"?mode={mode}" if mode != "live" else "",
         "steps": _steps(transcript) if transcript else [],
         "usage": usage,
@@ -190,7 +197,8 @@ def doc_detail(request: Request, doc_type: str, date: str):
             "doc_type": doc_type, "date": date, "content": None}, status_code=404)
     content = default_documents().get(doc_type, trade_date=date)
     return templates.TemplateResponse(request, "doc.html", {
-        "doc_type": doc_type, "date": date, "content": content})
+        "doc_type": doc_type, "date": date,
+        "content_html": _md(content) if content else None})
 
 
 @app.get("/expectations")

@@ -9,7 +9,7 @@
 {% endif %}
 
 <h2>轮日志(AI 写的四小节)</h2>
-{% if log %}<pre class="log">{{ log }}</pre>{% else %}<p class="warn">该轮没有轮日志。</p>{% endif %}
+{% if log_html %}<div class="md-body">{{ log_html | safe }}</div>{% else %}<p class="warn">该轮没有轮日志。</p>{% endif %}
 
 <h2>完整思考流 <small class="muted">它当时看到什么、怎么想的</small></h2>
 {% if has_transcript %}

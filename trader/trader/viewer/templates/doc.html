@@ -4,6 +4,6 @@
 {% block content %}
 <h1>{{ "盘前预案" if doc_type == "premarket" else "盘后总结" if doc_type == "close" else doc_type }}
   <small class="muted">{{ date }}</small></h1>
-{% if content %}<pre class="log">{{ content }}</pre>
+{% if content_html %}<div class="md-body">{{ content_html | safe }}</div>
 {% else %}<p class="warn">该日没有 {{ doc_type }} 文档。</p>{% endif %}
 {% endblock %}
