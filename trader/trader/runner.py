@@ -204,8 +204,13 @@ def run_premarket(date: str, prev_date: str | None = None) -> None:
     """盘前分析:启动序列→八维催化扫描→预期更新→场景推演→预案,报告落库。
     prev_date 不传则自动推算上一交易日。"""
     prev_date = prev_date or _prev_trading_day(date)
-    print(f"\n{'=' * 60}\n盘前分析 · 目标日 {date}(上一交易日 {prev_date})\n{'=' * 60}")
-    result = _run_round(load("premarket", date=date, prev=prev_date), [],
+    weekdays = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+    wd = weekdays[datetime.strptime(date, "%Y%m%d").weekday()]
+    # 周末专项只在隔周末(目标日是周一)时必做,平时明确写"跳过"防照搬框架
+    gap = (datetime.strptime(date, "%Y%m%d") - datetime.strptime(prev_date, "%Y%m%d")).days
+    note = f"目标日与上一交易日隔了 {gap - 1} 个自然日,必做不可跳过" if gap > 1 else "本次不隔周末,直接跳过本节并标注'不适用'"
+    print(f"\n{'=' * 60}\n盘前分析 · 目标日 {date} {wd}(上一交易日 {prev_date})\n{'=' * 60}")
+    result = _run_round(load("premarket", date=date, prev=prev_date, weekday=wd, weekend_note=note), [],
                         usage_limits=LONG_TASK_LIMITS)
     print(result.output)
 
