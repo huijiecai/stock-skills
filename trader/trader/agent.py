@@ -7,6 +7,7 @@
 工具是通用的(RunContext[None] + 参数),任何 agent 能复用。
 deps 是交易系统阶段才加的运行环境层,现在不引入。
 """
+import httpx
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import NativeTool
 from pydantic_ai.models.anthropic import AnthropicModel
@@ -25,9 +26,16 @@ from trader.tools.watch import get_pool_health, scan_market
 
 
 # ── 建大脑 ──────────────────────────────────────────────
+# http 客户端必须带超时:8/17 午休期间 socket 静默断开,无超时的阻塞读挂死过整个看盘循环
 model = AnthropicModel(
     LLM_MODEL,
-    provider=AnthropicProvider(api_key=LLM_API_KEY, base_url=LLM_BASE_URL),
+    provider=AnthropicProvider(
+        api_key=LLM_API_KEY,
+        base_url=LLM_BASE_URL,
+        http_client=httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=15, read=300, write=30, pool=15)
+        ),
+    ),
 )
 agent = Agent(
     model,

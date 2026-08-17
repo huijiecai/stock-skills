@@ -71,3 +71,20 @@ def test_pool_health():
     assert "池健康度" in out
     assert "失效标志" in out
     assert "/" in out.split("池健康度:")[1].split()[0]  # X/Y 格式
+
+
+def test_scan_degraded_banner(monkeypatch):
+    """数据通道降级:板块/异动挂掉时不崩整轮,顶部出⚠警示(8/17 ClickHouse 停机回归)。"""
+    import trader.tools.watch as watch
+
+    def _boom(*a, **k):
+        raise RuntimeError("ping clickhouse: dial tcp 127.0.0.1:9000: connect: connection refused")
+
+    monkeypatch.setattr(watch, "_fetch_block_rank", _boom)
+    monkeypatch.setattr(watch, "_fetch_limit_up", _boom)
+    out = scan_market(None, mode="replay", date="20260812", time="10:30")
+    _show("降级快扫", out)
+    assert out.startswith("⚠ 数据通道降级")
+    assert "板块排名不可用" in out and "涨停清单不可用" in out
+    assert "禁止假装已扫描" in out
+    assert "【指数】" in out and "【持仓】" in out  # 其余段照常

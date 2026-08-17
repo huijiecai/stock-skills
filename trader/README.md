@@ -11,8 +11,33 @@ uv run python -m trader.runner live                 # ② 盘中:实时看盘(--
 uv run python -m trader.runner close 20260817       # ③ 盘后:预期更新→逐股扫描→复盘→合规自检
 
 # 其他:
-uv run python -m trader.runner replay 20260812 --interval 20  # 模拟看盘(回放,自动重置账户)
+uv run python -m trader.runner replay 20260812 --interval 20  # 模拟看盘(回放,自动重置账户+清旧轮日志)
+uv run python -m trader.runner replay 20260812 --resume       # 接续上次回放(不清不重置,从最大轮号继续)
 uv run python -m trader.runner research "光纤涨价"            # 预期研究(新建/更新自动判断)
+```
+
+## 断点接续(8/17 起)
+
+看盘记忆 = documents 里的轮日志(`watch_live`/`watch_replay`,name=rN),不依赖进程:
+- live 每轮结束必写轮日志(市况/持仓评估/行动/**自设条件与待办**),随时 Ctrl+C
+- 重启 `live` 自动从当天最大轮号接着编号,AI 开场读最近 3 轮恢复盘感与待办
+- 午休(11:30-13:00)自动跳过;15:05 后自动收工,不再空转
+- 看当天全程:`sqlite3 data/account.db "SELECT content FROM documents WHERE doc_type='watch_live' AND trade_date='20260817' ORDER BY CAST(substr(name,2) AS INTEGER);"`
+
+## live 守护(脱离终端跑法)
+
+```bash
+cd trader && mkdir -p logs && uv run python - << 'EOF'
+import subprocess
+cmd = '''echo $$ > logs/live.pid
+while [ "$(date +%H%M)" -lt 1505 ]; do
+  PYTHONUNBUFFERED=1 env -u ANTHROPIC_API_KEY uv run python -m trader.runner live --sleep 300
+  echo "[watchdog] respawn $(date +%H:%M:%S)"; sleep 10
+done'''
+subprocess.Popen(['bash','-c',cmd], stdout=open('logs/live_$(date +%Y%m%d).log','ab'),
+                 stderr=subprocess.STDOUT, start_new_session=True)
+EOF
+# 停止:kill $(cat logs/live.pid) 及 ps 里的 trader.runner live 进程(用 PID 文件,别 grep 猜)
 ```
 
 ## 目录结构

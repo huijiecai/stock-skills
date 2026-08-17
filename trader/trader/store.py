@@ -542,23 +542,33 @@ class Documents:
             ).fetchone()
         return row["content"] if row else None
 
-    def list(self, doc_type: str | None = None) -> list[dict]:
-        """文档概览(id/类型/名称/日期/字数/更新时间),可按类型过滤。"""
+    def list(self, doc_type: str | None = None, trade_date: str | None = None) -> list[dict]:
+        """文档概览(id/类型/名称/日期/字数/更新时间),可按类型/日期过滤。"""
+        where, params = [], []
+        if doc_type:
+            where.append("doc_type=?")
+            params.append(doc_type)
+        if trade_date:
+            where.append("IFNULL(trade_date,'')=?")
+            params.append(trade_date)
+        sql = ("SELECT id,doc_type,name,trade_date,ref_id,"
+               "LENGTH(content) AS size,updated_at FROM documents")
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY updated_at DESC"
         with self._connect() as conn:
-            if doc_type:
-                rows = conn.execute(
-                    "SELECT id,doc_type,name,trade_date,ref_id,"
-                    "LENGTH(content) AS size,updated_at FROM documents"
-                    " WHERE doc_type=? ORDER BY updated_at DESC",
-                    (doc_type,),
-                ).fetchall()
-            else:
-                rows = conn.execute(
-                    "SELECT id,doc_type,name,trade_date,ref_id,"
-                    "LENGTH(content) AS size,updated_at FROM documents"
-                    " ORDER BY updated_at DESC"
-                ).fetchall()
+            rows = conn.execute(sql, params).fetchall()
         return [dict(r) for r in rows]
+
+    def delete(self, doc_type: str, trade_date: str) -> int:
+        """删除某类型某日期的全部文档(重开回放实验前清旧轮日志),返回删除条数。"""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "DELETE FROM documents WHERE doc_type=? AND IFNULL(trade_date,'')=?",
+                (doc_type, trade_date or ""),
+            )
+            conn.commit()
+            return cur.rowcount
 
     # ── 内部 ────────────────────────────────────────────
 

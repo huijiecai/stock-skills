@@ -10,6 +10,7 @@
   uv run python -m trader.runner live --sleep 0
 """
 import argparse
+import re
 import time as time_mod
 from datetime import datetime, time, timedelta
 
@@ -18,11 +19,15 @@ from pydantic_ai.usage import UsageLimits
 
 from trader.agent import agent
 from trader.prompts import load
-from trader.store import default_account
+from trader.store import default_account, default_documents
 from trader.tools.market import _fetch_market_summary
 
 # 盘前/研究这类长任务(八维搜索+多轮工具)放宽请求上限;默认 50 不够用
 LONG_TASK_LIMITS = UsageLimits(request_limit=200)
+
+# 进程内存里只留最近 N 轮对话,防止全天看盘把上下文撑爆;
+# 跨重启的记忆不靠对话,靠 documents 里的轮日志(watch_live/watch_replay)
+KEEP_ROUNDS = 8
 
 
 def _prev_trading_day(target: str) -> str:
@@ -63,14 +68,23 @@ def _run_round(prompt: str, history: list[ModelMessage], retries: int = 3,
     raise RuntimeError(f"连续 {retries} 次失败,停止看盘: {last_err}")
 
 
-def run_replay(date: str, interval: int = 5, max_rounds: int | None = None) -> None:
+def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
+               resume: bool = False) -> None:
     """模拟看盘:回放某日,每轮步进 interval 分钟,午休自动跳过。
-    每次回放是独立实验:开始时重置账户(空仓+初始现金),预期库/文档保留。"""
-    default_account().reset()
-    print("↺ 已重置模拟账户(空仓 + 初始现金;预期库/文档保留)")
+    默认每次回放是独立实验:清掉该日旧 watch_replay 轮日志 + 重置账户(空仓+初始现金),
+    预期库/其他文档保留。--resume 则不清不重置,从该日最大轮号接着回放。"""
+    if resume:
+        done = _last_round("watch_replay", date)
+        if not done:
+            print("⚠ 没有该日的回放轮日志,无法接续,按全新实验开始")
+        print(f"↺ 接续 {date} 回放:已有 {done} 轮,从第 {done + 1} 轮继续")
+        rounds, hhmm = done, _resume_clock(date, done)
+    else:
+        default_documents().delete("watch_replay", date)
+        default_account().reset()
+        print("↺ 已重置模拟账户并清空该日旧轮日志(空仓+初始现金;预期库/其他文档保留)")
+        rounds, hhmm = 0, MORNING_START
     history: list[ModelMessage] = []
-    hhmm = MORNING_START
-    rounds = 0
     while hhmm <= CLOSE:
         if LUNCH_BREAK[0] < hhmm < LUNCH_BREAK[1]:  # 跳过午休
             hhmm = LUNCH_BREAK[1]
@@ -79,7 +93,7 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None) -> N
         print(f"\n{'=' * 60}\n第 {rounds} 轮 · 模拟看盘 {date} {clock}\n{'=' * 60}")
         prompt = load("round_replay", rounds=rounds, date=date, clock=clock)
         result = _run_round(prompt, history)
-        history = result.all_messages()
+        history = _trim_rounds(result.all_messages())
         print(result.output)
         if max_rounds and rounds >= max_rounds:
             print(f"\n(达到 max_rounds={max_rounds},停止)")
@@ -88,17 +102,61 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None) -> N
         hhmm = time(minutes // 60, minutes % 60)
 
 
+def _trim_rounds(messages: list[ModelMessage], keep: int = KEEP_ROUNDS) -> list[ModelMessage]:
+    """按轮切分(每轮以一个 user 提示开头),只留最近 keep 轮。
+    一轮内部的 请求/工具调用/工具返回 天然成对,整轮丢弃不会产生孤立的工具返回。"""
+    starts = [i for i, m in enumerate(messages)
+              if m.parts and getattr(m.parts[0], "part_kind", "") == "user-prompt"]
+    if len(starts) <= keep:
+        return messages
+    return messages[starts[-keep]:]
+
+
+def _last_round(doc_type: str, trade_date: str) -> int:
+    """从 documents 读当天 watch 轮日志的最大轮号(纯 Python 查表,不过 LLM)。"""
+    best = 0
+    for d in default_documents().list(doc_type, trade_date):
+        name = (d.get("name") or "").strip()
+        if name.startswith("r") and name[1:].isdigit():
+            best = max(best, int(name[1:]))
+    return best
+
+
+def _resume_clock(date: str, last_round: int) -> time:
+    """接续回放:从最后一轮轮日志标题(# rN HH:MM)解析时钟,接不回来就从开盘重来。"""
+    doc = default_documents().get("watch_replay", name=f"r{last_round}", trade_date=date)
+    if doc:
+        m = re.search(r"(\d{1,2}):(\d{2})", doc[:60])
+        if m:
+            return time(int(m.group(1)), int(m.group(2)))
+    return MORNING_START
+
+
 def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
-    """实时看盘:一轮结束马上下一轮(sleep=0 默认不等待),Ctrl+C 停止。"""
+    """实时看盘:一轮结束马上下一轮(sleep=0 默认不等待),Ctrl+C 停止。
+    跨重启接续靠 documents 的轮日志(watch_live/rN/日期):启动时从当天最大轮号接着编号,
+    会话状态(盘感/自设条件/待办)由 prompt 指挥 AI 读最近几轮日志恢复。午休自动跳过。"""
+    today = datetime.now().strftime("%Y%m%d")
+    rounds = _last_round("watch_live", today)
+    if rounds:
+        print(f"↺ 接续今日看盘:documents 里已有 {rounds} 轮日志,从第 {rounds + 1} 轮继续")
     history: list[ModelMessage] = []
-    rounds = 0
     while True:
+        now_t = datetime.now().time()
+        if now_t >= time(15, 5):  # 收盘后不再空转(8/17 曾跑到 15:10+ 浪费轮次)
+            print("\n已过 15:05 收盘,看盘自动结束。盘后总结:uv run python -m trader.runner close YYYYMMDD")
+            return
+        if LUNCH_BREAK[0] < now_t < LUNCH_BREAK[1]:  # 午休数据静止,跑轮纯浪费
+            wait_min = 13 * 60 - (now_t.hour * 60 + now_t.minute)
+            print(f"午休中,睡 {wait_min} 分钟到 13:00 再继续")
+            time_mod.sleep(max(60, wait_min * 60))
+            continue
         rounds += 1
         now = datetime.now().strftime("%H:%M:%S")
         print(f"\n{'=' * 60}\n第 {rounds} 轮 · 实时看盘 {now}\n{'=' * 60}")
-        prompt = load("round_live", rounds=rounds, now=now)
+        prompt = load("round_live", rounds=rounds, now=now, date=today)
         result = _run_round(prompt, history)
-        history = result.all_messages()
+        history = _trim_rounds(result.all_messages())
         print(result.output)
         if max_rounds and rounds >= max_rounds:
             print(f"\n(达到 max_rounds={max_rounds},停止)")
@@ -139,6 +197,8 @@ if __name__ == "__main__":
     p.add_argument("date", help="回放日期 YYYYMMDD(需已 replay prepare)")
     p.add_argument("--interval", type=int, default=5, help="每轮步进分钟(默认 5)")
     p.add_argument("--max-rounds", type=int, default=None, help="最多轮数(调试)")
+    p.add_argument("--resume", action="store_true",
+                   help="接续该日上一次回放(不清日志/不重置账户,从最大轮号继续)")
 
     p = sub.add_parser("premarket", help="盘前分析(八维催化→场景推演→预案,报告落库)")
     p.add_argument("date", help="目标交易日 YYYYMMDD(如 20260817)")
@@ -157,7 +217,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     if args.cmd == "replay":
-        run_replay(args.date, args.interval, args.max_rounds)
+        run_replay(args.date, args.interval, args.max_rounds, resume=args.resume)
     elif args.cmd == "premarket":
         run_premarket(args.date, args.prev_date)
     elif args.cmd == "close":

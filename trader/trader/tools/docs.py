@@ -14,7 +14,8 @@ def save_doc(ctx: RunContext[None], doc_type: str, content: str, name: str = "",
              trade_date: str = "", ref_id: int = 0) -> str:
     """保存/更新文档(同 doc_type+name+trade_date 覆盖)。
     doc_type: premarket(盘前报告,配 trade_date)/ research(研究过程,配 ref_id 挂预期)/
-    close(盘后总结,配 trade_date)/ note(笔记,配 name)。content 是 md 全文。
+    close(盘后总结,配 trade_date)/ watch_live 或 watch_replay(盘中轮日志,
+    name='r轮号' 如 r7,配 trade_date)/ note(笔记,配 name)。content 是 md 全文。
     """
     doc_id = default_documents().save(
         doc_type, content, name=name, trade_date=trade_date or None, ref_id=ref_id or None
@@ -34,9 +35,10 @@ def get_doc(ctx: RunContext[None], doc_type: str, name: str = "", trade_date: st
     return content
 
 
-def list_docs(ctx: RunContext[None], doc_type: str = "") -> str:
-    """列出文档概览(id/类型/名称/日期/字数/更新时间);doc_type 可过滤。"""
-    data = default_documents().list(doc_type or None)
+def list_docs(ctx: RunContext[None], doc_type: str = "", trade_date: str = "") -> str:
+    """列出文档概览(id/类型/名称/日期/字数/更新时间);doc_type/trade_date 可过滤。
+    看"今天看到第几轮"用: list_docs(doc_type='watch_live', trade_date='20260817')"""
+    data = default_documents().list(doc_type or None, trade_date or None)
     if not data:
         return "文档库为空"
     rows = [[d["id"], d["doc_type"], d["name"] or "-", d["trade_date"] or "-",

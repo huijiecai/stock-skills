@@ -53,8 +53,18 @@ def scan_market(ctx: RunContext[None], mode: str = "live", date: str = "", time:
     """快扫:一轮看盘的第一眼。
     指数 + 持仓报价(当日±2% 触发标警⚠)+ 板块 top5 + 异动 top5。
     mode=live(实时,异动=涨幅榜)/replay(回放,异动=涨停清单,date 必填)。
+    板块/异动依赖 ClickHouse:不可用时分段降级 + 顶部警示,不让整轮快扫失败,
+    也禁止 AI 假装已完成市场感知(8/17 ClickHouse 停机曾静默降级近1小时)。
     """
     t = time or None
+    degraded: list[str] = []
+
+    def _safe(label: str, fetch):
+        try:
+            return fetch()
+        except Exception as e:  # noqa: BLE001 —— 单段失败不拖垮整轮快扫
+            degraded.append(f"{label}不可用({str(e)[:60]})")
+            return f"({label}数据不可用)"
 
     # ① 指数
     parts = ["【指数】", _format_indices(_fetch_indices(mode, date, t)), ""]
@@ -84,20 +94,25 @@ def scan_market(ctx: RunContext[None], mode: str = "live", date: str = "", time:
 
     # ③ 板块 top5
     parts.append("【板块 top5】")
-    parts.append(_format_block_rank(_fetch_block_rank(mode, date, t, limit=5)))
+    parts.append(_safe("板块排名", lambda: _format_block_rank(_fetch_block_rank(mode, date, t, limit=5))))
     parts.append("")
 
     # ④ 异动 top5(实时=涨幅榜,回放=涨停清单)
     label = "涨幅榜" if mode == "live" else "涨停清单"
     parts.append(f"【异动 top5 · {label}】")
     if mode == "live":
-        parts.append(_format_candidates(_fetch_candidates(limit=5)))
+        parts.append(_safe("涨幅榜", lambda: _format_candidates(_fetch_candidates(limit=5))))
     else:
-        data = _fetch_limit_up(date, t)
-        parts.append(_format_limit_up(data[:5]))
-        if len(data) > 5:
-            parts.append(f"(共 {len(data)} 只触及涨停)")
+        data = _safe("涨停清单", lambda: _fetch_limit_up(date, t))
+        if isinstance(data, list):
+            parts.append(_format_limit_up(data[:5]))
+            if len(data) > 5:
+                parts.append(f"(共 {len(data)} 只触及涨停)")
 
+    if degraded:
+        parts.insert(0, "⚠ 数据通道降级:" + ";".join(degraded)
+                     + "\n  → ②市场感知/④涨停异动本轮受限:输出里必须如实说明受限,"
+                       "禁止假装已扫描;指数与池健康度仍可用,持仓巡检照常执行。")
     return "\n".join(parts)
 
 

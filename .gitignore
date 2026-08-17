@@ -80,3 +80,7 @@ astock/astock
 
 # ZCode agent workspace (local tooling)
 .zcode/
+
+# trader 运行时产物(日志/PID,不入库)
+trader/logs/
+*.pid
