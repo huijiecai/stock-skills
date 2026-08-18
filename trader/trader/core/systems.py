@@ -24,9 +24,10 @@ EXPECTATION_MANIFEST = {
                      "vars": ["topic"]},
     },
     "tools": [
-        # 行情 9
+        # 行情 10
         "get_quotes", "get_indices", "get_kline", "get_block_rank", "get_block_members",
         "get_candidates", "get_limit_up", "get_market_summary", "get_top_amount",
+        "get_us_market",
         # 账户与交易
         "get_positions", "get_account", "get_trades", "execute",
         # 看盘组合

@@ -387,8 +387,35 @@ def get_market_summary(ctx: RunContext[None], date: str = "") -> str:
 
 
 def get_top_amount(ctx: RunContext[None], date: str = "", limit: int = 20) -> str:
-    """查成交额前 N(资金在哪/异动归因)。date=YYYYMMDD,空=最近交易日。"""
+    """查成交额前 N(资金在哪/异动归因)。date=YYYYMMDD,空=最新交易日。"""
     return _format_top_amount(_fetch_top_amount(date, limit))
+
+
+def _fetch_global_market() -> list[dict]:
+    """底层:全球市场快照(astock live global,TDX 扩展行情)。"""
+    return _astock("live", "global")
+
+
+def get_us_market(ctx: RunContext[None]) -> str:
+    """全球市场实时快照:美股指数(纳指综合/纳指100/费城半导体/金龙中国)+ 商品期货主连
+    (原油/黄金/铜/白银)+ 恒指。数字来自行情服务器(可校验),不是搜索。
+    自动标注数据状态(美东盘中实时 / 已收盘最近值)。
+    注:该源无道指/标普/美股个股——这些用联网搜索补,并必须注来源与时间。"""
+    from datetime import datetime, time as dt_time
+
+    data = _fetch_global_market()
+    if not data:
+        return "全球快照无数据(扩展行情服务器不可达)"
+    now = datetime.now().time()
+    us_intraday = now >= dt_time(21, 30) or now <= dt_time(4, 0)  # 美东常规时段(夏令时≈北京21:30-04:00)
+    state = ("美东盘中,以下为实时快照" if us_intraday
+             else "美股非常规时段,以下为最近交易值")
+    rows = [[d["name"], d["price"], f"{d['change_pct']:+.2f}%", d["pre_close"],
+             d["high"], d["low"]] for d in data]
+    table = tabulate(rows, headers=["品种", "现价", "涨跌", "昨收", "高", "低"],
+                     tablefmt="plain", floatfmt=".2f")
+    return (f"全球市场快照 · 取数 {data[0].get('fetched_at', '')} · {state}\n"
+            f"⚠ 道指/标普/美股个股此源没有,需搜索补充且必须注来源与发布时间\n{table}")
 
 
 def is_trading_hours() -> bool:
@@ -411,5 +438,5 @@ def _tool_error_text(func):
 
 for _n in ("get_quotes", "get_indices", "get_kline", "get_block_rank",
            "get_block_members", "get_candidates", "get_limit_up",
-           "get_market_summary", "get_top_amount"):
+           "get_market_summary", "get_top_amount", "get_us_market"):
     globals()[_n] = _tool_error_text(globals()[_n])

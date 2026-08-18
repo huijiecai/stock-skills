@@ -17,6 +17,7 @@ from trader.tools.trading import execute
 _MARKET_TOOLS = (
     "get_quotes", "get_indices", "get_kline", "get_block_rank", "get_block_members",
     "get_candidates", "get_limit_up", "get_market_summary", "get_top_amount",
+    "get_us_market",
 )
 
 TOOLS: dict = {n: getattr(_market, n) for n in _MARKET_TOOLS}
