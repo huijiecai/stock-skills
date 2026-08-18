@@ -71,7 +71,7 @@ trader/
 ├── prompts/              ← 方法论(反复迭代期用 md,稳定后迁 SQLite)
 │   ├── system.md         ← 盘中完整方法论(六类轮转/双出口/三维确认/共同风险/14:50)
 │   ├── premarket.md      ← 盘前(八维催化/映射表/交叉表/场景推演/预案)
-│   ├── close.md          ← 盘后(预期 ModeB 更新/逐股扫描兜底/复盘/合规)
+│   ├── close.md          ← 盘后(预期逐个更新/逐股扫描兜底/复盘/合规)
 │   ├── research.md       ← 预期研究(双模式:新建归因 + 重新研究更新)
 │   └── round_replay.md / round_live.md  ← 看盘每轮指令
 ├── tests/                ← 57 个测试(47 passed + 10 live 盘中自动跑)
