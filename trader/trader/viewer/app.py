@@ -201,14 +201,16 @@ def _fills_of(date: str, mode: str = "live") -> list[dict]:
 # ── 路由 ────────────────────────────────────────────────
 
 @app.get("/")
-def index(mode: str = "live"):
-    dates = _watch_dates(mode)
-    base = f"/day/{dates[0]}" if dates else "/day/00000000"
-    return RedirectResponse(base + (f"?mode={mode}" if mode != "live" else ""))
+def index():
+    dates = _watch_dates("live")
+    return RedirectResponse(f"/day/{dates[0]}" if dates else "/runs")
 
 
 @app.get("/day/{date}")
 def day(request: Request, date: str, mode: str = "live"):
+    if mode == "replay":
+        # 档案袋模型:回放场的记录在各袋 schema 里,统一入口=「场次」页
+        return RedirectResponse("/runs")
     docs = default_documents().list(_watch(mode), date)
     rounds = sorted(_round_no(d["name"] or "") for d in docs)          # 正序:r1 → rN
     t_rounds = {_round_no(d["name"] or "")                              # 有思考流的轮(可点开看全过程)
@@ -373,8 +375,13 @@ def compare(request: Request, runs: str = ""):
         pv_a, pv_b = {}, {}
     same_prompt, same_date = pv_a == pv_b, a["trade_date"] == b["trade_date"]
     if same_prompt and same_date:
-        verdict = "两场血统完全一致——没有单一变量,无可归因差异"
-        attr = "⚠"
+        if a["kind"] != b["kind"]:
+            verdict = ("同数据日同 prompt 的实盘 vs 模拟——同源复现测试:"
+                       "差异来自实时/回放管线差与 LLM 随机性,衡量整条链路保真度")
+            attr = "复现测试"
+        else:
+            verdict = "两场血统完全一致——没有单一变量,无可归因差异"
+            attr = "⚠"
     elif same_prompt:
         verdict = f"同 prompt,不同数据日({a['trade_date']} vs {b['trade_date']})——差异归因:行情日"
         attr = "行情日"

@@ -13,10 +13,6 @@
   <a href="/runs">场次</a>
   <a href="/expectations">预期库</a>
   <a href="/prompts">Prompts</a>
-  {% if mode is defined %}<span class="mode-switch">
-    <a class="{{ 'on' if mode == 'live' else '' }}" href="?mode=live">live</a>/
-    <a class="{{ 'on' if mode == 'replay' else '' }}" href="?mode=replay">replay</a>
-  </span>{% endif %}
   <span class="spacer"></span>
   <span class="muted">{% block nav %}{% endblock %}</span>
 </nav>
