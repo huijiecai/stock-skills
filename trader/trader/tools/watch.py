@@ -92,6 +92,31 @@ def scan_market(ctx: RunContext[None], mode: str = "live", date: str = "", time:
         parts.append("空仓")
     parts.append("")
 
+    # ②-bis 预期池快览(自选列表常驻:harness 每轮强制呈现全部 active 预期池状态,
+    # 不依赖 AI "记得去看"——两次实测均因注意力漂移漏盯库内预期,故由工具层保证呈现)
+    def _pool_brief():
+        est = default_expectations()
+        active = [e for e in est.get_all() if e["status"] == "active" and e["pool_count"] > 0]
+        if not active:
+            return "(无 active 预期)"
+        pools = {e["id"]: est.get(e["id"])["pool"] for e in active}
+        codes = list(dict.fromkeys(m["code"] for p in pools.values() for m in p))
+        q_by = {q["code"]: q for q in _fetch_quotes(mode, codes, date, t)}
+        lines = []
+        for e in active:
+            members = pools[e["id"]]
+            ups = sum(1 for m in members if q_by.get(m["code"], {}).get("change_pct", 0) > 0)
+            top = max(members, key=lambda m: q_by.get(m["code"], {}).get("change_pct", -99))
+            tq = q_by.get(top["code"], {})
+            mb = "·主板可买" if top["code"].startswith(("000", "001", "002", "003", "600", "601", "603", "605")) else ""
+            chg = f"{tq.get('change_pct', 0):+.1f}%" if tq else "?"
+            lines.append(f"#{e['id']} {e['direction']} 池{ups}/{len(members)}↑ "
+                         f"最强:{top['name'] or top['code']} {chg}{mb}")
+        return "\n".join(lines)
+    parts.append("【预期池快览】(全部 active 预期,每轮自动呈现;走强/启动的→当轮深析)")
+    parts.append(_safe("池快览", _pool_brief))
+    parts.append("")
+
     # ③ 板块 top5
     parts.append("【板块 top5】")
     parts.append(_safe("板块排名", lambda: _format_block_rank(_fetch_block_rank(mode, date, t, limit=5))))
