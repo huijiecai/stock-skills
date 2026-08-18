@@ -183,24 +183,25 @@ def _expectation_rows(bag: int = 0) -> list[dict]:
 
 
 def _run_metrics(run: dict) -> dict:
-    """一场的对比指标:优先读封场 metrics(§8),缺则现场由袋子数据算。"""
-    if run.get("metrics"):
-        m = run["metrics"]
-        m.setdefault("stats", _rule_stats(run["trade_date"] or "", run["kind"], run.get("bag_id") or 0))
-        return m
+    """一场的对比指标:现场算基础字段(模板要 cash/cost_value/stats/fills),
+    封场 metrics(§8)存在则覆盖其上(收益/回撤/胜率以封场值为准)。"""
     bag = run.get("bag_id") or 0
     acct = Account()
     date = run["trade_date"] or ""
     fills = _fills_of(date, bag)
     cash = acct.cash(bag) / 100
     cost_value = sum(p["quantity"] * p["avg_cost"] for p in acct.positions(bag))
-    usage = _usage_sum(date, run["kind"], bag)
-    return {
+    m = {
         "cash": cash, "cost_value": cost_value, "asset": cash + cost_value,
         "initial": 100_000, "pnl": cash + cost_value - 100_000,
         "n_fills": len(fills), "fills": fills,
-        "usage": usage, "stats": _rule_stats(date, run["kind"], bag),
+        "usage": _usage_sum(date, run["kind"], bag),
+        "stats": _rule_stats(date, run["kind"], bag),
     }
+    if run.get("metrics"):
+        m.update(run["metrics"])
+        m["n_fills"], m["fills"] = len(fills), fills  # 列表型字段以现场为准
+    return m
 
 
 # ── 路由 ────────────────────────────────────────────────

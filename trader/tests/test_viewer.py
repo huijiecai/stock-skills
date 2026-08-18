@@ -86,3 +86,17 @@ def test_compare_page():
     assert r.status_code == 200 and "血统校验" in r.text and "指标对比" in r.text
     r = client.get("/compare?runs=4")     # 只选一场 → 400
     assert r.status_code == 400
+
+
+def test_compare_live_vs_replay():
+    """对比页:实盘#2 vs 模拟#10(行级袋+封场 metrics)可渲染。"""
+    r = client.get("/compare?runs=2,10")
+    assert r.status_code == 200
+    assert "差异归因" in r.text or "归因" in r.text
+
+
+def test_replay_run_page_with_metrics():
+    """回放场详情:bag10(20260818-v2验收)轮次/思考流/封场指标齐全。"""
+    r = client.get("/run/10")
+    assert r.status_code == 200
+    assert "封场指标" in r.text and "metrics" in r.text
