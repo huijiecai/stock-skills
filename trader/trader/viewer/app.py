@@ -346,8 +346,7 @@ def _run_metrics(run: dict) -> dict:
     cash = acct.cash() / 100
     cost_value = sum(p["quantity"] * p["avg_cost"] for p in acct.positions())
     usage = _usage_sum_schema(docs, date, tr_type)
-    stats = _rule_stats_schema(docs, date,
-                               "watch_live" if live else "watch_replay")
+    stats = _rule_stats_schema(docs, date, tr_type)  # 统计解析的是思考流(transcript_*)
     rounds = [d for d in docs.list("watch_live" if live else "watch_replay", date)]
     return {
         "cash": cash, "cost_value": cost_value,
