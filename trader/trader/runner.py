@@ -14,7 +14,6 @@ import json
 import re
 import time as time_mod
 from datetime import datetime, time, timedelta
-from pathlib import Path
 
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.usage import UsageLimits
@@ -78,8 +77,8 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
     --resume 接续:不清不重置,从该日最大轮号继续。预期库/其他文档始终共享。"""
     import trader.store as store
 
-    replay_db = Path(__file__).resolve().parent.parent / "data" / f"replay_{date}.db"
-    store._default = store.Account(db_path=replay_db)  # 本进程内所有工具改用回放账户
+    schema = f"replay_{date}"
+    store._default = store.Account(schema=schema)  # 本进程内所有工具改用回放账户(PG schema 隔离)
     if resume:
         done = _last_round("watch_replay", date)
         if not done:
@@ -90,7 +89,7 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
         default_documents().delete("watch_replay", date)
         default_documents().delete("transcript_replay", date)
         default_account().reset()
-        print(f"↺ 全新回放实验:{replay_db.name} 已重置(空仓+初始现金,live 账户不受影响)")
+        print(f"↺ 全新回放实验:schema {schema} 已重置(空仓+初始现金,live 账户不受影响)")
         rounds, hhmm = 0, MORNING_START
     history: list[ModelMessage] = []
     while hhmm <= CLOSE:

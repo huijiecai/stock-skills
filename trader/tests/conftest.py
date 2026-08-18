@@ -32,3 +32,20 @@ def _log_test(request):
     rep = getattr(request.node, "rep_call", None)
     status = "✗ 失败" if (rep is not None and not rep.passed) else "✓ 通过"
     print(f"  {status}")
+
+
+# ── PG 测试隔离:会话开始时清掉上轮遗留的 t_* schema ──
+import psycopg
+import pytest
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _clean_test_schemas():
+    from trader.store import DATABASE_URL
+    with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
+        rows = conn.execute(
+            "SELECT schema_name FROM information_schema.schemata"
+            " WHERE schema_name LIKE 't\_%'").fetchall()
+        for (name,) in rows:
+            conn.execute(f'DROP SCHEMA "{name}" CASCADE')
+    yield

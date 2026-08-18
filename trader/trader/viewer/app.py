@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from trader.store import DB_PATH, Account, default_account, default_documents, default_expectations
+from trader.store import Account, default_account, default_documents, default_expectations, schema_exists
 
 _VDIR = Path(__file__).resolve().parent
 
@@ -111,9 +111,8 @@ def _steps(transcript: dict[str, Any]) -> list[dict[str, str]]:
 
 
 def _replay_account(date: str) -> Account | None:
-    """回放账户(独立库);库不存在(没跑过回放)返回 None。"""
-    db = DB_PATH.parent / f"replay_{date}.db"
-    return Account(db_path=db) if db.exists() else None
+    """回放账户(PG schema replay_{date});schema 不存在(没跑过回放)返回 None。"""
+    return Account(schema=f"replay_{date}") if schema_exists(f"replay_{date}") else None
 
 
 def _text_all(t: dict) -> str:

@@ -11,15 +11,16 @@ from trader.store import Account, AccountError
 TOOL = "account"
 
 
-def _acct(tmp_path, initial=100_000_00):
-    return Account(db_path=tmp_path / "test.db", initial_cash=initial)
+def _acct(request, initial=100_000_00):
+    """每个测试独立 schema(t_<测试名>),互不污染。"""
+    return Account(schema=f"t_{request.node.name[:40]}", initial_cash=initial)
 
 
 # ── 初始化 ─────────────────────────────────────────────
 
-def test_init_cash(tmp_path):
+def test_init_cash(request):
     """初始化:现金=初始资金,持仓为空。"""
-    a = _acct(tmp_path)
+    a = _acct(request)
     print(f"  → 现金 ¥{a.cash() / 100:,.2f},持仓 {a.positions()}")
     assert a.cash() == 100_000_00
     assert a.positions() == []
@@ -27,9 +28,9 @@ def test_init_cash(tmp_path):
 
 # ── 买入 ───────────────────────────────────────────────
 
-def test_buy_first_day_locked(tmp_path):
+def test_buy_first_day_locked(request):
     """首买:扣现金、建仓,当日 T+1 锁定(sellable=0)。"""
-    a = _acct(tmp_path)
+    a = _acct(request)
     r = a.buy("000021", 200, 40.00, on="2026-08-12")
     pos = a.position("000021")
     print(f"  → 买入结果 {r},持仓 {pos}")
@@ -39,9 +40,9 @@ def test_buy_first_day_locked(tmp_path):
     assert a.cash() == 100_000_00 - 200 * 4000
 
 
-def test_buy_add_weighted_cost(tmp_path):
+def test_buy_add_weighted_cost(request):
     """加仓:成本加权,且重置 T+1(保守)。"""
-    a = _acct(tmp_path)
+    a = _acct(request)
     a.buy("000021", 100, 40.00, on="2026-08-11")
     a.settle("2026-08-12")  # 旧仓解锁
     a.buy("000021", 100, 60.00, on="2026-08-12")  # 加仓
@@ -52,9 +53,9 @@ def test_buy_add_weighted_cost(tmp_path):
     assert pos["sellable"] == 100  # 旧的100仍可卖,新100锁定
 
 
-def test_buy_cash_insufficient(tmp_path):
+def test_buy_cash_insufficient(request):
     """现金不足:拒绝并保持状态不变。"""
-    a = _acct(tmp_path, initial=5_000_00)  # ¥5,000
+    a = _acct(request, initial=5_000_00)  # ¥5,000
     with pytest.raises(AccountError, match="现金不足"):
         a.buy("000021", 200, 40.00)
     assert a.cash() == 5_000_00
@@ -63,18 +64,18 @@ def test_buy_cash_insufficient(tmp_path):
 
 # ── 卖出 + T+1 ─────────────────────────────────────────
 
-def test_sell_reject_before_settle(tmp_path):
+def test_sell_reject_before_settle(request):
     """T+1 锁定:当日买入卖不出(可卖不足拒绝)。"""
-    a = _acct(tmp_path)
+    a = _acct(request)
     a.buy("000021", 100, 40.00, on="2026-08-12")
     with pytest.raises(AccountError, match="可卖不足"):
         a.sell("000021", 100, 41.00)
     assert a.position("000021")["quantity"] == 100  # 持仓不变
 
 
-def test_settle_unlock_then_sell(tmp_path):
+def test_settle_unlock_then_sell(request):
     """settle 解锁:次日全可卖,卖出加现金、减仓。"""
-    a = _acct(tmp_path)
+    a = _acct(request)
     a.buy("000021", 100, 40.00, on="2026-08-12")
     n = a.settle("2026-08-13")  # 次日解锁
     assert n == 1
@@ -86,9 +87,9 @@ def test_settle_unlock_then_sell(tmp_path):
 
 # ── 审计对账 ───────────────────────────────────────────
 
-def test_fills_chain(tmp_path):
+def test_fills_chain(request):
     """fills 链:cash_before 链式衔接(cash_after[i] == cash_before[i+1])。"""
-    a = _acct(tmp_path)
+    a = _acct(request)
     a.buy("000021", 100, 40.00, on="2026-08-11")
     a.settle("2026-08-12")
     a.sell("000021", 50, 50.00)
@@ -98,9 +99,9 @@ def test_fills_chain(tmp_path):
     assert fills[0]["cash_after_cents"] == fills[1]["cash_before_cents"]  # 链式
 
 
-def test_trade_with_reason(tmp_path):
+def test_trade_with_reason(request):
     """决策留痕:买卖的 reason/expectation_id/名称/回放时点 落进 fills。"""
-    a = _acct(tmp_path)
+    a = _acct(request)
     a.buy("000021", 100, 40.00, on="2026-08-11", name="深科技",
           reason="存储主线确认,放量领涨", expectation_id=4)
     a.settle("2026-08-12")

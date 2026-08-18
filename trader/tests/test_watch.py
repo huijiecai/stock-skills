@@ -47,7 +47,7 @@ def test_scan_position_alert():
     """持仓标警:构造持仓后,±2% 出现 ⚠(用临时库替换默认账户)。"""
     import trader.store as store
 
-    a = store.Account(db_path="/tmp/scan_test.db")
+    a = store.Account(schema="t_scan")
     a.buy("000021", 100, 40.0, on="2026-08-11")
     a.settle("2026-08-12")
     original = store._default

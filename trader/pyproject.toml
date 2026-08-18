@@ -10,6 +10,7 @@ dependencies = [
     "jinja2>=3.1.6",
     "markdown>=3.10.3",
     "openai>=3.0.0",
+    "psycopg[binary]>=3.3.4",
     "pydantic-ai>=2.29.0",
     "python-dotenv>=1.2.2",
     "tabulate>=0.10.0",

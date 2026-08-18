@@ -97,6 +97,9 @@ uv run python -m trader.tools call get_doc doc_type=close trade_date=20260812
 
 - **.env**:`cp .env.example .env` 后填 DeepSeek key(联网搜索复用同一 key)
 - **ClickHouse**:Docker 里 `astock-clickhouse` 容器,跑之前确认 healthy(否则 replay/query 类会失败)
+- **PostgreSQL**:Docker 里 `stock_postgres` 容器(5432,库 `trader`,postgres/password)——trader 的主存储
+  (账户/预期/文档/思考流;回放隔离用 PG schema `replay_{date}`)。连接串可用环境变量 `DATABASE_URL` 覆盖;
+  旧 SQLite(data/account.db)为 8/18 前的只读存档,迁移脚本 scripts/migrate_sqlite_to_pg.py
 - live 类命令(板块排名/异动榜/成交)盘中专用,盘后自动拒绝并提示用 replay
 - 回放 = 独立实验(自动重置账户);收盘统计类工具带"未来数据"警示防回放泄漏
 
