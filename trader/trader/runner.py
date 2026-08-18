@@ -103,7 +103,7 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
         result = _run_round(prompt, history)
         history = _trim_rounds(result.all_messages())
         _save_transcript("transcript_replay", date, rounds, clock,
-                         result.all_messages(), result.usage())
+                         result.all_messages(), result.usage)
         print(result.output)
         if max_rounds and rounds >= max_rounds:
             print(f"\n(达到 max_rounds={max_rounds},停止)")
@@ -184,7 +184,7 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
         result = _run_round(prompt, history)
         history = _trim_rounds(result.all_messages())
         _save_transcript("transcript_live", today, rounds, now,
-                         result.all_messages(), result.usage())
+                         result.all_messages(), result.usage)
         print(result.output)
         if max_rounds and rounds >= max_rounds:
             print(f"\n(达到 max_rounds={max_rounds},停止)")
