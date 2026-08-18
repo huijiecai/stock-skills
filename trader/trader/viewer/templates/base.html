@@ -10,6 +10,7 @@
 <nav>
   <span class="brand">📊 trader viewer <small>只读</small></span>
   <a href="/?mode={% if mode is defined and mode == 'replay' %}replay{% endif %}">日视图</a>
+  <a href="/runs">场次</a>
   <a href="/expectations">预期库</a>
   <a href="/prompts">Prompts</a>
   {% if mode is defined %}<span class="mode-switch">
