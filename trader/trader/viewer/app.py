@@ -26,6 +26,9 @@ def _md(text: str | None) -> str:
     """md → HTML(自家 agent 产出的文档,本地单用户工具)。"""
     return md_lib.markdown(text or "", extensions=["tables", "fenced_code"])
 templates = Jinja2Templates(directory=str(_VDIR / "templates"))
+# 静态资源自动版本号:文件 mtime 变 → URL 变 → 浏览器缓存自动失效(不再吃旧 js/css)
+_static_v = str(max(int(p.stat().st_mtime) for p in (_VDIR / "static").iterdir()))
+templates.env.globals["static_v"] = _static_v
 
 app = FastAPI(title="trader viewer(只读)")
 app.mount("/static", StaticFiles(directory=str(_VDIR / "static")), name="static")
