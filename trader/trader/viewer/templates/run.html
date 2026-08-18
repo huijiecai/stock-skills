@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ run.name }}{% endblock %}
+{% block nav %}<a href="/runs">← 场次列表</a>{% endblock %}
+{% block content %}
+<h1>{{ run.name }}
+  <small class="muted">{{ '实盘' if run.kind == 'live' else '模拟' }} · {{ run.status }} · prompt {{ run.prompt_versions | truncate(60) }}</small></h1>
+
+<div class="cards">
+  <div class="card"><h3>钱包</h3>
+    <div>现金 ¥{{ "{:,.0f}".format(cash) }}</div>
+    {% for p in positions %}<div>{{ p.code }} {{ p.name }} {{ p.quantity }}股 @{{ p.avg_cost }}</div>{% endfor %}
+    {% if not positions %}<div class="muted">空仓</div>{% endif %}
+  </div>
+  <div class="card"><h3>成交({{ fills | length }})</h3>
+    {% for f in fills %}<div><span class="tag {{ 'buy' if f.side == 'BUY' else 'sell' }}">{{ f.side }}</span>
+      {{ f.name or f.code }} {{ f.quantity }}@{{ f.price_cents / 100 }}</div>{% endfor %}
+    {% if not fills %}<div class="muted">无</div>{% endif %}
+  </div>
+  <div class="card"><h3>统计</h3>
+    <div>池评估 {{ stats.pool | length }}/{{ stats.n }} 轮</div>
+    <div>买点纪律 {{ stats.discipline | length }} 次 · 拒绝轮 {{ stats.reject | length }} 个</div>
+    <div class="muted">token:{{ usage.requests }} 请求 · 输入 {{ "{:,}".format(usage.input_tokens) }}</div>
+  </div>
+</div>
+
+<h2>轮次 <small class="muted">点开看思考流</small></h2>
+<div class="timeline">
+  {% for r in rounds %}
+  <a class="chip {{ 'has-ts' if r in t_rounds else 'no-ts' }}"
+     href="/round/{{ date }}/{{ r }}?mode={{ 'live' if run.kind == 'live' else 'replay' }}{% if run.kind != 'live' %}&run={{ run.id }}{% endif %}">r{{ r }}</a>
+  {% endfor %}
+</div>
+
+<h2>预期快照({{ expectations | length }})</h2>
+<table>
+  <tr><th>#</th><th>方向</th><th>阶段</th><th>状态</th><th>池</th></tr>
+  {% for e in expectations %}
+  <tr><td>{{ e.id }}</td><td>{{ e.direction }}</td>
+      <td><span class="tag stage-{{ e.stage }}">{{ e.stage }}</span></td>
+      <td>{{ e.status }}</td><td>{{ e.core_count }}/{{ e.pool_count }}</td></tr>
+  {% endfor %}
+</table>
+{% endblock %}

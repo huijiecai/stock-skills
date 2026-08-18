@@ -16,7 +16,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from trader.store import Account, default_account, default_documents, default_expectations, default_prompt_versions, schema_exists
+from trader.store import (Account, Documents, default_account, default_documents,
+                           default_expectations, default_prompt_versions, default_runs, schema_exists)
 
 _VDIR = Path(__file__).resolve().parent
 
@@ -57,8 +58,12 @@ def _watch_dates(mode: str = "live") -> list[str]:
     return sorted(dates, reverse=True)
 
 
-def _transcript(date: str, n: int, mode: str = "live") -> dict[str, Any] | None:
-    raw = default_documents().get(_tr(mode), name=f"r{n}", trade_date=date)
+def _bag_docs(schema: str | None = None) -> Documents:
+    return Documents(schema=schema) if schema else default_documents()
+
+
+def _transcript(date: str, n: int, mode: str = "live", schema: str | None = None) -> dict[str, Any] | None:
+    raw = _bag_docs(schema).get(_tr(mode), name=f"r{n}", trade_date=date)
     if not raw:
         return None
     try:
@@ -123,6 +128,45 @@ def _text_all(t: dict) -> str:
 def _calls_tool(t: dict, name: str) -> bool:
     return any(p.get("part_kind") == "tool-call" and p.get("tool_name") == name
                for m in t.get("messages", []) for p in m.get("parts", []))
+
+
+def _usage_sum_schema(docs: Documents, date: str, tr_type: str) -> dict:
+    total = {"rounds": 0, "requests": 0, "input_tokens": 0, "output_tokens": 0}
+    for d in docs.list(tr_type, date):
+        try:
+            t = json.loads(docs.get(tr_type, name=d["name"], trade_date=date) or "")
+        except Exception:  # noqa: BLE001
+            continue
+        u = t.get("usage") or {}
+        total["rounds"] += 1
+        for k in ("requests", "input_tokens", "output_tokens"):
+            v = u.get(k)
+            if isinstance(v, int):
+                total[k] += v
+    return total
+
+
+def _rule_stats_schema(docs: Documents, date: str, tr_type: str) -> dict:
+    """袋内规则执行统计(直接解析袋内思考流 JSON)。"""
+    pool, discipline, reject = [], [], []
+    n = 0
+    for d in docs.list(tr_type, date):
+        r = _round_no(d["name"] or "")
+        try:
+            t = json.loads(docs.get(tr_type, name=d["name"], trade_date=date) or "")
+        except Exception:  # noqa: BLE001
+            continue
+        if not t:
+            continue
+        n += 1
+        if _calls_tool(t, "get_pool_health"):
+            pool.append(r)
+        text = _text_all(t) or " "
+        if any(k in text for k in ("不追", "等回踩", "等回调")):
+            discipline.append(r)
+        if "拒绝" in text:
+            reject.append(r)
+    return {"pool": pool, "discipline": discipline, "reject": reject, "n": n}
 
 
 def _rule_stats(date: str, mode: str) -> dict:
@@ -229,6 +273,57 @@ def doc_detail(request: Request, doc_type: str, date: str):
 
 
 # ── prompt 版本库 ───────────────────────────────────────
+
+
+
+# ── 档案袋(场次)───────────────────────────────────────
+
+def _run_or_404(run_id: int):
+    for r in default_runs().list():
+        if r["id"] == run_id:
+            return r
+    return None
+
+
+@app.get("/runs")
+def runs_page(request: Request):
+    return templates.TemplateResponse(request, "runs.html", {
+        "runs": default_runs().list(),
+    })
+
+
+@app.get("/run/{run_id}")
+def run_view(request: Request, run_id: int):
+    run = _run_or_404(run_id)
+    if run is None:
+        return templates.TemplateResponse(request, "runs.html",
+                                          {"runs": default_runs().list()}, status_code=404)
+    schema = run["schema_name"]
+    live = run["kind"] == "live"
+    docs = _bag_docs(schema)
+    date = run["trade_date"] or ""
+    watch = "watch_live" if live else "watch_replay"
+    tr = "transcript_live" if live else "transcript_replay"
+    doc_rows = docs.list(watch, date)
+    rounds = sorted(_round_no(d["name"] or "") for d in doc_rows)
+    acct = default_account() if live else Account(schema=schema)
+    iso = _iso(date)
+    fills = [f for f in acct.fills()
+             if (f.get("trade_time") or f.get("created_at", "")).startswith(iso)]         if not live else _fills_of(date, "live")
+    t_rounds = {_round_no(d["name"] or "") for d in docs.list(tr, date)}
+    exps = (default_expectations() if live
+            else __import__("trader.store", fromlist=["Expectations"]).Expectations(schema=schema))
+    return templates.TemplateResponse(request, "run.html", {
+        "run": run, "date": date, "mode": run["kind"],
+        "rounds": rounds, "t_rounds": t_rounds,
+        "usage": _usage_sum_schema(docs, date, tr),
+        "cash": acct.cash() / 100,
+        "positions": acct.positions(),
+        "fills": fills,
+        "expectations": exps.get_all(),
+        "stats": _rule_stats_schema(docs, date, tr),
+    })
+
 
 @app.get("/prompts")
 def prompts(request: Request):

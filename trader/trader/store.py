@@ -667,3 +667,170 @@ def default_prompt_versions() -> PromptVersions:
     if _prompt_versions is None:
         _prompt_versions = PromptVersions()
     return _prompt_versions
+
+
+# ══════════════════════════════════════════════════════════
+# 档案袋(Runs):一次看盘一个袋子(核心设计§2)
+# live=public schema(钱包连续/知识库正本);replay=独立 schema(钱包从零+知识快照+文档全袋内)
+# ══════════════════════════════════════════════════════════
+
+class Runs:
+    """档案袋登记簿:建场/封存/列表/删除 + 预期库快照复制。"""
+
+    def __init__(self, schema: str = "public") -> None:
+        self.schema = schema
+        self._init_db()
+
+    def create(self, name: str, kind: str, trade_date: str,
+               prompt_versions: dict) -> dict:
+        """建档(同名已存在→ValueError)。kind=live/replay。
+        replay 的隔离 schema 在建档后由调用方用 ensure_run_schema 创建。"""
+        from datetime import datetime as _dt
+
+        now = _dt.now().isoformat(timespec="seconds")
+        with _connect(self.schema) as conn:
+            try:
+                r = conn.execute(
+                    "INSERT INTO runs(name, kind, trade_date, schema_name, status,"
+                    " prompt_versions, created_at)"
+                    " VALUES(%s,%s,%s,'pending','running',%s,%s) RETURNING *",
+                    (name, kind, trade_date,
+                     _json_dumps(prompt_versions), now),
+                ).fetchone()
+            except psycopg.errors.UniqueViolation as e:
+                raise ValueError(f"场次已存在:{name}(换个名字,或 replay-rm 删除旧场)") from e
+        return r
+
+    def get(self, name: str) -> dict | None:
+        with _connect(self.schema) as conn:
+            return conn.execute("SELECT * FROM runs WHERE name=%s", (name,)).fetchone()
+
+    def set_schema(self, run_id: int, schema_name: str) -> None:
+        with _connect(self.schema) as conn:
+            conn.execute("UPDATE runs SET schema_name=%s WHERE id=%s",
+                         (schema_name, run_id))
+
+    def seal(self, run_id: int) -> None:
+        from datetime import datetime as _dt
+        with _connect(self.schema) as conn:
+            conn.execute("UPDATE runs SET status='sealed', sealed_at=%s WHERE id=%s",
+                         (_dt.now().isoformat(timespec="seconds"), run_id))
+
+    def delete(self, name: str) -> int:
+        """删场:先 drop 它的隔离 schema(袋子内一切随之消失),再删登记行。"""
+        run = self.get(name)
+        if run is None:
+            return 0
+        with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
+            if run["schema_name"] and run["schema_name"] != "public":
+                conn.execute(f'DROP SCHEMA IF EXISTS "{run["schema_name"]}" CASCADE')
+        with _connect(self.schema) as conn:
+            conn.execute("DELETE FROM runs WHERE id=%s", (run["id"],))
+        return 1
+
+    def list(self, kind: str | None = None, trade_date: str | None = None) -> list[dict]:
+        where, params = [], []
+        if kind:
+            where.append("kind=%s")
+            params.append(kind)
+        if trade_date:
+            where.append("trade_date=%s")
+            params.append(trade_date)
+        sql = "SELECT id, name, kind, trade_date, schema_name, status, prompt_versions, created_at, sealed_at FROM runs"
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " ORDER BY id DESC"
+        with _connect(self.schema) as conn:
+            return conn.execute(sql, params).fetchall()
+
+    # ── 预期库快照(开局把正本复制进袋子)────────────────
+
+    @staticmethod
+    def snapshot_expectations(source_schema: str, target_schema: str) -> str:
+        """复制 expectations+pool_members(期望换新 id,池跟随)。
+        返回快照指纹(sha256,对比两场起点是否一致用)。"""
+        import hashlib
+
+        src = Expectations(schema=source_schema)
+        dst = Expectations(schema=target_schema)
+        fingerprint = hashlib.sha256()
+        with _connect(target_schema) as conn:
+            conn.execute("DELETE FROM pool_members")
+            conn.execute("DELETE FROM expectations")
+            for e in src.get_all():
+                row = _connect(source_schema).execute(
+                    "SELECT * FROM expectations WHERE id=%s", (e["id"],)
+                ).fetchone()
+                r = conn.execute(
+                    "INSERT INTO expectations(direction,event,thesis,catalyst,"
+                    "fulfill_flag,fail_flag,stage,status,invalid_reason,created_at,updated_at)"
+                    " VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING id",
+                    (row["direction"], row["event"], row["thesis"], row["catalyst"],
+                     row["fulfill_flag"], row["fail_flag"], row["stage"], row["status"],
+                     row["invalid_reason"], row["created_at"], row["updated_at"]),
+                ).fetchone()
+                new_id = r["id"]
+                for m in src.get(e["id"])["pool"]:
+                    conn.execute(
+                        "INSERT INTO pool_members(expectation_id,code,name,role,reason)"
+                        " VALUES(%s,%s,%s,%s,%s)",
+                        (new_id, m["code"], m["name"], m["role"], m["reason"]),
+                    )
+                fingerprint.update(
+                    f"{e['id']}:{e['direction']}:{e['event']}:{e['stage']}:{e['status']};".encode()
+                )
+        return fingerprint.hexdigest()[:16]
+
+    @staticmethod
+    def copy_docs(source_schema: str, target_schema: str,
+                  doc_types: tuple[str, ...], trade_date: str) -> int:
+        """把某日的指定类型文档从正本复制进袋子(预案/收盘属于知识,袋子自包含用)。"""
+        src, dst = Documents(schema=source_schema), Documents(schema=target_schema)
+        n = 0
+        for dt in doc_types:
+            for d in src.list(dt, trade_date):
+                content = src.get(dt, name=d["name"], trade_date=trade_date)
+                if content:
+                    dst.save(dt, content, name=d["name"], trade_date=trade_date,
+                             ref_id=d["ref_id"])
+                    n += 1
+        return n
+
+    def _init_db(self) -> None:
+        with _connect(self.schema) as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS runs (
+                    id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    name TEXT NOT NULL UNIQUE,
+                    kind TEXT NOT NULL CHECK (kind IN ('live','replay')),
+                    trade_date TEXT,
+                    schema_name TEXT NOT NULL DEFAULT '',
+                    status TEXT NOT NULL DEFAULT 'running',
+                    prompt_versions TEXT NOT NULL DEFAULT '{}',
+                    created_at TEXT NOT NULL,
+                    sealed_at TEXT
+                )"""
+            )
+
+
+def _json_dumps(obj) -> str:
+    import json
+    return json.dumps(obj, ensure_ascii=False)
+
+
+_runs: Runs | None = None
+
+
+def default_runs() -> Runs:
+    global _runs
+    if _runs is None:
+        _runs = Runs()
+    return _runs
+
+
+def bind_run_schema(schema: str) -> None:
+    """把本进程的三个默认单例切到某场 schema(回放袋内读写全走这里)。"""
+    global _default, _expectations, _documents
+    _default = Account(schema=schema)
+    _expectations = Expectations(schema=schema)
+    _documents = Documents(schema=schema)
