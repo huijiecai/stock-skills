@@ -78,3 +78,11 @@ def test_prompt_pages():
     assert r.status_code == 200 and "买入决策" in r.text
     r = client.get("/prompt/system/diff/1/1")
     assert r.status_code == 200  # 同版 diff 也应 200(无变更)
+
+
+def test_compare_page():
+    """对比页:两场 + 血统校验(冒烟2 自比 + 两 live 场)。"""
+    r = client.get("/compare?runs=1,2")   # 两场 live(回填)
+    assert r.status_code == 200 and "血统校验" in r.text and "指标对比" in r.text
+    r = client.get("/compare?runs=4")     # 只选一场 → 400
+    assert r.status_code == 400

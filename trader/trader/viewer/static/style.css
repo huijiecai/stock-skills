@@ -96,3 +96,6 @@ details.step.retry summary { color: var(--buy); }
 .d-hunk { color: var(--muted); }
 .d-ctx { color: #b8c4d0; }
 pre.diff { line-height: 1.5; }
+
+.up { color: #2ea043; }
+.down { color: #e5534b; }

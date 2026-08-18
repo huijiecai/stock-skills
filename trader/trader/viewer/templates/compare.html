@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}对比 · {{ a.name }} vs {{ b.name }}{% endblock %}
+{% block nav %}<a href="/runs">← 场次列表</a>{% endblock %}
+{% block content %}
+<h1>对比 <small class="muted">{{ a.name }} vs {{ b.name }}</small></h1>
+
+<div class="card" style="margin-bottom:14px">
+  <h3>血统校验</h3>
+  <div>prompt:{{ "一致 ✓" if same_prompt else "不同" }}
+    (A: {{ pv_a | tojson | truncate(80) }} / B: {{ pv_b | tojson | truncate(80) }})</div>
+  <div>数据日:{{ "一致 ✓" if same_date else "不同" }}({{ a.trade_date }} vs {{ b.trade_date }})</div>
+  <div><b>{{ verdict }}</b></div>
+</div>
+
+<h2>指标对比</h2>
+<table>
+  <tr><th>指标</th><th>{{ a.name }}</th><th>{{ b.name }}</th></tr>
+  <tr><td>已实现盈亏(成本法)</td>
+      <td class="{{ 'up' if ma.pnl >= 0 else 'down' }}">{{ "%+,.0f"|format(ma.pnl) }}</td>
+      <td class="{{ 'up' if mb.pnl >= 0 else 'down' }}">{{ "%+,.0f"|format(mb.pnl) }}</td></tr>
+  <tr><td>现金 / 持仓成本</td><td>¥{{ "{:,.0f}".format(ma.cash) }} / ¥{{ "{:,.0f}".format(ma.cost_value) }}</td>
+      <td>¥{{ "{:,.0f}".format(mb.cash) }} / ¥{{ "{:,.0f}".format(mb.cost_value) }}</td></tr>
+  <tr><td>成交笔数</td><td>{{ ma.n_fills }}(买 {{ ma.fills | selectattr("side","equalto","BUY") | list | length }})</td>
+      <td>{{ mb.n_fills }}(买 {{ mb.fills | selectattr("side","equalto","BUY") | list | length }})</td></tr>
+  <tr><td>轮次</td><td>{{ ma.n_rounds }}</td><td>{{ mb.n_rounds }}</td></tr>
+  <tr><td>池评估覆盖</td><td>{{ ma.stats.pool|length }}/{{ ma.stats.n }}</td><td>{{ mb.stats.pool|length }}/{{ mb.stats.n }}</td></tr>
+  <tr><td>买点纪律(不追/等回踩)</td><td>{{ ma.stats.discipline|length }} 次</td><td>{{ mb.stats.discipline|length }} 次</td></tr>
+  <tr><td>token(输入/输出)</td><td>{{ "{:,}".format(ma.usage.input_tokens) }} / {{ "{:,}".format(ma.usage.output_tokens) }}</td>
+      <td>{{ "{:,}".format(mb.usage.input_tokens) }} / {{ "{:,}".format(mb.usage.output_tokens) }}</td></tr>
+</table>
+
+<h2>交易时序对照</h2>
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+  <div><b>{{ a.name }}</b>
+    {% for f in ma.fills %}<div><span class="tag {{ 'buy' if f.side == 'BUY' else 'sell' }}">{{ f.side }}</span>
+      {{ (f.trade_time or f.created_at)[11:16] }} {{ f.name or f.code }} {{ f.quantity }}@{{ f.price_cents/100 }}</div>
+    {% else %}<div class="muted">无成交</div>{% endfor %}</div>
+  <div><b>{{ b.name }}</b>
+    {% for f in mb.fills %}<div><span class="tag {{ 'buy' if f.side == 'BUY' else 'sell' }}">{{ f.side }}</span>
+      {{ (f.trade_time or f.created_at)[11:16] }} {{ f.name or f.code }} {{ f.quantity }}@{{ f.price_cents/100 }}</div>
+    {% else %}<div class="muted">无成交</div>{% endfor %}</div>
+</div>
+{% endblock %}

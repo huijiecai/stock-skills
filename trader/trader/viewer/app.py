@@ -325,6 +325,70 @@ def run_view(request: Request, run_id: int):
     })
 
 
+
+
+def _run_metrics(run: dict) -> dict:
+    """一场的对比指标(成本法):已实现盈亏/现金/持仓成本/交易/轮次/统计/token。"""
+    live = run["kind"] == "live"
+    schema = run["schema_name"]
+    acct = default_account() if live else Account(schema=schema)
+    docs = _bag_docs(schema)
+    date = run["trade_date"] or ""
+    tr_type = "transcript_live" if live else "transcript_replay"
+    fills = _fills_of(date, "live") if live else [
+        f for f in acct.fills()
+        if (f.get("trade_time") or f.get("created_at", "")).startswith(_iso(date))]
+    cash = acct.cash() / 100
+    cost_value = sum(p["quantity"] * p["avg_cost"] for p in acct.positions())
+    usage = _usage_sum_schema(docs, date, tr_type)
+    stats = _rule_stats_schema(docs, date,
+                               "watch_live" if live else "watch_replay")
+    rounds = [d for d in docs.list("watch_live" if live else "watch_replay", date)]
+    return {
+        "cash": cash, "cost_value": cost_value,
+        "asset": cash + cost_value, "initial": 100_000,
+        "pnl": cash + cost_value - 100_000,
+        "n_fills": len(fills), "fills": fills,
+        "n_rounds": len(rounds), "usage": usage, "stats": stats,
+    }
+
+
+@app.get("/compare")
+def compare(request: Request, runs: str = ""):
+    ids = [int(x) for x in runs.split(",") if x.strip().isdigit()][:2]
+    all_runs = default_runs().list()
+    picked = [r for r in all_runs if r["id"] in ids]
+    if len(picked) < 2:
+        return templates.TemplateResponse(request, "runs.html", {
+            "runs": all_runs}, status_code=400)
+    a, b = picked[0], picked[1]
+    import json as _json
+    try:
+        pv_a = _json.loads(a["prompt_versions"] or "{}")
+        pv_b = _json.loads(b["prompt_versions"] or "{}")
+    except Exception:  # noqa: BLE001
+        pv_a, pv_b = {}, {}
+    same_prompt, same_date = pv_a == pv_b, a["trade_date"] == b["trade_date"]
+    if same_prompt and same_date:
+        verdict = "两场血统完全一致——没有单一变量,无可归因差异"
+        attr = "⚠"
+    elif same_prompt:
+        verdict = f"同 prompt,不同数据日({a['trade_date']} vs {b['trade_date']})——差异归因:行情日"
+        attr = "行情日"
+    elif same_date:
+        verdict = "同数据日同起点,prompt 不同——差异归因:prompt ✓ 干净对比"
+        attr = "prompt"
+    else:
+        verdict = "prompt 与数据日都不同——归因不唯一,仅供参考"
+        attr = "⚠ 不唯一"
+    return templates.TemplateResponse(request, "compare.html", {
+        "a": a, "b": b, "ma": _run_metrics(a), "mb": _run_metrics(b),
+        "pv_a": pv_a, "pv_b": pv_b,
+        "same_prompt": same_prompt, "same_date": same_date,
+        "verdict": verdict, "attr": attr,
+    })
+
+
 @app.get("/prompts")
 def prompts(request: Request):
     return templates.TemplateResponse(request, "prompts.html", {

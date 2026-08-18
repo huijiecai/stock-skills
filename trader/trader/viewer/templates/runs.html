@@ -3,11 +3,13 @@
 {% block nav %}<a href="/">日视图</a>{% endblock %}
 {% block content %}
 <h1>历史场次 <small class="muted">一场看盘一个档案袋</small></h1>
+<button class="fold-btn" onclick="compareSelected()">对比勾选的两场(2 场)</button>
 <table>
-  <tr><th>#</th><th>场次</th><th>类型</th><th>数据日</th><th>状态</th><th>prompt 版本</th><th>建档</th><th>封存</th></tr>
+  <tr><th></th><th>#</th><th>场次</th><th>类型</th><th>数据日</th><th>状态</th><th>prompt 版本</th><th>建档</th><th>封存</th></tr>
   {% for r in runs %}
   <tr>
     <td>{{ r.id }}</td>
+    <td><input type="checkbox" class="run-cb" value="{{ r.id }}" onclick="compareSelected(true)"></td>
     <td><a href="/run/{{ r.id }}"><b>{{ r.name }}</b></a></td>
     <td>{{ '实盘' if r.kind == 'live' else '模拟' }}</td>
     <td>{{ r.trade_date or '-' }}</td>
