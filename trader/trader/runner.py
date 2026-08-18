@@ -164,6 +164,10 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
     会话状态(盘感/自设条件/待办)由 prompt 指挥 AI 读最近几轮日志恢复。午休自动跳过。"""
     today = datetime.now().strftime("%Y%m%d")
     rounds = _last_round("watch_live", today)
+    # T+1 日结:昨天买的今天解锁可卖(8/18 剑桥减仓被错误的 sellable=0 拦住,根因是没人调 settle)
+    unlocked = default_account().settle(datetime.now().date().isoformat())
+    if unlocked:
+        print(f"↺ T+1 结算:解锁 {unlocked} 只昨日持仓的可卖状态")
     if rounds:
         print(f"↺ 接续今日看盘:documents 里已有 {rounds} 轮日志,从第 {rounds + 1} 轮继续")
     history: list[ModelMessage] = []
