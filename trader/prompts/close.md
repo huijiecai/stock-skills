@@ -7,7 +7,7 @@
 - get_indices(mode='replay', date='{date}') / get_market_summary(date='{date}'):今日收盘市况
 
 ## 第二步:预期逐个更新(每日必做)
-对每条 active 预期逐一评估(浓缩版 Mode B):
+对每条 active 预期逐一评估(已有预期的例行更新):
 - get_pool_health(该预期 id, mode='replay', date='{date}'):收盘池健康度 X/Y
 - 四维:催化有新进展吗?资金面(池 X/Y 变化)?价格确认(创新高/破关键位)?阶段变化?
 - 有变化 → update_expectation(阶段/内容,只改有变的)

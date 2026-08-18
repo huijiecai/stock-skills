@@ -144,9 +144,10 @@ def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
         runs.set_schema(run["id"], schema)
         store.bind_run_schema(schema)          # 三单例切进袋子(账户/预期/文档)
         fp = store.Runs.snapshot_expectations("public", schema)
-        ndocs = store.Runs.copy_docs("public", schema, ("premarket", "close"), date)
+        # 只复制盘前预案;close 是当日盘后产物,复制=给回放塞未来知识
+        ndocs = store.Runs.copy_docs("public", schema, ("premarket",), date)
         default_account().reset()               # 钱包从初始资金开始
-        print(f"📦 档案袋已建:{name}(预期快照指纹 {fp},预案/收盘 {ndocs} 份,钱包 ¥100,000 从零)")
+        print(f"📦 档案袋已建:{name}(预期快照指纹 {fp},盘前预案 {ndocs} 份,钱包 ¥100,000 从零)")
         rounds, hhmm = 0, MORNING_START
     history: list[ModelMessage] = []
     try:
