@@ -243,14 +243,15 @@ def day(request: Request, date: str, mode: str = "live"):
 
 
 @app.get("/round/{date}/{n}")
-def round_detail(request: Request, date: str, n: int, mode: str = "live"):
-    log = default_documents().get(_watch(mode), name=f"r{n}", trade_date=date)
+def round_detail(request: Request, date: str, n: int, mode: str = "live", run: int = 0):
+    schema = _run_or_404(run)["schema_name"] if run else None
+    log = _bag_docs(schema).get(_watch(mode), name=f"r{n}", trade_date=date)
     log_html = _md(log) if log else None
-    transcript = _transcript(date, n, mode)
+    transcript = _transcript(date, n, mode, schema)
     usage = (transcript or {}).get("usage") or {}
     return templates.TemplateResponse(request, "round.html", {
         "date": date, "n": n, "log_html": log_html, "mode": mode,
-        "qm": f"?mode={mode}" if mode != "live" else "",
+        "qm": (f"?mode={mode}&run={run}" if run else (f"?mode={mode}" if mode != "live" else "")),
         "steps": _steps(transcript) if transcript else [],
         "usage": usage,
         "has_transcript": transcript is not None,
