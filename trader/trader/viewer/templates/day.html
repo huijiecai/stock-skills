@@ -33,10 +33,14 @@
     {% else %}<div class="muted">无</div>{% endfor %}
   </div>
   <div class="card">
-    <h3>token 消耗</h3>
-    <div>{{ usage.rounds }} 轮有思考流 · {{ usage.requests }} 次请求</div>
-    <div>输入 {{ "{:,}".format(usage.input_tokens) }} / 输出 {{ "{:,}".format(usage.output_tokens) }} tokens</div>
-    <div class="muted">(早于思考流落盘的轮次不计)</div>
+    <h3>当日统计</h3>
+    <details><summary>池评估覆盖 {{ stats.pool|length }}/{{ stats.n }} 轮</summary>
+      <div class="chips-inline">{% for r in stats.pool %}<span class="chip-sm">r{{ r }}</span>{% endfor %}</div></details>
+    <details><summary>买点纪律("不追/等回踩") {{ stats.discipline|length }} 次</summary>
+      <div class="chips-inline">{% for r in stats.discipline %}<span class="chip-sm">r{{ r }}</span>{% endfor %}</div></details>
+    <details><summary>含"拒绝"轮次 {{ stats.reject|length }} 个</summary>
+      <div class="chips-inline">{% for r in stats.reject %}<span class="chip-sm">r{{ r }}</span>{% endfor %}</div></details>
+    <div class="muted">token:{{ usage.requests }} 请求 · 输入 {{ "{:,}".format(usage.input_tokens) }} / 输出 {{ "{:,}".format(usage.output_tokens) }}</div>
   </div>
 </div>
 

@@ -85,3 +85,7 @@ details.step.retry summary { color: var(--buy); }
 .md-body li { margin: 3px 0; }
 .md-body hr { border: none; border-top: 1px solid var(--line); margin: 16px 0; }
 .md-body input[type="checkbox"] { margin-right: 6px; }
+
+.card details summary { cursor: pointer; color: var(--text); padding: 2px 0; }
+.card details summary:hover { color: var(--accent); }
+.chips-inline { padding: 4px 0; }

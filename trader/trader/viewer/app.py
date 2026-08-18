@@ -116,6 +116,33 @@ def _replay_account(date: str) -> Account | None:
     return Account(db_path=db) if db.exists() else None
 
 
+def _text_all(t: dict) -> str:
+    return "\n".join(str(p.get("content", "")) for m in t.get("messages", [])
+                      for p in m.get("parts", []) if p.get("part_kind") == "text")
+
+
+def _calls_tool(t: dict, name: str) -> bool:
+    return any(p.get("part_kind") == "tool-call" and p.get("tool_name") == name
+               for m in t.get("messages", []) for p in m.get("parts", []))
+
+
+def _rule_stats(date: str, mode: str) -> dict:
+    """规则执行统计:扫当日全部思考流(池评估覆盖/买点纪律/拒绝)。"""
+    texts: dict[int, str] = {}
+    for d in default_documents().list(_tr(mode), date):
+        r = _round_no(d["name"] or "")
+        t = _transcript(date, r, mode)
+        if t:
+            texts[r] = _text_all(t) or " "
+    return {
+        "pool": [r for r, t in texts.items() if _calls_tool(_transcript(date, r, mode), "get_pool_health")],
+        "discipline": [r for r, t in texts.items()
+                       if any(k in t for k in ("不追", "等回踩", "等回调"))],
+        "reject": [r for r, t in texts.items() if "拒绝" in t],
+        "n": len(texts),
+    }
+
+
 def _fills_of(date: str, mode: str = "live") -> list[dict]:
     iso = _iso(date)
     acct = _replay_account(date) if mode == "replay" else default_account()
@@ -153,6 +180,7 @@ def day(request: Request, date: str, mode: str = "live"):
             docs_meta.append({"type": dt, "id": hits[0]["id"], "size": hits[0]["size"]})
     return templates.TemplateResponse(request, "day.html", {
         "date": date, "mode": mode, "docs_meta": docs_meta,
+        "stats": _rule_stats(date, mode),
         "rounds": rounds, "t_rounds": t_rounds,
         "usage": _usage_sum(date, mode),
         "cash": (acct.cash() / 100) if acct else 0.0,
