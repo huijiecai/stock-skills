@@ -53,8 +53,8 @@ def get_trades(ctx: RunContext[None]) -> str:
             (f.get("trade_time") or f["created_at"])[:16],  # 交易时点(回放=回放时刻)
             f["code"], f.get("name", ""), f["side"],
             f["quantity"], f["price_cents"] / 100,
-            f"#{f['expectation_id']}" if f.get("expectation_id") else "-",
+            f"#{f.get('run_id')}" if f.get("run_id") else "-",
             (f.get("reason") or "-")[:45],
         ])
-    return tabulate(rows, headers=["id", "时间", "代码", "名称", "方向", "数量", "价格", "预期", "决策依据"],
+    return tabulate(rows, headers=["id", "时间", "代码", "名称", "方向", "数量", "价格", "场次", "决策依据"],
                     tablefmt="plain", floatfmt=".2f")

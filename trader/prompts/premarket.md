@@ -2,12 +2,12 @@
 
 ## 第一步:启动序列(必做)
 - get_positions / get_account:当前持仓与现金
-- get_expectations:全部预期(活跃的逐个 get_pool 看详情)
+- list_docs(doc_type='expectation'):全部预期(meta 看方向/阶段/状态;活跃的逐个 get_doc 看详情,池成员 get_watchlist(组名))
 - 昨日数据(全部用 date={prev}):get_indices(mode='replay', date='{prev}') / get_market_summary(date='{prev}') / get_limit_up(date='{prev}') / get_top_amount(date='{prev}', limit=20)
 
 ## 第二步:八维催化扫描(强制全覆盖,联网搜索;每维无重要消息也要标"无";每条注来源)
 
-**周末专项({weekend_note})**:
+**跨日专项(本次 {date} 与上一交易日 {prev} 间隔 {gap} 个自然日;gap=1 时本节标"不适用"跳过)**:
 必须专门扫描这些自然日的消息——搜"{date} 周末要闻 A股"、"周末 央行 证监会 新规 政策"等,
 覆盖:宏观(金融数据/逆回购/汇率)、监管新规/交易规则、周末产业政策、周末公司公告。
 **禁止只搜"最新"**(搜索引擎以 {prev} 的热门为主,会把周末消息漏掉)。
@@ -28,8 +28,8 @@
 
 ## 第四步:催化→活跃预期交叉(强制产出)
 每个活跃预期逐一检查新增催化:依据加强/减弱/不变?
-- 有变化的 → update_expectation 落库(阶段/内容)
-- 强势新方向不在库 → 立即做预期研究(归因→add_expectation→池)
+- 阶段/状态有变化 → set_doc_meta(该预期文档 id, meta 改 stage/status);内容有变 → save_doc 同键覆盖重写正文
+- 强势新方向不在库 → 立即做预期研究(归因→save_doc 预期文档→save_watchlist 池)
 
 ## 第五步:昨日逐股扫描消化(强制,自下而上)
 - **get_limit_up({prev}) 涨停逐只归因,产出表格(禁止只给板块汇总)**:
@@ -53,7 +53,7 @@
   评估后预期与资金都健康就不卖。**
 
 ## 第八步:落库 + 自检
-完整报告(含上述所有表格/场景/预案)调 save_doc(doc_type="premarket", trade_date="{date}") 存档。
+完整报告(含上述所有表格/场景/预案,引用池时**内联当时成员名单**——复盘关联靠它)调 save_doc(doc_type="premarket", trade_date="{date}") 存档。
 自检(**逐条真实核对,未做的项不得打✓——发现未做即返工补做,再重新存档**):
 - [ ] 八维每维有内容(含商品期货"无大异动"标注)
 - [ ] 隔周末时,周末消息(宏观/监管/新规)已专门扫描并体现在报告

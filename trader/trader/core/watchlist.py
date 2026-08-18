@@ -10,9 +10,14 @@ from datetime import datetime as _dt
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
+from trader.core.context import current_bag
 from trader.core.db import _connect
 from trader.core.documents import _init_versions, _log_version
 from trader.core.market import _fetch_quotes, _tool_error_text
+
+
+def _eff(bag_id: int | None) -> int:
+    return bag_id if bag_id is not None else current_bag()
 
 
 class Watchlists:
@@ -24,9 +29,10 @@ class Watchlists:
 
     # ── 写 ──────────────────────────────────────────────
 
-    def save(self, name: str, members: list[dict], bag_id: int = 0) -> None:
+    def save(self, name: str, members: list[dict], bag_id: int | None = None) -> None:
         """建组/追加/更新成员(按 code upsert,不改本次未提及的成员)。
         members=[{code, name?, fields?}];fields 是自由字典,整体替换该成员的 fields。"""
+        bag_id = _eff(bag_id)
         now = _dt.now().isoformat(timespec="seconds")
         with _connect(self.schema) as conn:
             row = conn.execute(
@@ -37,7 +43,7 @@ class Watchlists:
                     "INSERT INTO watchlists(bag_id, name, created_at, updated_at)"
                     " VALUES(%s,%s,%s,%s)", (bag_id, name, now, now)
                 )
-                _log_version(conn, "watchlist", _sid(bag_id, name), "create", {"name": name})
+                _log_version(conn, "watchlist", _sid(bag_id, name), "create", {"name": name}, bag=bag_id)
             for m in members:
                 code = (m.get("code") or "").strip()
                 if not code:
@@ -58,12 +64,13 @@ class Watchlists:
                 _log_version(conn, "watchlist", _sid(bag_id, name),
                              "update" if old else "add",
                              {"code": code, "name": m.get("name", ""),
-                              "fields": m.get("fields") or {}})
+                              "fields": m.get("fields") or {}}, bag=bag_id)
             conn.execute("UPDATE watchlists SET updated_at=%s WHERE bag_id=%s AND name=%s",
                          (now, bag_id, name))
 
-    def remove_member(self, name: str, code: str, bag_id: int = 0) -> None:
+    def remove_member(self, name: str, code: str, bag_id: int | None = None) -> None:
         """从组中剔除一个成员(重新研究调整用;versions 落 remove 事件)。"""
+        bag_id = _eff(bag_id)
         with _connect(self.schema) as conn:
             cur = conn.execute(
                 "DELETE FROM watchlist_members"
@@ -71,13 +78,14 @@ class Watchlists:
             )
             if cur.rowcount == 0:
                 raise ValueError(f"成员不存在:{code}(自选组 {name})")
-            _log_version(conn, "watchlist", _sid(bag_id, name), "remove", {"code": code})
+            _log_version(conn, "watchlist", _sid(bag_id, name), "remove", {"code": code}, bag=bag_id)
 
     # ── 读 ──────────────────────────────────────────────
 
-    def get(self, name: str, as_of: str = "", bag_id: int = 0) -> list[dict]:
+    def get(self, name: str, as_of: str = "", bag_id: int | None = None) -> list[dict]:
         """组成员列表 [{code, name, fields}]。as_of(YYYYMMDD 或 ISO 日期)→
         从 versions 折叠出该日时点的成员(复盘/历史重建用)。"""
+        bag_id = _eff(bag_id)
         if not as_of:
             with _connect(self.schema) as conn:
                 return conn.execute(
@@ -101,8 +109,9 @@ class Watchlists:
                                  "fields": p.get("fields", {})}
         return sorted(members.values(), key=lambda m: m["code"])
 
-    def list_all(self, bag_id: int = 0) -> list[dict]:
+    def list_all(self, bag_id: int | None = None) -> list[dict]:
         """全部自选组概览(名称/成员数/更新时间)。scan 快览用。"""
+        bag_id = _eff(bag_id)
         with _connect(self.schema) as conn:
             return conn.execute(
                 "SELECT w.name, COUNT(m.code) AS member_count, w.updated_at"

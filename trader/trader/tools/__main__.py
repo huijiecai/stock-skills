@@ -13,23 +13,32 @@ import argparse
 import importlib
 import inspect
 
-# 工具注册表:文件 → 工具名(和 agent.py 注册的一致)
+# 工具注册表:文件 → 工具名(和 core/registry.py 一致)
 TOOLS = {
     "market": ["get_quotes", "get_indices", "get_kline", "get_block_rank",
                "get_block_members", "get_candidates", "get_limit_up",
                "get_market_summary", "get_top_amount"],
-    "watch": ["scan_market", "get_pool_health"],
+    "scan": ["scan_market"],
     "account": ["get_positions", "get_account", "get_trades"],
     "trading": ["execute"],
-    "knowledge": ["get_expectations", "get_pool", "add_expectation",
-                  "add_pool_member", "remove_pool_member", "update_expectation"],
-    "docs": ["save_doc", "get_doc", "list_docs"],
+    "docs": ["save_doc", "get_doc", "list_docs", "set_doc_meta"],
+    "watchlist": ["save_watchlist", "get_watchlist", "get_watchlist_quotes",
+                  "remove_watchlist_member"],
 }
 
 
 def _load(name: str):
     for mod, names in TOOLS.items():
         if name in names:
+            if mod in ("market",):
+                from trader.core import market as m
+                return getattr(m, name)
+            if mod == "scan":
+                from trader.core import scan as m
+                return getattr(m, name)
+            if mod == "watchlist":
+                from trader.core import watchlist as m
+                return getattr(m, name)
             m = importlib.import_module(f"trader.tools.{mod}")
             return getattr(m, name)
     return None

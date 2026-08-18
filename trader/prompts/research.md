@@ -1,4 +1,4 @@
-【预期研究:{topic}】先 get_expectations 查库:同方向同事件已存在 → 走"模式B 更新";不存在 → 走"模式A 新建"。
+【预期研究:{topic}】先 list_docs(doc_type='expectation') 查库:同方向同事件已存在 → 走"模式B 更新";不存在 → 走"模式A 新建"。
 
 ## 模式A · 新建(回答:这个方向凭什么走出这种行情?)
 
@@ -16,23 +16,24 @@
 
 **直接受益标的——不是"属于这个板块"**:标的的主营必须在传导链上(催化发生 → 该标的的价格/销量/订单/毛利沿明确链条改善)。仿制药企不是创新药BD出海的受益者,CXO才是。相邻题材和成本受压者不能进可执行池。
 
-**主板可执行层(建池必查)**:直接受益池若全为创业板/科创板,必须补 1-2 只主板关联候选(标 related 并注明传导纯度),避免方向确认后无票可买、被迫买池内最弱的主板票(8/17 剑桥教训,当日主板最强关联天通股份涨停却不在池内)。
+**主板可执行层(建池必查)**:直接受益池若全为创业板/科创板,必须补 1-2 只主板关联候选(fields.role=related 并注明传导纯度),避免方向确认后无票可买、被迫买池内最弱的主板票(8/17 剑桥教训,当日主板最强关联天通股份涨停却不在池内)。
 
 **资金确认**:查池内标的表现——核心受益股有表现(涨停/放量/突破)?多只同步走强(资金广度)?龙头走出来(价格深度)?逐只标注与催化的关系/涨幅/成交额/连板数;满足领涨性/主动性/高位性的标为龙头候选(role=leader);直接受益=core;相邻题材=related(不可执行)。
 
-**产出**:归因成立 → add_expectation 写入三件事:
-- 预期是什么(具体催化叙事)
+**产出**:归因成立 → save_doc(doc_type='expectation', name='方向-事件', meta 含 direction/event/stage='observing'/status='active'/watchlist='方向-事件', content=正文) 写入四件事:
+- 逻辑:预期是什么(具体催化叙事)
+- 催化锚点:可验证依据
 - 兑现标志(什么情况故事讲完:利好落地/数据见顶/逻辑充分定价)
 - 失效标志(什么情况被证伪:催化取消/龙头A杀/联动消失)
-再 add_pool_member 逐只加池(role + 具体受益理由)。**归因不成立 → 不写入,说明原因。**
+再 save_watchlist(name=meta.watchlist, members 每只带 code/name/fields(role, reason)) 建池。**归因不成立 → 不写入,说明原因。**
 
 ## 模式B · 已有预期更新(重新研究)
 
-1. **加载**:get_pool 读完整档案,回顾逻辑链(当初为什么成立)
+1. **加载**:get_doc(doc_type='expectation', name='...') 读完整档案,回顾逻辑链(当初为什么成立);get_watchlist(组名) 看池
 2. **最新数据**:联网搜最新催化进展;get_kline 查池内标的历史走势
 3. **四维评估**:①催化进展(有新数据/事件?)②资金面(联动/涨停数/资金变化?)③价格确认(创新高/跌破关键位?)④阶段判断(observing观察→emerging爆发→confirmed确认→climax高潮→fulfilling兑现中→ended,有无变化?)
 4. **更新落库**:
-   - 内容确有变化 → update_expectation(thesis/catalyst/fulfill_flag/fail_flag,只改有变的)
-   - 阶段变化 → update_expectation(stage=...)
-   - 池修订 → add_pool_member(同代码存在即更新)/ remove_pool_member(剔除传导链已不符的)
+   - 内容确有变化 → save_doc 同键覆盖重写正文(逻辑/催化/兑现/失效,只改有变的)
+   - 阶段变化 → set_doc_meta(文档 id, meta 改 stage)
+   - 池修订 → save_watchlist(同代码存在即更新)/ remove_watchlist_member(剔除传导链已不符的)
 5. **总结**:预期比之前强了/弱了/没变,依据是什么,值不值得继续跟。

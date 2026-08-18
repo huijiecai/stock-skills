@@ -79,3 +79,13 @@ class PromptVersions:
                     UNIQUE (name, version)
                 )"""
             )
+
+
+_prompt_versions: PromptVersions | None = None
+
+
+def default_prompt_versions() -> PromptVersions:
+    global _prompt_versions
+    if _prompt_versions is None:
+        _prompt_versions = PromptVersions()
+    return _prompt_versions

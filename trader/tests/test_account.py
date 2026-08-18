@@ -100,17 +100,17 @@ def test_fills_chain(request):
 
 
 def test_trade_with_reason(request):
-    """决策留痕:买卖的 reason/expectation_id/名称/回放时点 落进 fills。"""
+    """决策留痕:买卖的 reason/名称/回放时点/run_id 归因落进 fills。"""
     a = _acct(request)
     a.buy("000021", 100, 40.00, on="2026-08-11", name="深科技",
-          reason="存储主线确认,放量领涨", expectation_id=4)
+          reason="#存储芯片-存货涨价 池 4/5 走强,放量领涨", run_id=7)
     a.settle("2026-08-12")
-    a.sell("000021", 100, 45.00, reason="预期兑现(出口A)", expectation_id=4,
-           trade_time="2026-08-12 10:30")
+    a.sell("000021", 100, 45.00, reason="预期兑现(出口A)", trade_time="2026-08-12 10:30")
     fills = a.fills()
     print(f"  → 买:{fills[0]['reason']} | 卖:{fills[1]['reason']}")
-    assert fills[0]["reason"] == "存储主线确认,放量领涨"
-    assert fills[0]["expectation_id"] == 4
+    assert fills[0]["reason"] == "#存储芯片-存货涨价 池 4/5 走强,放量领涨"
+    assert fills[0]["run_id"] == 7            # 成交→场次归因
+    assert "expectation_id" not in fills[0]   # 老列已删(平台不绑系统概念)
     assert fills[0]["name"] == "深科技"
     assert fills[1]["trade_time"] == "2026-08-12 10:30"   # 交易时点=回放时点
     assert fills[1]["created_at"] != "2026-08-12 10:30"   # created_at=真实创建时刻

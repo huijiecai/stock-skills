@@ -30,11 +30,8 @@ EXPECTATION_MANIFEST = {
         # 账户与交易
         "get_positions", "get_account", "get_trades", "execute",
         # 看盘组合
-        "scan_market", "get_pool_health",
-        # 预期库(C3 数据化后从此删除,换 watchlist 四件 + set_doc_meta)
-        "get_expectations", "get_pool", "add_expectation", "add_pool_member",
-        "remove_pool_member", "update_expectation",
-        # 文档与自选组(平台通用记忆)
+        "scan_market",
+        # 文档与自选组(平台通用记忆;预期库=expectation 文档+自选组约定)
         "save_doc", "get_doc", "list_docs", "set_doc_meta",
         "save_watchlist", "get_watchlist", "get_watchlist_quotes", "remove_watchlist_member",
     ],
@@ -71,7 +68,8 @@ class Systems:
             row = conn.execute("SELECT * FROM systems WHERE name=%s", (name,)).fetchone()
         if row:
             row = dict(row)
-            row["manifest"] = json.loads(row["manifest"])
+            if isinstance(row["manifest"], str):  # JSONB 驱动已解析,兼容手插的字符串
+                row["manifest"] = json.loads(row["manifest"])
         return row
 
     def list(self) -> list[dict]:
