@@ -19,7 +19,7 @@ from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 from pydantic_ai.usage import UsageLimits
 
 from trader.agent import agent
-from trader.prompts import load
+from trader.prompts import load, sync_prompts
 from trader.store import default_account, default_documents
 from trader.tools.market import _fetch_market_summary
 
@@ -55,6 +55,14 @@ LUNCH_BREAK = (time(11, 30), time(13, 0))
 CLOSE = time(15, 0)
 
 
+def _sync_prompts_quietly() -> None:
+    """启动时同步本地 prompt → PG 版本库(有变更才提示)。"""
+    changed = [r for r in sync_prompts() if r["changed"]]
+    if changed:
+        detail = ", ".join(f"{r['name']}→v{r['version']}" for r in changed)
+        print(f"✎ prompt 版本入库:{detail}")
+
+
 def _run_round(prompt: str, history: list[ModelMessage], retries: int = 3,
                usage_limits: UsageLimits | None = None):
     """跑一轮,失败重试(偶发 API 错误不崩整个看盘循环)。"""
@@ -71,6 +79,7 @@ def _run_round(prompt: str, history: list[ModelMessage], retries: int = 3,
 
 def run_replay(date: str, interval: int = 5, max_rounds: int | None = None,
                resume: bool = False) -> None:
+    _sync_prompts_quietly()
     """模拟看盘:回放某日,每轮步进 interval 分钟,午休自动跳过。
     回放账户完全独立(data/replay_{date}.db,绝不碰 live 账户);
     默认全新实验(清该日旧 watch_replay/transcript_replay + 重置回放账户),
@@ -161,6 +170,7 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
     """实时看盘:一轮结束马上下一轮(sleep=0 默认不等待),Ctrl+C 停止。
     跨重启接续靠 documents 的轮日志(watch_live/rN/日期):启动时从当天最大轮号接着编号,
     会话状态(盘感/自设条件/待办)由 prompt 指挥 AI 读最近几轮日志恢复。午休自动跳过。"""
+    _sync_prompts_quietly()
     today = datetime.now().strftime("%Y%m%d")
     rounds = _last_round("watch_live", today)
     # T+1 日结:昨天买的今天解锁可卖(8/18 剑桥减仓被错误的 sellable=0 拦住,根因是没人调 settle)
@@ -198,6 +208,7 @@ def run_live(sleep_seconds: int = 0, max_rounds: int | None = None) -> None:
 
 def run_research(topic: str) -> None:
     """预期研究:对某主题跑一次完整研究(联网归因 → 写入预期库)。"""
+    _sync_prompts_quietly()
     print(f"\n{'=' * 60}\n预期研究 · {topic}\n{'=' * 60}")
     result = _run_round(load("research", topic=topic), [], usage_limits=LONG_TASK_LIMITS)
     print(result.output)
@@ -212,6 +223,7 @@ def run_premarket(date: str, prev_date: str | None = None) -> None:
     # 周末专项只在隔周末(目标日是周一)时必做,平时明确写"跳过"防照搬框架
     gap = (datetime.strptime(date, "%Y%m%d") - datetime.strptime(prev_date, "%Y%m%d")).days
     note = f"目标日与上一交易日隔了 {gap - 1} 个自然日,必做不可跳过" if gap > 1 else "本次不隔周末,直接跳过本节并标注'不适用'"
+    _sync_prompts_quietly()
     print(f"\n{'=' * 60}\n盘前分析 · 目标日 {date} {wd}(上一交易日 {prev_date})\n{'=' * 60}")
     result = _run_round(load("premarket", date=date, prev=prev_date, weekday=wd, weekend_note=note), [],
                         usage_limits=LONG_TASK_LIMITS)
@@ -220,6 +232,7 @@ def run_premarket(date: str, prev_date: str | None = None) -> None:
 
 def run_close(date: str) -> None:
     """盘后总结:预期逐个更新 → 收盘逐股扫描(新方向兜底)→ 交易复盘 → 合规自检 → 报告落库。"""
+    _sync_prompts_quietly()
     print(f"\n{'=' * 60}\n收盘评估与复盘 · {date}\n{'=' * 60}")
     result = _run_round(load("close", date=date), [], usage_limits=LONG_TASK_LIMITS)
     print(result.output)
