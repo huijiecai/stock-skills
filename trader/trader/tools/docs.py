@@ -24,6 +24,16 @@ def save_doc(ctx: RunContext[None], doc_type: str, content: str, name: str = "",
     return f"已保存文档 #{doc_id}({label},{len(content)}字)"
 
 
+def set_doc_meta(ctx: RunContext[None], doc_id: int, meta: dict) -> str:
+    """浅合并更新文档 meta(只传变化的键;值传 None 表示删除该键)。
+    例:set_doc_meta(doc_id=37, meta={"stage": "emerging"})——结构化状态更新,正文不动。"""
+    try:
+        default_documents().set_meta(doc_id, meta)
+    except ValueError as e:
+        return f"拒绝:{e}"
+    return f"已更新文档 #{doc_id} 的 meta:{ {k: v for k, v in meta.items() if v is not None} }"
+
+
 def get_doc(ctx: RunContext[None], doc_type: str, name: str = "", trade_date: str = "") -> str:
     """读文档全文。无则明确提示。"""
     content = default_documents().get(doc_type, name=name, trade_date=trade_date)

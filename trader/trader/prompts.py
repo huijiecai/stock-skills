@@ -16,18 +16,28 @@ PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
 def load(name: str, **variables: str) -> str:
-    """读 prompts/{name}.md;{var} 占位用 variables 替换。
-    占位符缺变量时给出明确报错(8/17 曾因 prompt 加了 {date} 而调用方没传,
-    KeyError 裸抛烧掉三轮重试)。"""
+    """读 prompt:PG 版本库最新版是运行时正本(实现设计 §7)。
+    本地 md 仍是编辑面——内容与 PG 不一致时自动入库再读(md 最终退役,附录 8)。
+    {var} 占位用 variables 替换;占位符缺变量时明确报错
+    (8/17 曾因 prompt 加了 {date} 而调用方没传,KeyError 裸抛烧掉三轮重试)。"""
+    from trader.store import default_prompt_versions
+
+    pv = default_prompt_versions()
+    pg_text = pv.latest(name)
     path = PROMPTS_DIR / f"{name}.md"
-    text = path.read_text(encoding="utf-8")
+    file_text = path.read_text(encoding="utf-8") if path.exists() else None
+    if file_text is not None and file_text != pg_text:
+        pv.save(name, file_text)  # 编辑面有变更 → 入库后生效
+        pg_text = file_text
+    if pg_text is None:
+        raise RuntimeError(f"prompt '{name}' 既不在 PG 版本库,也不在 {PROMPTS_DIR}")
     if not variables:
-        return text
+        return pg_text
     try:
-        return text.format(**variables)
+        return pg_text.format(**variables)
     except KeyError as e:
         raise RuntimeError(
-            f"prompt '{name}.md' 有占位符 {e} 但调用方没传"
+            f"prompt '{name}' 有占位符 {e} 但调用方没传"
             f"(传了:{sorted(variables)})——先停进程再改 prompt,或补齐调用方参数"
         ) from None
 
