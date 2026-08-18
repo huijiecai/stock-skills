@@ -52,32 +52,32 @@ EOF
 # 停止:kill $(cat logs/live.pid) 及 ps 里的 trader.runner live 进程(用 PID 文件,别 grep 猜)
 ```
 
-## 目录结构
+## 目录结构(平台化 v2,详见 docs/实现设计.md)
 
 ```
 trader/
 ├── trader/
-│   ├── tools/            ← AI 工具(23 个 + 原生联网搜索)
-│   │   ├── market.py     ← 行情 9 个:quotes/indices/kline(time截断)/block_rank/members/candidates/limit_up/market_summary/top_amount
-│   │   ├── watch.py      ← scan_market 快扫 + get_pool_health 池健康度
-│   │   ├── account.py    ← get_positions / get_account / get_trades(含决策留痕)
-│   │   ├── trading.py    ← execute 下单(整手/主板/实时价或回放价成交 + 必填 reason 留痕)
-│   │   ├── knowledge.py  ← 预期库 6 个:get/add/update_expectations、get_pool、add/remove_pool_member
-│   │   └── docs.py       ← 文档库:save_doc / get_doc / list_docs
-│   ├── store.py          ← SQLite:账户(fills 留痕/T+1)+ 预期库(多波/池分级/阶段)+ 文档库
-│   ├── agent.py          ← 大脑:23 工具 + WebSearchTool(NativeTool)
-│   ├── runner.py         ← 入口:premarket / live / replay / close / research
-│   └── prompts.py        ← prompt 加载(从 prompts/ 读 md)
-├── prompts/              ← 方法论(反复迭代期用 md,稳定后迁 SQLite)
-│   ├── system.md         ← 盘中完整方法论(六类轮转/双出口/三维确认/共同风险/14:50)
-│   ├── premarket.md      ← 盘前(八维催化/映射表/交叉表/场景推演/预案)
-│   ├── close.md          ← 盘后(预期逐个更新/逐股扫描兜底/复盘/合规)
-│   ├── research.md       ← 预期研究(双模式:新建归因 + 重新研究更新)
-│   └── round_replay.md / round_live.md  ← 看盘每轮指令
-├── tests/                ← 57 个测试(47 passed + 10 live 盘中自动跑)
-├── data/account.db       ← SQLite 真相源(账户+预期+文档)
-└── .env                  ← 配置(LLM_API_KEY / LLM_MODEL / LLM_BASE_URL,不进 git)
+│   ├── core/                ← 平台:不知道任何方法论(验收=无"预期"业务概念)
+│   │   ├── market.py        ← 行情 9 工具(live/replay 双模 + time 截断防未来)
+│   │   ├── ledger.py        ← 账本(分计价/T+1/fills 留痕/40% 闸)——行级 bag_id 隔离
+│   │   ├── documents.py     ← 万物记忆(meta + versions 统一版本史)
+│   │   ├── watchlist.py     ← 自选组(唯一结构化原语,as_of 历史重建)
+│   │   ├── systems.py       ← 交易系统注册表(manifest 纯数据;换系统=换一行)
+│   │   ├── engine.py        ← 引擎:读 manifest 装配 agent,驱动 single/loop 阶段
+│   │   ├── bag.py           ← 袋子开局三模式(fresh/fork-as-of/custom)+ 指纹
+│   │   ├── runs.py          ← 场次登记(封面=prompt 版本+指纹+metrics)
+│   │   ├── scan.py          ← scan_market 快扫(含【自选组快览】)
+│   │   └── registry.py      ← 能力注册表(工具名 → 实现)
+│   ├── runner.py            ← CLI 薄壳:五命令=expectation 别名;通用 run <system> <stage>
+│   └── tools/               ← 通用工具实现(account/trading/docs;market/watch 为垫片)
+├── prompts/                 ← 方法论(临时编辑面,sync 入 PG;运行时读 PG)
+├── tests/                   ← 54 passed + 10 盘中专用自动跳过
+├── scripts/migrate_to_platform.py  ← 老预期库→文档+自选组 一次性迁移(已执行)
+└── .env                     ← 配置(LLM_API_KEY / LLM_MODEL / LLM_BASE_URL)
 ```
+
+**核心约定**:预期=文档(doc_type='expectation',meta 存 stage/status),池=自选组(fields.role 分级);
+一切管理在 PG(单库行级多租户:正本=bag_id 0,一场模拟=一个 bag_id)。
 
 ## 常用查看命令
 
@@ -85,11 +85,11 @@ trader/
 uv run python -m trader.tools list                                  # 全部工具+签名
 uv run python -m trader.tools call get_positions                    # 持仓
 uv run python -m trader.tools call get_trades                       # 成交+每笔决策留痕
-uv run python -m trader.tools call get_expectations                 # 预期库总览
-uv run python -m trader.tools call get_pool expectation_id=2        # 预期详情(三件事/池)
-uv run python -m trader.tools call get_pool_health expectation_id=2 mode=replay date=20260812 time=10:30
+uv run python -m trader.tools call list_docs doc_type=expectation   # 预期库(=文档集)
+uv run python -m trader.tools call get_watchlist name=存储芯片-AI+供需错配驱动存储涨价   # 池(自选组)
+uv run python -m trader.tools call get_watchlist_quotes name=存储芯片-AI+供需错配驱动存储涨价 mode=replay date=20260818
 uv run python -m trader.tools call list_docs                        # 文档库(盘前/收盘报告)
-uv run python -m trader.tools call get_doc doc_type=close trade_date=20260812
+uv run python -m trader.tools call get_doc doc_type=close trade_date=20260818
 # 参数格式:key=value 空格分隔,逗号=列表(codes=000021,000636)
 ```
 

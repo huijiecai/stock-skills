@@ -2,7 +2,7 @@
 {% block title %}预期库{% endblock %}
 {% block nav %}{{ now }}{% endblock %}
 {% block content %}
-<h1>预期库</h1>
+<h1>预期库 <small class="muted">预期=文档(doc_type='expectation'),池=自选组</small></h1>
 <table>
   <tr><th>#</th><th>方向</th><th>事件(正在交易什么)</th><th>阶段</th><th>状态</th><th>池</th><th>失效标志(对照)</th></tr>
   {% for e in expectations %}
@@ -18,9 +18,10 @@
             title="{{ m.name }} · {{ m.role }}">{{ m.name or m.code }}</span>
       {% endfor %}
     </td>
-    <td class="muted">{{ e.fail_flag[:50] }}…</td>
+    <td class="muted">{{ e.fail_flag[:50] }}{% if e.fail_flag|length > 50 %}…{% endif %}</td>
   </tr>
   {% endfor %}
 </table>
-<p class="muted">阶段五档:observing → emerging → confirmed → climax → fulfilling → ended;卖出出口B要对照失效标志。</p>
+<p class="muted">阶段五档:observing → emerging → confirmed → climax → fulfilling → ended;卖出出口B要对照失效标志。
+每次变更留版本(versions),历史时点池可 as_of 重建。</p>
 {% endblock %}

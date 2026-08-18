@@ -37,7 +37,15 @@
   {% for e in expectations %}
   <tr><td>{{ e.id }}</td><td>{{ e.direction }}</td>
       <td><span class="tag stage-{{ e.stage }}">{{ e.stage }}</span></td>
-      <td>{{ e.status }}</td><td>{{ e.core_count }}/{{ e.pool_count }}</td></tr>
+      <td>{{ e.status }}</td><td>{{ e.pool_count }}</td></tr>
   {% endfor %}
 </table>
+{% if metrics %}
+<h2>封场指标</h2>
+<div class="cards"><div class="card"><h3>metrics</h3>
+  <div>收益 {{ metrics.return_pct }}% · 最大回撤 {{ metrics.max_drawdown_pct }}%</div>
+  <div>胜率 {{ metrics.win_rate if metrics.win_rate is not none else '-' }} · 平仓回合 {{ metrics.realized_trades }}</div>
+  <div>期末 ¥{{ "{:,.0f}".format(metrics.asset) }}(初始 ¥{{ "{:,.0f}".format(metrics.initial) }})</div>
+</div></div>
+{% endif %}
 {% endblock %}

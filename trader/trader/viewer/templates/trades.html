@@ -5,7 +5,7 @@
 <h1>{{ date }} 交易留痕</h1>
 {% if fills %}
 <table>
-  <tr><th>#</th><th>时间</th><th>方向</th><th>标的</th><th>数量</th><th>价格</th><th>预期</th></tr>
+  <tr><th>#</th><th>时间</th><th>方向</th><th>标的</th><th>数量</th><th>价格</th><th>场次</th></tr>
   {% for f in fills %}
   <tr>
     <td>{{ f.id }}</td>
@@ -14,7 +14,7 @@
     <td>{{ f.name or f.code }} <span class="muted">{{ f.code }}</span></td>
     <td>{{ f.quantity }}</td>
     <td>{{ f.price_cents / 100 }}</td>
-    <td>{% if f.expectation_id %}#{{ f.expectation_id }}{% else %}-{% endif %}</td>
+    <td>{% if f.run_id %}run#{{ f.run_id }}{% else %}-{% endif %}</td>
   </tr>
   <tr class="reason-row"><td></td><td colspan="6"><b>决策留痕:</b>{{ f.reason }}</td></tr>
   {% endfor %}

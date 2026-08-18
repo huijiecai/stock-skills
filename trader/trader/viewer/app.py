@@ -1,23 +1,27 @@
-"""viewer 后端:FastAPI 只读路由,把 SQLite 里的轮日志/思考流/交易/预期组织成页面。
+"""viewer 后端:FastAPI 只读路由,把行级袋子里的轮日志/思考流/交易/预期文档组织成页面。
 
-只读红线:这里只有 SELECT(复用 store 的读方法),不 import 任何交易代码路径。
+只读红线:这里只有 SELECT(复用 core 的读方法),不 import 任何交易代码路径。
 启动:uv run python -m trader.viewer
 """
 
 import json
-import markdown as md_lib
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import markdown as md_lib
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from trader.store import (Account, Documents, default_account, default_documents,
-                           default_expectations, default_prompt_versions, default_runs, schema_exists)
+from trader.core.db import _connect
+from trader.core.documents import Documents
+from trader.core.ledger import Account
+from trader.core.promptver import default_prompt_versions
+from trader.core.runs import default_runs
+from trader.core.watchlist import Watchlists
 
 _VDIR = Path(__file__).resolve().parent
 
@@ -25,8 +29,8 @@ _VDIR = Path(__file__).resolve().parent
 def _md(text: str | None) -> str:
     """md → HTML(自家 agent 产出的文档,本地单用户工具)。"""
     return md_lib.markdown(text or "", extensions=["tables", "fenced_code"])
+
 templates = Jinja2Templates(directory=str(_VDIR / "templates"))
-# 静态资源自动版本号:文件 mtime 变 → URL 变 → 浏览器缓存自动失效(不再吃旧 js/css)
 _static_v = str(max(int(p.stat().st_mtime) for p in (_VDIR / "static").iterdir()))
 templates.env.globals["static_v"] = _static_v
 
@@ -57,16 +61,12 @@ def _round_no(name: str) -> int:
 
 def _watch_dates(mode: str = "live") -> list[str]:
     """有轮日志的交易日(降序),用于导航。"""
-    dates = {d["trade_date"] for d in default_documents().list(_watch(mode)) if d["trade_date"]}
+    dates = {d["trade_date"] for d in Documents().list(_watch(mode)) if d["trade_date"]}
     return sorted(dates, reverse=True)
 
 
-def _bag_docs(schema: str | None = None) -> Documents:
-    return Documents(schema=schema) if schema else default_documents()
-
-
-def _transcript(date: str, n: int, mode: str = "live", schema: str | None = None) -> dict[str, Any] | None:
-    raw = _bag_docs(schema).get(_tr(mode), name=f"r{n}", trade_date=date)
+def _transcript(date: str, n: int, mode: str = "live", bag: int = 0) -> dict[str, Any] | None:
+    raw = Documents().get(_tr(mode), name=f"r{n}", trade_date=date, bag_id=bag)
     if not raw:
         return None
     try:
@@ -75,11 +75,11 @@ def _transcript(date: str, n: int, mode: str = "live", schema: str | None = None
         return None
 
 
-def _usage_sum(date: str, mode: str = "live") -> dict[str, int]:
+def _usage_sum(date: str, mode: str = "live", bag: int = 0) -> dict[str, int]:
     """当日全部轮次的 token 汇总(解析思考流文档头)。"""
     total = {"rounds": 0, "requests": 0, "input_tokens": 0, "output_tokens": 0}
-    for d in default_documents().list(_tr(mode), date):
-        t = _transcript(date, _round_no(d["name"] or ""), mode)
+    for d in Documents().list(_tr(mode), date, bag_id=bag):
+        t = _transcript(date, _round_no(d["name"] or ""), mode, bag)
         if not t:
             continue
         u = t.get("usage") or {}
@@ -118,14 +118,9 @@ def _steps(transcript: dict[str, Any]) -> list[dict[str, str]]:
     return steps
 
 
-def _replay_account(date: str) -> Account | None:
-    """回放账户(PG schema replay_{date});schema 不存在(没跑过回放)返回 None。"""
-    return Account(schema=f"replay_{date}") if schema_exists(f"replay_{date}") else None
-
-
 def _text_all(t: dict) -> str:
     return "\n".join(str(p.get("content", "")) for m in t.get("messages", [])
-                      for p in m.get("parts", []) if p.get("part_kind") == "text")
+                     for p in m.get("parts", []) if p.get("part_kind") == "text")
 
 
 def _calls_tool(t: dict, name: str) -> bool:
@@ -133,55 +128,16 @@ def _calls_tool(t: dict, name: str) -> bool:
                for m in t.get("messages", []) for p in m.get("parts", []))
 
 
-def _usage_sum_schema(docs: Documents, date: str, tr_type: str) -> dict:
-    total = {"rounds": 0, "requests": 0, "input_tokens": 0, "output_tokens": 0}
-    for d in docs.list(tr_type, date):
-        try:
-            t = json.loads(docs.get(tr_type, name=d["name"], trade_date=date) or "")
-        except Exception:  # noqa: BLE001
-            continue
-        u = t.get("usage") or {}
-        total["rounds"] += 1
-        for k in ("requests", "input_tokens", "output_tokens"):
-            v = u.get(k)
-            if isinstance(v, int):
-                total[k] += v
-    return total
-
-
-def _rule_stats_schema(docs: Documents, date: str, tr_type: str) -> dict:
-    """袋内规则执行统计(直接解析袋内思考流 JSON)。"""
-    pool, discipline, reject = [], [], []
-    n = 0
-    for d in docs.list(tr_type, date):
-        r = _round_no(d["name"] or "")
-        try:
-            t = json.loads(docs.get(tr_type, name=d["name"], trade_date=date) or "")
-        except Exception:  # noqa: BLE001
-            continue
-        if not t:
-            continue
-        n += 1
-        if _calls_tool(t, "get_pool_health"):
-            pool.append(r)
-        text = _text_all(t) or " "
-        if any(k in text for k in ("不追", "等回踩", "等回调")):
-            discipline.append(r)
-        if "拒绝" in text:
-            reject.append(r)
-    return {"pool": pool, "discipline": discipline, "reject": reject, "n": n}
-
-
-def _rule_stats(date: str, mode: str) -> dict:
+def _rule_stats(date: str, mode: str, bag: int = 0) -> dict:
     """规则执行统计:扫当日全部思考流(池评估覆盖/买点纪律/拒绝)。"""
     texts: dict[int, str] = {}
-    for d in default_documents().list(_tr(mode), date):
+    for d in Documents().list(_tr(mode), date, bag_id=bag):
         r = _round_no(d["name"] or "")
-        t = _transcript(date, r, mode)
+        t = _transcript(date, r, mode, bag)
         if t:
             texts[r] = _text_all(t) or " "
     return {
-        "pool": [r for r, t in texts.items() if _calls_tool(_transcript(date, r, mode), "get_pool_health")],
+        "pool": [r for r, t in texts.items() if _calls_tool(_transcript(date, r, mode, bag), "get_watchlist_quotes")],
         "discipline": [r for r, t in texts.items()
                        if any(k in t for k in ("不追", "等回踩", "等回调"))],
         "reject": [r for r, t in texts.items() if "拒绝" in t],
@@ -189,13 +145,62 @@ def _rule_stats(date: str, mode: str) -> dict:
     }
 
 
-def _fills_of(date: str, mode: str = "live") -> list[dict]:
+def _fills_of(date: str, bag: int = 0) -> list[dict]:
     iso = _iso(date)
-    acct = _replay_account(date) if mode == "replay" else default_account()
-    if acct is None:
-        return []
-    return [f for f in acct.fills()
+    return [f for f in Account().fills(bag)
             if (f.get("trade_time") or f.get("created_at", "")).startswith(iso)]
+
+
+def _fail_flag_of(content: str) -> str:
+    """从预期文档正文解析失效标志小节。"""
+    try:
+        part = content.split("## 失效标志", 1)[1]
+        return part.split("##", 1)[0].strip()[:80]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _expectation_rows(bag: int = 0) -> list[dict]:
+    """预期库视图 = documents('expectation') + 各自选组(平台通用件上的约定层)。"""
+    docs = Documents().list("expectation", bag_id=bag)
+    wl = Watchlists()
+    rows = []
+    for d in docs:
+        meta = d.get("meta") or {}
+        content = Documents().get("expectation", name=d["name"], trade_date=d["trade_date"] or "",
+                                  bag_id=bag) or ""
+        members = wl.get(meta.get("watchlist") or d["name"], bag_id=bag)
+        rows.append({
+            "id": d["id"], "name": d["name"],
+            "direction": meta.get("direction", ""), "event": meta.get("event", ""),
+            "stage": meta.get("stage", "-"), "status": meta.get("status", "-"),
+            "pool": [{"code": m["code"], "name": m["name"] or m["code"],
+                      "role": (m.get("fields") or {}).get("role", "")} for m in members],
+            "pool_count": len(members),
+            "fail_flag": _fail_flag_of(content),
+        })
+    return rows
+
+
+def _run_metrics(run: dict) -> dict:
+    """一场的对比指标:优先读封场 metrics(§8),缺则现场由袋子数据算。"""
+    if run.get("metrics"):
+        m = run["metrics"]
+        m.setdefault("stats", _rule_stats(run["trade_date"] or "", run["kind"], run.get("bag_id") or 0))
+        return m
+    bag = run.get("bag_id") or 0
+    acct = Account()
+    date = run["trade_date"] or ""
+    fills = _fills_of(date, bag)
+    cash = acct.cash(bag) / 100
+    cost_value = sum(p["quantity"] * p["avg_cost"] for p in acct.positions(bag))
+    usage = _usage_sum(date, run["kind"], bag)
+    return {
+        "cash": cash, "cost_value": cost_value, "asset": cash + cost_value,
+        "initial": 100_000, "pnl": cash + cost_value - 100_000,
+        "n_fills": len(fills), "fills": fills,
+        "usage": usage, "stats": _rule_stats(date, run["kind"], bag),
+    }
 
 
 # ── 路由 ────────────────────────────────────────────────
@@ -207,47 +212,43 @@ def index():
 
 
 @app.get("/day/{date}")
-def day(request: Request, date: str, mode: str = "live"):
-    if mode == "replay":
-        # 档案袋模型:回放场的记录在各袋 schema 里,统一入口=「场次」页
-        return RedirectResponse("/runs")
-    docs = default_documents().list(_watch(mode), date)
-    rounds = sorted(_round_no(d["name"] or "") for d in docs)          # 正序:r1 → rN
-    t_rounds = {_round_no(d["name"] or "")                              # 有思考流的轮(可点开看全过程)
-                for d in default_documents().list(_tr(mode), date)}
-    dates = _watch_dates(mode)
+def day(request: Request, date: str):
+    docs = Documents()
+    rounds = sorted(_round_no(d["name"] or "") for d in docs.list(_watch("live"), date))
+    t_rounds = {_round_no(d["name"] or "") for d in docs.list(_tr("live"), date)}
+    dates = _watch_dates("live")
     idx = dates.index(date) if date in dates else -1
-    acct = _replay_account(date) if mode == "replay" else default_account()
-    positions = acct.positions() if acct else []
-    fills = _fills_of(date, mode)
-    docs_store = default_documents()
+    acct = Account()
     docs_meta = []
     for dt in ("premarket", "close"):
-        hits = docs_store.list(dt, date)
+        hits = docs.list(dt, date)
         if hits:
             docs_meta.append({"type": dt, "id": hits[0]["id"], "size": hits[0]["size"]})
     return templates.TemplateResponse(request, "day.html", {
-        "date": date, "mode": mode, "docs_meta": docs_meta,
-        "stats": _rule_stats(date, mode),
+        "date": date, "mode": "live", "docs_meta": docs_meta,
+        "stats": _rule_stats(date, "live"),
         "rounds": rounds, "t_rounds": t_rounds,
-        "usage": _usage_sum(date, mode),
-        "cash": (acct.cash() / 100) if acct else 0.0,
-        "positions": positions,
-        "fills": fills,
-        "expectations": default_expectations().get_all(),
+        "usage": _usage_sum(date, "live"),
+        "cash": acct.cash() / 100,
+        "positions": acct.positions(),
+        "fills": _fills_of(date),
+        "expectations": _expectation_rows(0),
         "prev_day": dates[idx + 1] if 0 <= idx < len(dates) - 1 else None,
         "next_day": dates[idx - 1] if idx > 0 else None,
-        "qm": f"?mode={mode}" if mode != "live" else "",
+        "qm": "",
         "dates": dates,
     })
 
 
 @app.get("/round/{date}/{n}")
 def round_detail(request: Request, date: str, n: int, mode: str = "live", run: int = 0):
-    schema = _run_or_404(run)["schema_name"] if run else None
-    log = _bag_docs(schema).get(_watch(mode), name=f"r{n}", trade_date=date)
+    bag = 0
+    if run:
+        r = _run_or_404(run)
+        bag = (r.get("bag_id") or 0) if r else 0
+    log = Documents().get(_watch(mode), name=f"r{n}", trade_date=date, bag_id=bag)
     log_html = _md(log) if log else None
-    transcript = _transcript(date, n, mode, schema)
+    transcript = _transcript(date, n, mode, bag)
     usage = (transcript or {}).get("usage") or {}
     return templates.TemplateResponse(request, "round.html", {
         "date": date, "n": n, "log_html": log_html, "mode": mode,
@@ -259,11 +260,10 @@ def round_detail(request: Request, date: str, n: int, mode: str = "live", run: i
 
 
 @app.get("/trades/{date}")
-def trades(request: Request, date: str, mode: str = "live"):
+def trades(request: Request, date: str):
     return templates.TemplateResponse(request, "trades.html", {
-        "date": date, "mode": mode,
-        "qm": f"?mode={mode}" if mode != "live" else "",
-        "fills": _fills_of(date, mode),
+        "date": date, "mode": "live", "qm": "",
+        "fills": _fills_of(date),
     })
 
 
@@ -272,14 +272,10 @@ def doc_detail(request: Request, doc_type: str, date: str):
     if doc_type not in ("premarket", "close", "research", "note"):
         return templates.TemplateResponse(request, "doc.html", {
             "doc_type": doc_type, "date": date, "content": None}, status_code=404)
-    content = default_documents().get(doc_type, trade_date=date)
+    content = Documents().get(doc_type, trade_date=date)
     return templates.TemplateResponse(request, "doc.html", {
         "doc_type": doc_type, "date": date,
         "content_html": _md(content) if content else None})
-
-
-# ── prompt 版本库 ───────────────────────────────────────
-
 
 
 # ── 档案袋(场次)───────────────────────────────────────
@@ -304,58 +300,26 @@ def run_view(request: Request, run_id: int):
     if run is None:
         return templates.TemplateResponse(request, "runs.html",
                                           {"runs": default_runs().list()}, status_code=404)
-    schema = run["schema_name"]
+    bag = run.get("bag_id") or 0
     live = run["kind"] == "live"
-    docs = _bag_docs(schema)
+    docs = Documents()
     date = run["trade_date"] or ""
-    watch = "watch_live" if live else "watch_replay"
-    tr = "transcript_live" if live else "transcript_replay"
-    doc_rows = docs.list(watch, date)
+    mode = "live" if live else "replay"
+    doc_rows = docs.list(_watch(mode), date, bag_id=bag)
     rounds = sorted(_round_no(d["name"] or "") for d in doc_rows)
-    acct = default_account() if live else Account(schema=schema)
-    iso = _iso(date)
-    fills = [f for f in acct.fills()
-             if (f.get("trade_time") or f.get("created_at", "")).startswith(iso)]         if not live else _fills_of(date, "live")
-    t_rounds = {_round_no(d["name"] or "") for d in docs.list(tr, date)}
-    exps = (default_expectations() if live
-            else __import__("trader.store", fromlist=["Expectations"]).Expectations(schema=schema))
+    t_rounds = {_round_no(d["name"] or "") for d in docs.list(_tr(mode), date, bag_id=bag)}
+    acct = Account()
     return templates.TemplateResponse(request, "run.html", {
-        "run": run, "date": date, "mode": run["kind"],
+        "run": run, "date": date, "mode": mode,
         "rounds": rounds, "t_rounds": t_rounds,
-        "usage": _usage_sum_schema(docs, date, tr),
-        "cash": acct.cash() / 100,
-        "positions": acct.positions(),
-        "fills": fills,
-        "expectations": exps.get_all(),
-        "stats": _rule_stats_schema(docs, date, tr),
+        "usage": _usage_sum(date, mode, bag),
+        "cash": acct.cash(bag) / 100,
+        "positions": acct.positions(bag),
+        "fills": _fills_of(date, bag),
+        "expectations": _expectation_rows(bag),
+        "stats": _rule_stats(date, mode, bag),
+        "metrics": run.get("metrics") or {},
     })
-
-
-
-
-def _run_metrics(run: dict) -> dict:
-    """一场的对比指标(成本法):已实现盈亏/现金/持仓成本/交易/轮次/统计/token。"""
-    live = run["kind"] == "live"
-    schema = run["schema_name"]
-    acct = default_account() if live else Account(schema=schema)
-    docs = _bag_docs(schema)
-    date = run["trade_date"] or ""
-    tr_type = "transcript_live" if live else "transcript_replay"
-    fills = _fills_of(date, "live") if live else [
-        f for f in acct.fills()
-        if (f.get("trade_time") or f.get("created_at", "")).startswith(_iso(date))]
-    cash = acct.cash() / 100
-    cost_value = sum(p["quantity"] * p["avg_cost"] for p in acct.positions())
-    usage = _usage_sum_schema(docs, date, tr_type)
-    stats = _rule_stats_schema(docs, date, tr_type)  # 统计解析的是思考流(transcript_*)
-    rounds = [d for d in docs.list("watch_live" if live else "watch_replay", date)]
-    return {
-        "cash": cash, "cost_value": cost_value,
-        "asset": cash + cost_value, "initial": 100_000,
-        "pnl": cash + cost_value - 100_000,
-        "n_fills": len(fills), "fills": fills,
-        "n_rounds": len(rounds), "usage": usage, "stats": stats,
-    }
 
 
 @app.get("/compare")
@@ -367,13 +331,13 @@ def compare(request: Request, runs: str = ""):
         return templates.TemplateResponse(request, "runs.html", {
             "runs": all_runs}, status_code=400)
     a, b = picked[0], picked[1]
-    import json as _json
     try:
-        pv_a = _json.loads(a["prompt_versions"] or "{}")
-        pv_b = _json.loads(b["prompt_versions"] or "{}")
+        pv_a = json.loads(a["prompt_versions"] or "{}")
+        pv_b = json.loads(b["prompt_versions"] or "{}")
     except Exception:  # noqa: BLE001
         pv_a, pv_b = {}, {}
     same_prompt, same_date = pv_a == pv_b, a["trade_date"] == b["trade_date"]
+    same_start = (a.get("fingerprint") and a.get("fingerprint") == b.get("fingerprint"))
     if same_prompt and same_date:
         if a["kind"] != b["kind"]:
             verdict = ("同数据日同 prompt 的实盘 vs 模拟——同源复现测试:"
@@ -391,6 +355,8 @@ def compare(request: Request, runs: str = ""):
     else:
         verdict = "prompt 与数据日都不同——归因不唯一,仅供参考"
         attr = "⚠ 不唯一"
+    if same_start:
+        verdict += ";起点指纹一致 ✓"
     return templates.TemplateResponse(request, "compare.html", {
         "a": a, "b": b, "ma": _run_metrics(a), "mb": _run_metrics(b),
         "pv_a": pv_a, "pv_b": pv_b,
@@ -444,12 +410,7 @@ def prompt_version(request: Request, name: str, v: int):
 
 @app.get("/expectations")
 def expectations(request: Request):
-    store = default_expectations()
-    enriched = []
-    for e in store.get_all():
-        detail = store.get(e["id"]) or {}
-        enriched.append({**e, "pool": detail.get("pool", [])})
     return templates.TemplateResponse(request, "expectations.html", {
-        "expectations": enriched,
+        "expectations": _expectation_rows(0),
         "now": datetime.now().strftime("%Y-%m-%d %H:%M"),
     })
