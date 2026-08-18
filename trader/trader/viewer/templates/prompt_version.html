@@ -1,0 +1,8 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} v{{ v }}{% endblock %}
+{% block nav %}<a href="/prompt/{{ name }}">← {{ name }} 版本历史</a>{% endblock %}
+{% block content %}
+<h1>{{ name }} <small class="muted">v{{ v }} 全文</small></h1>
+{% if content_html %}<div class="md-body">{{ content_html | safe }}</div>
+{% else %}<p class="warn">版本不存在。</p>{% endif %}
+{% endblock %}

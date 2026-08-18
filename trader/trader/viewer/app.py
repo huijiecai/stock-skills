@@ -16,7 +16,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
 
-from trader.store import Account, default_account, default_documents, default_expectations, schema_exists
+from trader.store import Account, default_account, default_documents, default_expectations, default_prompt_versions, schema_exists
 
 _VDIR = Path(__file__).resolve().parent
 
@@ -226,6 +226,51 @@ def doc_detail(request: Request, doc_type: str, date: str):
     return templates.TemplateResponse(request, "doc.html", {
         "doc_type": doc_type, "date": date,
         "content_html": _md(content) if content else None})
+
+
+# ── prompt 版本库 ───────────────────────────────────────
+
+@app.get("/prompts")
+def prompts(request: Request):
+    return templates.TemplateResponse(request, "prompts.html", {
+        "prompts": default_prompt_versions().versions(),
+    })
+
+
+@app.get("/prompt/{name}")
+def prompt_history(request: Request, name: str):
+    rows = default_prompt_versions().versions(name)
+    return templates.TemplateResponse(request, "prompt_history.html", {
+        "name": name, "rows": rows or [],
+    })
+
+
+@app.get("/prompt/{name}/diff/{v1}/{v2}")
+def prompt_diff(request: Request, name: str, v1: int, v2: int):
+    import difflib
+    pv = default_prompt_versions()
+    a, b = pv.get(name, v1), pv.get(name, v2)
+    lines = []
+    if a is not None and b is not None:
+        for ln in difflib.unified_diff(a.splitlines(), b.splitlines(), lineterm="", n=2,
+                                       fromfile=f"{name} v{v1}", tofile=f"{name} v{v2}"):
+            kind = ("hunk" if ln.startswith(("---", "+++", "@@")) else
+                    "add" if ln.startswith("+") else
+                    "del" if ln.startswith("-") else "ctx")
+            lines.append({"kind": kind, "text": ln})
+    return templates.TemplateResponse(request, "prompt_diff.html", {
+        "name": name, "v1": v1, "v2": v2,
+        "lines": lines, "found": a is not None and b is not None,
+    })
+
+
+@app.get("/prompt/{name}/{v}")
+def prompt_version(request: Request, name: str, v: int):
+    content = default_prompt_versions().get(name, v)
+    return templates.TemplateResponse(request, "prompt_version.html", {
+        "name": name, "v": v,
+        "content_html": _md(content) if content else None,
+    })
 
 
 @app.get("/expectations")

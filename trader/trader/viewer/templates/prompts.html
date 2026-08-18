@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Prompt 版本库{% endblock %}
+{% block content %}
+<h1>Prompt 版本库 <small class="muted">本地 md 是唯一编辑面,变更自动入库</small></h1>
+<table>
+  <tr><th>prompt</th><th>最新版</th><th>字数</th><th>入库时间</th></tr>
+  {% for p in prompts %}
+  <tr>
+    <td><a href="/prompt/{{ p.name }}"><b>{{ p.name }}</b></a></td>
+    <td>v{{ p.version }}</td>
+    <td>{{ p.size }}</td>
+    <td class="muted">{{ p.created_at[:16] }}</td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

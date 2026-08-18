@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}{{ name }} · 版本历史{% endblock %}
+{% block nav %}<a href="/prompts">← Prompt 列表</a>{% endblock %}
+{% block content %}
+<h1>{{ name }} <small class="muted">版本历史</small></h1>
+<table>
+  <tr><th>版本</th><th>字数</th><th>入库时间</th><th></th></tr>
+  {% for r in rows %}
+  <tr>
+    <td><a href="/prompt/{{ name }}/{{ r.version }}">v{{ r.version }}</a></td>
+    <td>{{ r.size }}</td>
+    <td class="muted">{{ r.created_at[:16] }}</td>
+    <td>
+      {% if r.version > 1 %}
+      <a href="/prompt/{{ name }}/diff/{{ r.version - 1 }}/{{ r.version }}">diff v{{ r.version - 1 }}→v{{ r.version }}</a>
+      {% else %}<span class="muted">初版</span>{% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+{% endblock %}

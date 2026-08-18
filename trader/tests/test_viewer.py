@@ -66,3 +66,15 @@ def test_doc_pages():
     assert "盘后总结" in r.text and "/doc/close/20260817" in r.text
     # 白名单外 404
     assert client.get("/doc/transcript_live/20260817").status_code == 404
+
+
+def test_prompt_pages():
+    """prompt 版本库页面:列表/历史/全文/diff。"""
+    r = client.get("/prompts")
+    assert r.status_code == 200 and "system" in r.text and "round_live" in r.text
+    r = client.get("/prompt/system")
+    assert r.status_code == 200 and "v1" in r.text
+    r = client.get("/prompt/system/1")
+    assert r.status_code == 200 and "买入决策" in r.text
+    r = client.get("/prompt/system/diff/1/1")
+    assert r.status_code == 200  # 同版 diff 也应 200(无变更)

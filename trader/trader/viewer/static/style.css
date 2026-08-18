@@ -89,3 +89,10 @@ details.step.retry summary { color: var(--buy); }
 .card details summary { cursor: pointer; color: var(--text); padding: 2px 0; }
 .card details summary:hover { color: var(--accent); }
 .chips-inline { padding: 4px 0; }
+
+/* prompt diff */
+.d-add { color: #3fb950; }
+.d-del { color: #e5534b; }
+.d-hunk { color: var(--muted); }
+.d-ctx { color: #b8c4d0; }
+pre.diff { line-height: 1.5; }
