@@ -6,7 +6,7 @@ docstring 统一格式:<场景>:<验证点>
 """
 import pytest
 
-from trader.store import Account, AccountError
+from trader.core.ledger import Account, AccountError
 
 TOOL = "account"
 

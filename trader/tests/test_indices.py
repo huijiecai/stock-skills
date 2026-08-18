@@ -8,8 +8,8 @@ docstring 统一格式:<场景>:<验证点>
 """
 import pytest
 
-from trader.tools.market import is_trading_hours
-from trader.tools import market
+from trader.core.market import is_trading_hours
+from trader.core import market
 
 TOOL = "get_indices"  # 本文件测试的工具(-s 输出 [工具名] 标签)
 

@@ -62,7 +62,7 @@ def _show_transcript(date: str, round_no: int, mode: str, full: bool) -> None:
     """命令行看思考流:轮指令→工具调用→返回→推理,逐步打印。"""
     import json
 
-    from trader.store import default_documents
+    from trader.core.documents import default_documents
 
     raw = default_documents().get(f"transcript_{mode}", name=f"r{round_no}", trade_date=date)
     if not raw:

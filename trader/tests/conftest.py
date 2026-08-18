@@ -34,6 +34,15 @@ def _log_test(request):
     print(f"  {status}")
 
 
+@pytest.fixture(autouse=True)
+def _reset_bag_context():
+    """袋子上下文是进程环境态:每个测试前后复位到正本,防串袋污染后续测试。"""
+    from trader.core.context import set_context
+    set_context(0, None)
+    yield
+    set_context(0, None)
+
+
 # ── PG 测试隔离:会话开始时清掉上轮遗留的 t_* schema ──
 import psycopg
 import pytest
@@ -41,7 +50,7 @@ import pytest
 
 @pytest.fixture(scope="session", autouse=True)
 def _clean_test_schemas():
-    from trader.store import DATABASE_URL
+    from trader.core.db import DATABASE_URL
     with psycopg.connect(DATABASE_URL, autocommit=True) as conn:
         rows = conn.execute(
             "SELECT schema_name FROM information_schema.schemata"

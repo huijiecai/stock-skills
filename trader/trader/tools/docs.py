@@ -7,7 +7,7 @@ prompt 不走这里(用 prompts/ 文件,稳定后再迁)。
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-from trader.store import default_documents
+from trader.core.documents import default_documents
 
 
 def save_doc(ctx: RunContext[None], doc_type: str, content: str, name: str = "",

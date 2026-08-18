@@ -27,7 +27,8 @@ class Account:
     def __init__(self, schema: str = "public", initial_cash: int = INITIAL_CASH) -> None:
         self.schema = schema
         self.initial_cash = initial_cash
-        self._init_db()
+        from trader.core.db import ensure_once
+        ensure_once(f"ledger:{schema}", self._init_db)
 
     # ── 查询 ────────────────────────────────────────────
 

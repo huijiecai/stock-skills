@@ -4,7 +4,7 @@ docstring 统一格式:<场景>:<验证点>
 """
 import textwrap
 
-from trader.store import Documents
+from trader.core.documents import Documents
 
 TOOL = "documents"
 

@@ -6,8 +6,8 @@
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-from trader.store import default_account
-from trader.tools.market import _fetch_quotes, _tool_error_text
+from trader.core.ledger import default_account
+from trader.core.market import _fetch_quotes, _tool_error_text
 
 
 def get_positions(ctx: RunContext[None]) -> str:

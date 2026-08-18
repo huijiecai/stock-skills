@@ -45,7 +45,8 @@ class Systems:
 
     def __init__(self, schema: str = "public") -> None:
         self.schema = schema
-        self._init_db()
+        from trader.core.db import ensure_once
+        ensure_once(f"systems:{schema}", self._init_db)
 
     def upsert(self, name: str, manifest: dict, status: str = "active") -> dict:
         """写入/更新一个系统定义(按 name 覆盖)。返回该行。"""

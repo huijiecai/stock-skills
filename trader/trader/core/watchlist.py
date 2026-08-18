@@ -25,7 +25,8 @@ class Watchlists:
 
     def __init__(self, schema: str = "public") -> None:
         self.schema = schema
-        self._init_db()
+        from trader.core.db import ensure_once
+        ensure_once(f"watchlist:{schema}", self._init_db)
 
     # ── 写 ──────────────────────────────────────────────
 

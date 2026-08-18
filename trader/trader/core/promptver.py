@@ -10,7 +10,8 @@ class PromptVersions:
 
     def __init__(self, schema: str = "public") -> None:
         self.schema = schema
-        self._init_db()
+        from trader.core.db import ensure_once
+        ensure_once(f"promptver:{schema}", self._init_db)
 
     def save(self, name: str, content: str) -> dict:
         """存入一版(内容未变则跳过)。返回 {name, version, changed, id}。"""

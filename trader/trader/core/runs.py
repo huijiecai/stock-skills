@@ -12,7 +12,8 @@ class Runs:
 
     def __init__(self, schema: str = "public") -> None:
         self.schema = schema
-        self._init_db()
+        from trader.core.db import ensure_once
+        ensure_once(f"runs:{schema}", self._init_db)
 
     def create(self, name: str, kind: str, trade_date: str,
                prompt_versions: dict, system: str = "expectation") -> dict:

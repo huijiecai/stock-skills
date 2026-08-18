@@ -20,7 +20,8 @@ class Documents:
 
     def __init__(self, schema: str = "public") -> None:
         self.schema = schema
-        self._init_db()
+        from trader.core.db import ensure_once
+        ensure_once(f"documents:{schema}", self._init_db)
 
     def save(self, doc_type: str, content: str, name: str = "",
              trade_date: str | None = None, ref_id: int | None = None,

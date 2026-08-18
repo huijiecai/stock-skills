@@ -20,7 +20,7 @@ def load(name: str, **variables: str) -> str:
     本地 md 仍是编辑面——内容与 PG 不一致时自动入库再读(md 最终退役,附录 8)。
     {var} 占位用 variables 替换;占位符缺变量时明确报错
     (8/17 曾因 prompt 加了 {date} 而调用方没传,KeyError 裸抛烧掉三轮重试)。"""
-    from trader.store import default_prompt_versions
+    from trader.core.promptver import default_prompt_versions
 
     pv = default_prompt_versions()
     pg_text = pv.latest(name)
@@ -45,7 +45,7 @@ def load(name: str, **variables: str) -> str:
 def sync_prompts(prompts_dir: Path | None = None, pv=None) -> list[dict]:
     """把 prompts/*.md 同步进 PG 版本库。返回每个文件的同步结果。
     pv 可注入隔离实例(测试用),默认 public 版本库。"""
-    from trader.store import default_prompt_versions
+    from trader.core.promptver import default_prompt_versions
 
     pv = pv or default_prompt_versions()
     return [pv.save(f.stem, f.read_text(encoding="utf-8"))
@@ -65,7 +65,7 @@ def _main() -> None:
     d.add_argument("v2", type=int)
     args = parser.parse_args()
 
-    from trader.store import default_prompt_versions
+    from trader.core.promptver import default_prompt_versions
 
     pv = default_prompt_versions()
     if args.cmd == "sync":

@@ -1,6 +1,6 @@
 """单票 40% 上限:8/17 剑桥 57.6% 的回归测试。"""
 
-import trader.store as store
+import trader.core.ledger as store
 from trader.tools.trading import _check_position_cap
 
 

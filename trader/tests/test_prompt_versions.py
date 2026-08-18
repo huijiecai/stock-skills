@@ -1,7 +1,7 @@
 """prompt 版本库:本地编辑→入库→版本不变检测→diff。"""
 
 from trader.prompts import sync_prompts
-from trader.store import PromptVersions
+from trader.core.promptver import PromptVersions
 
 
 def test_sync_versions_and_diff(tmp_path):

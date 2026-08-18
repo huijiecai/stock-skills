@@ -8,8 +8,8 @@ import textwrap
 
 import pytest
 
-from trader.tools.market import is_trading_hours
-from trader.tools.watch import scan_market
+from trader.core.market import is_trading_hours
+from trader.core.scan import scan_market
 
 TOOL = "scan_market"
 

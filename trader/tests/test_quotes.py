@@ -6,8 +6,8 @@ import textwrap
 
 import pytest
 
-from trader.tools.market import is_trading_hours
-from trader.tools import market
+from trader.core.market import is_trading_hours
+from trader.core import market
 
 TOOL = "get_quotes"
 REPLAY_DATE = "20260812"

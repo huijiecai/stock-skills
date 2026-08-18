@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from trader.store import Account, Documents, Expectations, _connect  # noqa: E402
+from trader.core.db import _connect  # noqa: E402
 
 SRC = Path(__file__).resolve().parent.parent / "data" / "account.db"
 
