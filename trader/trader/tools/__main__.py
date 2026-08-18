@@ -49,6 +49,41 @@ def _convert(raw: str, ann) -> object:
     return raw
 
 
+def _show_transcript(date: str, round_no: int, mode: str, full: bool) -> None:
+    """命令行看思考流:轮指令→工具调用→返回→推理,逐步打印。"""
+    import json
+
+    from trader.store import default_documents
+
+    raw = default_documents().get(f"transcript_{mode}", name=f"r{round_no}", trade_date=date)
+    if not raw:
+        print(f"无 {mode} r{round_no}({date})的思考流(可能早于落盘机制)")
+        return
+    t = json.loads(raw)
+    u = t.get("usage") or {}
+    limit = 10 ** 9 if full else 500
+    print(f"r{round_no} · {date} {t.get('time','')} · "
+          f"{u.get('requests','?')}次请求 · 输入{u.get('input_tokens',0):,}/输出{u.get('output_tokens',0):,} tokens")
+    print("─" * 60)
+    for msg in t.get("messages", []):
+        for part in msg.get("parts", []):
+            kind = part.get("part_kind", "")
+            if kind == "user-prompt":
+                body = str(part.get("content", ""))
+                print(f"\n📋 轮指令\n{body[:limit]}{'…' if len(body) > limit else ''}")
+            elif kind == "text":
+                body = str(part.get("content", ""))
+                print(f"\n💬 推理/输出\n{body[:limit]}{'…' if len(body) > limit else ''}")
+            elif kind == "tool-call":
+                print(f"\n🔧 {part.get('tool_name')}({json.dumps(part.get('args', {}), ensure_ascii=False)})")
+            elif kind == "tool-return":
+                c = part.get("content", "")
+                body = c if isinstance(c, str) else json.dumps(c, ensure_ascii=False)
+                print(f"← {body[:limit]}{'…(截断,--full 看全文)' if len(body) > limit else ''}")
+            elif kind == "retry-prompt":
+                print(f"\n⚠ 重试:{str(part.get('content',''))[:120]}")
+
+
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -57,6 +92,11 @@ def main() -> None:
     c = sub.add_parser("call", help="调用某工具(不经 LLM)")
     c.add_argument("name", help="工具名")
     c.add_argument("kv", nargs="*", help="参数 key=value(逗号分隔表示列表)")
+    t = sub.add_parser("transcript", help="命令行看某轮思考流")
+    t.add_argument("date", help="交易日 YYYYMMDD")
+    t.add_argument("round_no", type=int, help="轮号(如 17)")
+    t.add_argument("--mode", default="live", choices=["live", "replay"], help="模式(默认 live)")
+    t.add_argument("--full", action="store_true", help="不截断(默认工具返回截500字)")
 
     args = p.parse_args()
 
@@ -73,6 +113,10 @@ def main() -> None:
                 print(f"  {n}({', '.join(params)})"
                       + (f"  必填:{req}" if req else "") + warn)
         print()
+        return
+
+    if args.cmd == "transcript":
+        _show_transcript(args.date, args.round_no, args.mode, args.full)
         return
 
     func = _load(args.name)
