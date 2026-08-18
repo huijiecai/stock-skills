@@ -16,8 +16,8 @@
 <table>
   <tr><th>指标</th><th>{{ a.name }}</th><th>{{ b.name }}</th></tr>
   <tr><td>已实现盈亏(成本法)</td>
-      <td class="{{ 'up' if ma.pnl >= 0 else 'down' }}">{{ "%+,.0f"|format(ma.pnl) }}</td>
-      <td class="{{ 'up' if mb.pnl >= 0 else 'down' }}">{{ "%+,.0f"|format(mb.pnl) }}</td></tr>
+      <td class="{{ 'up' if ma.pnl >= 0 else 'down' }}">{{ "{:+,.0f}".format(ma.pnl) }}</td>
+      <td class="{{ 'up' if mb.pnl >= 0 else 'down' }}">{{ "{:+,.0f}".format(mb.pnl) }}</td></tr>
   <tr><td>现金 / 持仓成本</td><td>¥{{ "{:,.0f}".format(ma.cash) }} / ¥{{ "{:,.0f}".format(ma.cost_value) }}</td>
       <td>¥{{ "{:,.0f}".format(mb.cash) }} / ¥{{ "{:,.0f}".format(mb.cost_value) }}</td></tr>
   <tr><td>成交笔数</td><td>{{ ma.n_fills }}(买 {{ ma.fills | selectattr("side","equalto","BUY") | list | length }})</td>
