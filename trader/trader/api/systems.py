@@ -84,6 +84,20 @@ def save_prompt(name: str, prompt: str, body: dict, who: dict = Depends(require_
     return {"prompt": prompt, "version": r["version"], "changed": r["changed"]}
 
 
+@router.put("/{name}/restore")
+def restore_system(name: str, who: dict = Depends(require_user)):
+    """恢复归档系统(status → active)。"""
+    from trader.core.db import _connect
+    uid = who["user"]["id"]
+    if default_systems().get(name, user_id=uid) is None:
+        raise HTTPException(404, f"系统不存在:{name}")
+    with _connect() as conn:
+        conn.execute("UPDATE systems SET status='active', updated_at=%s"
+                     " WHERE user_id=%s AND name=%s",
+                     (datetime.now().isoformat(timespec="seconds"), uid, name))
+    return {"restored": name, "status": "active"}
+
+
 @router.delete("/{name}")
 def delete_system(name: str, who: dict = Depends(require_user)):
     """归档系统(软删除,数据保留,状态→archived)。"""

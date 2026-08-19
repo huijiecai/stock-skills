@@ -179,6 +179,14 @@ export default function Systems() {
     } catch (e: any) { message.error(e.message) }
   }
 
+  async function handleRestore(name: string) {
+    try {
+      await fetch(`/systems/${name}/restore`, { method: 'PUT', headers: { Authorization: `Bearer ${getToken()}` } })
+      message.success(`系统 ${name} 已恢复`)
+      qc.invalidateQueries({ queryKey: ['systems'] })
+    } catch { message.error('恢复失败') }
+  }
+
   async function handleArchive(name: string) {
     try {
       await fetch(`/systems/${name}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } })
@@ -225,14 +233,18 @@ export default function Systems() {
                    }},
                  { title: '状态', dataIndex: 'status', width: 70,
                    render: (s: string) => <Tag color={s === 'active' ? 'green' : 'default'}>{s}</Tag> },
-                 { title: '', width: 220, render: (_: any, r: any) => (
-                   r.status === 'archived' ? <Typography.Text type="secondary">已归档</Typography.Text> : (
+                 { title: '', width: 250, render: (_: any, r: any) => (
                    <Space>
                      <a onClick={() => setEditing(r.name)}>编辑 prompts</a>
-                     <a onClick={() => { setRunningSystem(r.name); runForm.resetFields(); setSelectedStage('') }}>▶ 运行</a>
-                     <a style={{ color: '#999' }} onClick={() => handleArchive(r.name)}>归档</a>
+                     {r.status === 'archived' ? (
+                       <a style={{ color: '#52c41a' }} onClick={() => handleRestore(r.name)}>恢复</a>
+                     ) : (
+                       <>
+                         <a onClick={() => { setRunningSystem(r.name); runForm.resetFields(); setSelectedStage('') }}>▶ 运行</a>
+                         <a style={{ color: '#999' }} onClick={() => handleArchive(r.name)}>归档</a>
+                       </>
+                     )}
                    </Space>
-                   )
                  )},
                ]} />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
