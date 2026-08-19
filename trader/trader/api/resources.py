@@ -132,6 +132,30 @@ def run_round_detail(run_id: int, n: int, who: dict = Depends(require_user)):
     return {"n": n, "log_md": log, "steps": steps, "usage": usage}
 
 
+@runs_router.get("/{run_id}/trading")
+def run_trading(run_id: int, who: dict = Depends(require_user)):
+    """沙盒账本视图:该场次的现金/持仓/成交明细(按 bag 隔离)。"""
+    run = next((r for r in default_runs().list(user_id=who["user"]["id"])
+                if r["id"] == run_id), None)
+    if run is None:
+        raise HTTPException(404, "场次不存在")
+    bag = run["bag_id"]
+    acct = Account()
+    positions = acct.positions(bag)
+    fills = acct.fills(bag)
+    from trader.core.db import _connect
+    with _connect() as conn:
+        w = conn.execute("SELECT cash_cents, initial_cents FROM wallets WHERE bag_id=%s",
+                         (bag,)).fetchone()
+    return {
+        "bag": bag,
+        "cash": (w["cash_cents"] / 100) if w else None,
+        "initial": (w["initial_cents"] / 100) if w else None,
+        "positions": positions,
+        "fills": fills,
+    }
+
+
 # ── 交易视图(当前账本)──────────────────────────────────
 
 trading_router = APIRouter(prefix="/trading", tags=["trading"])

@@ -1,6 +1,6 @@
-import { Card, Col, Row, Statistic, Tag, Timeline, Typography } from 'antd'
-import { useEffect, useState } from 'react'
+import { Card, Col, Row, Statistic, Tag, Timeline, Typography, Table, Collapse } from 'antd'
 import { useParams } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get } from '../api/client'
 import TranscriptTimeline from '../components/TranscriptTimeline'
@@ -18,6 +18,10 @@ export default function RunDetail() {
     queryKey: ['round', id, selected],
     queryFn: () => get(`/runs/${id}/rounds/${selected}`),
     enabled: selected > 0,
+  })
+  const trading = useQuery({
+    queryKey: ['runTrading', id],
+    queryFn: () => get(`/runs/${id}/trading`),
   })
 
   if (run.isLoading) return <Card>加载中…</Card>
@@ -42,6 +46,54 @@ export default function RunDetail() {
           {!r.metrics && <Col><Typography.Text type="secondary">本场无封场指标(进行中或老场)</Typography.Text></Col>}
         </Row>
       </Card>
+
+      {/* 沙盒账本 */}
+      {trading.data && (
+        <Card title={<span>沙盒账本 {r.kind === 'live'
+          ? <Tag color="red">主账本</Tag>
+          : <Tag color="cyan">沙盒 #{trading.data.bag}</Tag>}</span>}
+          size="small" style={{ marginTop: 16 }}>
+          <Row gutter={16}>
+            <Col span={4}><Statistic title="现金" prefix="¥" precision={0}
+              value={trading.data.cash ?? '-'} /></Col>
+            <Col span={4}><Statistic title="初始资金" prefix="¥" precision={0}
+              value={trading.data.initial ?? '-'} /></Col>
+          </Row>
+          {trading.data.positions?.length > 0 && (
+            <Table rowKey="code" size="small" pagination={false} style={{ marginTop: 12 }}
+                   dataSource={trading.data.positions}
+                   columns={[
+                     { title: '代码', dataIndex: 'code', width: 80 },
+                     { title: '名称', dataIndex: 'name' },
+                     { title: '数量', dataIndex: 'quantity', width: 70 },
+                     { title: '可卖', dataIndex: 'sellable', width: 60 },
+                     { title: '成本', dataIndex: 'avg_cost', width: 80 },
+                     { title: '买入日', dataIndex: 'bought_on', width: 100 },
+                   ]} />
+          )}
+          {trading.data.fills?.length > 0 && (
+            <Collapse style={{ marginTop: 12 }} items={[{
+              key: 'fills',
+              label: `成交明细(${trading.data.fills.length} 笔)`,
+              children: (
+                <Table rowKey="id" size="small" pagination={false}
+                       dataSource={[...trading.data.fills].reverse()}
+                       columns={[
+                         { title: '时间', width: 130,
+                           render: (_: any, f: any) => (f.trade_time || f.created_at || '').slice(5, 16) },
+                         { title: '方向', dataIndex: 'side', width: 50,
+                           render: (s: string) => <Tag color={s === 'BUY' ? 'green' : 'red'}>{s}</Tag> },
+                         { title: '标的', render: (_: any, f: any) => `${f.name || f.code}(${f.code})` },
+                         { title: '数量', dataIndex: 'quantity', width: 70 },
+                         { title: '价格', render: (_: any, f: any) => `¥${(f.price_cents / 100).toFixed(2)}` },
+                         { title: '决策留痕', dataIndex: 'reason',
+                           render: (v: string) => <Typography.Text type="secondary" style={{ fontSize: 12 }}>{v}</Typography.Text> },
+                       ]} />
+              ),
+            }]} />
+          )}
+        </Card>
+      )}
 
       <Row gutter={16} style={{ marginTop: 16 }}>
         <Col span={5}>
