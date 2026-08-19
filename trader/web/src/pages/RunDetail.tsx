@@ -28,7 +28,7 @@ export default function RunDetail() {
     <div>
       <Card title={<span>{r.name} <Tag color={r.kind === 'live' ? 'red' : 'blue'}>{r.kind === 'live' ? '实盘' : '模拟'}</Tag>
         <Tag>{r.status}</Tag><Tag color="purple">{r.system}</Tag></span>}
-        extra={<span className="mono">bag {r.bag_id} · 指纹 {(r.fingerprint ?? '').slice(0, 10) || '-'}</span>}>
+        extra={<span className="mono">指纹 {(r.fingerprint ?? '').slice(0, 10) || '-'}</span>}>
         <Row gutter={16}>
           {r.metrics && <>
             <Col span={4}><Statistic title="收益" suffix="%" value={r.metrics.return_pct}

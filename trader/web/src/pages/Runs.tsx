@@ -27,7 +27,6 @@ export default function Runs() {
                  render: (k: string) => <Tag color={k === 'live' ? 'red' : 'blue'}>{k === 'live' ? '实盘' : '模拟'}</Tag> },
                { title: '数据日', dataIndex: 'trade_date', width: 100 },
                { title: '系统', dataIndex: 'system', width: 110 },
-               { title: 'bag', dataIndex: 'bag_id', width: 60 },
                { title: '指纹', width: 90,
                  render: (_: any, r: any) => <span className="mono">{(r.fingerprint ?? '').slice(0, 8) || '-'}</span> },
                { title: '收益', width: 90,
