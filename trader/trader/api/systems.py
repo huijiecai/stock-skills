@@ -39,6 +39,35 @@ def get_system(name: str, who: dict = Depends(require_user)):
     return row
 
 
+class ManifestIn(BaseModel):
+    manifest: dict
+
+
+@router.put("/{name}/manifest")
+def update_manifest(name: str, body: ManifestIn, who: dict = Depends(require_user)):
+    """更新 manifest(阶段/工具/联网开关)——编辑器里动态改的一切走这里。
+    新增阶段的 prompt 如果不存在,自动创建空模板。"""
+    uid = who["user"]["id"]
+    row = default_systems().get(name, user_id=uid)
+    if row is None:
+        raise HTTPException(404, f"系统不存在:{name}")
+
+    m = body.manifest
+    # 给新增阶段自动创建空 prompt
+    pv = default_prompt_versions()
+    for stage_name, sdef in m.get("stages", {}).items():
+        p = sdef.get("prompt")
+        if p and pv.latest(p, uid) is None:
+            pv.save(p, f"# {name} · {stage_name}\n\n(在此编写此阶段的 prompt...)\n", user_id=uid)
+    sp = m.get("system_prompt")
+    if sp and pv.latest(sp, uid) is None:
+        pv.save(sp, f"你是 {name} 的 AI agent。\n(在此编写系统级角色设定...)\n", user_id=uid)
+
+    updated = default_systems().upsert(name, m, row.get("status", "active"), user_id=uid)
+    return {"name": updated["name"], "stages": list(m.get("stages", {}).keys()),
+            "tools": len(m.get("tools", []))}
+
+
 # ── prompt 在线编辑(命名空间=用户;md 编辑面在此退役,实现设计附录 8)──
 
 @router.get("/{name}/prompts")
