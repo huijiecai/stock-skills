@@ -79,11 +79,26 @@ def run_detail(run_id: int, who: dict = Depends(require_user)):
 
 @runs_router.get("/{run_id}/rounds")
 def run_rounds(run_id: int, who: dict = Depends(require_user)):
-    """轮次概览:编号列表 + 哪些有思考流。"""
+    """轮次概览:编号列表 + 哪些有思考流。single 场次返回一条"输出"伪轮。"""
     run = next((r for r in default_runs().list(user_id=who["user"]["id"])
                 if r["id"] == run_id), None)
     if run is None:
         raise HTTPException(404, "场次不存在")
+    docs = default_documents()
+
+    if run["kind"] == "single":
+        # 单次分析:找 transcript_{stage} 和该日产出文档(报告)
+        date = run["trade_date"] or ""
+        bag = run["bag_id"]
+        # transcript: doc_type 以 transcript_ 开头且 name 为空(非轮次)
+        transcripts = [d for d in docs.list(trade_date=date, bag_id=bag)
+                       if d["doc_type"].startswith("transcript_") and not (d["name"] or "").startswith("r")]
+        # 产出文档:非 transcript/watch 类
+        outputs = [d for d in docs.list(trade_date=date, bag_id=bag)
+                   if not d["doc_type"].startswith(("transcript_", "watch_"))]
+        return {"rounds": [{"n": 1, "has_transcript": bool(transcripts),
+                            "single": True, "outputs": outputs}]}
+
     mode = "live" if run["kind"] == "live" else "replay"
     docs = default_documents()
     logs = sorted((int(d["name"][1:]) for d in docs.list(f"watch_{mode}", run["trade_date"],
@@ -97,18 +112,34 @@ def run_rounds(run_id: int, who: dict = Depends(require_user)):
 
 @runs_router.get("/{run_id}/rounds/{n}")
 def run_round_detail(run_id: int, n: int, who: dict = Depends(require_user)):
-    """单轮详情:轮日志(md)+ 思考流(拍平步骤)+ usage。"""
+    """单轮详情:轮日志(md)+ 思考流(拍平步骤)+ usage。
+    single 场次:n=1 → 找 transcript_{stage} + 产出文档。"""
     import json
     run = next((r for r in default_runs().list(user_id=who["user"]["id"])
                 if r["id"] == run_id), None)
     if run is None:
         raise HTTPException(404, "场次不存在")
-    mode = "live" if run["kind"] == "live" else "replay"
     docs = default_documents()
-    log = docs.get(f"watch_{mode}", name=f"r{n}", trade_date=run["trade_date"],
-                   bag_id=run["bag_id"])
-    raw = docs.get(f"transcript_{mode}", name=f"r{n}", trade_date=run["trade_date"],
-                   bag_id=run["bag_id"])
+    bag, date = run["bag_id"], run["trade_date"] or ""
+
+    log, raw = None, None
+    if run["kind"] == "single":
+        # 找产出文档(报告)作为"轮日志"
+        for d in docs.list(trade_date=date, bag_id=bag):
+            if not d["doc_type"].startswith(("transcript_", "watch_")):
+                log = docs.get(d["doc_type"], name=d["name"] or "",
+                               trade_date=date, bag_id=bag)
+                break
+        # 找 transcript(doc_type 以 transcript_ 开头,name 不以 r 开头)
+        for d in docs.list(trade_date=date, bag_id=bag):
+            if d["doc_type"].startswith("transcript_") and not (d["name"] or "").startswith("r"):
+                raw = docs.get(d["doc_type"], name=d["name"] or "",
+                               trade_date=date, bag_id=bag)
+                break
+    else:
+        mode = "live" if run["kind"] == "live" else "replay"
+        log = docs.get(f"watch_{mode}", name=f"r{n}", trade_date=date, bag_id=bag)
+        raw = docs.get(f"transcript_{mode}", name=f"r{n}", trade_date=date, bag_id=bag)
     steps, usage = [], {}
     if raw:
         t = json.loads(raw)
