@@ -14,7 +14,7 @@ EMAIL = "api-test@test.io"
 def _register_and_login():
     client.post("/auth/register", json={"email": EMAIL, "password": "pass-1"})
     r = client.post("/auth/login", json={"email": EMAIL, "password": "pass-1"})
-    return {"Authorization": f"Bearer {r.json()['token']}"}
+    return {"Authorization": f"Bearer {r.json()['data']['token']}"}
 
 
 def test_healthz():
@@ -25,7 +25,7 @@ def test_healthz():
 def test_auth_flow():
     """认证流:注册→登录→me;错密码 401。"""
     h = _register_and_login()
-    me = client.get("/auth/me", headers=h).json()
+    me = client.get("/auth/me", headers=h).json()["data"]
     assert me["email"] == EMAIL and me["is_admin"] is False
     assert client.post("/auth/login",
                        json={"email": EMAIL, "password": "wrong"}).status_code == 401
@@ -42,7 +42,7 @@ def test_systems_namespace():
     h = _register_and_login()
     client.post("/systems", headers=h,
                 json={"name": "api-sys", "manifest": {"stages": {}, "tools": []}})
-    names = [s["name"] for s in client.get("/systems", headers=h).json()]
+    names = [s["name"] for s in client.get("/systems", headers=h).json()["data"]]
     assert "api-sys" in names and "expectation" not in names   # 看不到 user 0 的
     assert client.get("/systems/expectation", headers=h).status_code == 404
 
