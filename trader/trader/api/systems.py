@@ -93,7 +93,11 @@ class RunIn(BaseModel):
 
 @router.post("/{name}/run")
 def run_system(name: str, body: RunIn, who: dict = Depends(require_user)):
-    """发起一次运行(单次分析 or 模拟看盘),子进程执行。"""
+    """发起一次运行,子进程执行。阶段类型自动适配:
+    - single:跑一次出报告(premarket/close/research/自定义分析)
+    - loop+replay:模拟看盘(回放某天,9:35-15:00 循环)
+    - loop+live:实时看盘(对接当前行情,15:05 自动收工)
+    """
     import subprocess
     from pathlib import Path
     uid = who["user"]["id"]
@@ -105,29 +109,26 @@ def run_system(name: str, body: RunIn, who: dict = Depends(require_user)):
     if stage not in stages:
         raise HTTPException(400, f"阶段不存在:{stage}(可用:{list(stages)})")
 
-    kind = stages[stage].get("kind", "single")
-    if kind == "single":
-        cmd = ["uv", "run", "python", "-m", "trader.runner", "run", name, stage,
-               "--date", body.date, "--user", str(uid)]
-    else:
-        cmd = ["uv", "run", "python", "-m", "trader.runner", "replay", body.date,
-               "--user", str(uid), "--interval", str(body.interval),
-               "--tag", f"web-{name}"]
-    # 注:replay 命令当前硬编码系统名 expectation,需要扩展
-    # 临时方案:单次阶段走 run 命令;loop 阶段走 replay(仅 expectation)
-    if kind != "single":
-        cmd = ["uv", "run", "python", "-c",
-               f"from trader.core.engine import run_replay; "
-               f"run_replay('{name}', '{body.date}', interval={body.interval}, "
-               f"tag='web-{name}', user_id={uid})"]
-    else:
-        cmd = ["uv", "run", "python", "-c",
-               f"from trader.core.engine import run_single; "
-               f"run_single('{name}', '{stage}', user_id={uid}, date='{body.date}')"]
+    sdef = stages[stage]
+    kind = sdef.get("kind", "single")
+    data_mode = sdef.get("data_mode", "")
 
+    if kind == "single":
+        code = (f"from trader.core.engine import run_single; "
+                f"run_single('{name}', '{stage}', user_id={uid}, date='{body.date}')")
+    elif data_mode == "live":
+        code = (f"from trader.core.engine import run_live; "
+                f"run_live('{name}', stage_name='{stage}', user_id={uid})")
+    else:  # loop + replay
+        code = (f"from trader.core.engine import run_replay; "
+                f"run_replay('{name}', '{body.date}', stage_name='{stage}', "
+                f"interval={body.interval}, tag='web-{name}', user_id={uid})")
+
+    cmd = ["uv", "run", "python", "-c", code]
     log = Path("logs/api_runs.log")
     with log.open("ab") as f:
         subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, start_new_session=True,
                          cwd=Path(__file__).resolve().parent.parent.parent)
     return {"started": True, "system": name, "stage": stage, "date": body.date,
+            "kind": kind, "mode": data_mode or kind,
             "note": "已发起,到「场次」页看进度和结果"}
