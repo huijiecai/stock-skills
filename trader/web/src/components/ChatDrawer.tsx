@@ -1,17 +1,29 @@
-import { Button, Drawer, Input, Spin, message, Typography, Tooltip } from 'antd'
+import { Button, Drawer, Input, Spin, message, Typography, Modal, Select, Space } from "antd"
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { get, post } from '../api/client'
+import { get, post, put } from '../api/client'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
 }
 
-/** 场次讨论抽屉:跑完后跟 AI 教练讨论结果、优化 prompt。
- *  AI 建议用代码块包裹,旁边出现"应用到 prompt"按钮。 */
+/** 从 AI 回复中提取所有建议代码块 */
+function extractSuggestions(text: string): string[] {
+  const blocks: string[] = []
+  const regex = /```(?:prompt|markdown|md)?\s*\n([\s\S]*?)```/g
+  let match
+  while ((match = regex.exec(text)) !== null) {
+    if (match[1].trim().length > 30) { // 过滤太短的
+      blocks.push(match[1].trim())
+    }
+  }
+  return blocks
+}
+
+/** 场次讨论抽屉:跑完后跟 AI 教练讨论结果、优化 prompt。 */
 export default function ChatDrawer({ runId, systemName, open, onClose }: {
   runId: number
   systemName: string
@@ -22,19 +34,25 @@ export default function ChatDrawer({ runId, systemName, open, onClose }: {
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [applyTarget, setApplyTarget] = useState<string | null>(null) // 要应用的建议内容
+  const [applyPrompt, setApplyPrompt] = useState<string>('')            // 应用到哪个 prompt
   const bottomRef = useRef<HTMLDivElement>(null)
 
-  // 加载历史对话
   const history = useQuery({
     queryKey: ['chat', runId],
     queryFn: () => get(`/runs/${runId}/chat`),
     enabled: open && !!runId,
   })
 
+  // 该系统的 prompt 列表(应用建议时选择目标)
+  const prompts = useQuery({
+    queryKey: ['prompts', systemName],
+    queryFn: () => get(`/systems/${systemName}/prompts`),
+    enabled: open && !!systemName,
+  })
+
   useEffect(() => {
-    if (history.data?.messages) {
-      setMessages(history.data.messages)
-    }
+    if (history.data?.messages) setMessages(history.data.messages)
   }, [history.data])
 
   useEffect(() => {
@@ -50,108 +68,144 @@ export default function ChatDrawer({ runId, systemName, open, onClose }: {
     try {
       const r = await post<{ reply: string }>(`/runs/${runId}/chat`, { message: userMsg })
       setMessages(prev => [...prev, { role: 'assistant', content: r.reply }])
-      qc.invalidateQueries({ queryKey: ['chat', runId] })
     } catch (e: any) {
       message.error(e.message)
-      setMessages(prev => prev.slice(0, -1)) // 失败回滚
+      setMessages(prev => prev.slice(0, -1))
     } finally {
       setSending(false)
     }
   }
 
-  // 从 AI 回复中提取代码块(作为可应用的 prompt 建议)
-  function extractSuggestions(text: string): { suggestion: string; index: number }[] {
-    const blocks: { suggestion: string; index: number }[] = []
-    const regex = /```(?:prompt|markdown|md)?\s*\n([\s\S]*?)```/g
-    let match
-    let i = 0
-    while ((match = regex.exec(text)) !== null) {
-      if (match[1].trim().length > 20) { // 太短的不是建议
-        blocks.push({ suggestion: match[1].trim(), index: i++ })
-      }
-    }
-    return blocks
+  async function handleApply() {
+    if (!applyPrompt || !applyTarget) return
+    try {
+      const r = await put(`/systems/${systemName}/prompts/${applyPrompt}`, { content: applyTarget })
+      message.success(`已保存为 v${r.version},下次运行生效`)
+      setApplyTarget(null)
+      qc.invalidateQueries({ queryKey: ['prompts', systemName] })
+    } catch (e: any) { message.error(e.message) }
   }
 
-  async function applySuggestion(suggestion: string) {
-    // TODO: 需要知道具体的 prompt 名才能应用
-    // 简化:复制到剪贴板,让用户粘贴到 PromptEditor
-    try {
-      await navigator.clipboard.writeText(suggestion)
-      message.success('已复制到剪贴板,请到「编辑 prompts」粘贴并保存')
-    } catch {
-      message.info('请手动复制代码块内容')
-    }
-  }
+  // 当前选中 prompt 的现有内容(对比用)
+  const currentContent = useQuery({
+    queryKey: ['promptContent', systemName, applyPrompt],
+    queryFn: async () => {
+      if (!applyPrompt) return ''
+      const vs = await get(`/systems/${systemName}/prompts/${applyPrompt}/versions`)
+      if (!vs.length) return ''
+      const r = await get(`/systems/${systemName}/prompts/${applyPrompt}/versions/${vs[0].version}`)
+      return r.content
+    },
+    enabled: !!applyTarget && !!applyPrompt,
+  })
 
   return (
-    <Drawer title={`💬 讨论:${systemName}`} width={620} open={open} onClose={onClose}
-            styles={{ body: { display: 'flex', flexDirection: 'column', padding: '12px 16px' } }}>
-      {/* 消息列表 */}
-      <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
-        {messages.length === 0 && (
-          <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginTop: 40 }}>
-            跑完了?跟 AI 教练聊聊这次结果,<br/>让它帮你优化 prompt。<br/><br/>
-            试试:"为什么没分析 X?" / "怎么改进输出格式?" / "还有什么数据源可以加?"
-          </Typography.Text>
-        )}
-        {messages.map((msg, i) => (
-          <div key={i} style={{
-            marginBottom: 12,
-            display: 'flex',
-            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
-          }}>
-            <div style={{
-              maxWidth: '85%',
-              padding: msg.role === 'user' ? '8px 14px' : '10px 14px',
-              borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
-              background: msg.role === 'user' ? '#1677ff' : '#f6f8fa',
-              color: msg.role === 'user' ? '#fff' : '#333',
-            }}>
-              {msg.role === 'user' ? (
-                <span style={{ fontSize: 14, lineHeight: 1.5 }}>{msg.content}</span>
-              ) : (
-                <div className="markdown-body" style={{ fontSize: 14 }}>
-                  <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
-                  {/* 代码块旁的应用按钮 */}
-                  {extractSuggestions(msg.content).map((s, j) => (
-                    <Tooltip key={j} title="复制建议内容,粘贴到 prompt 编辑器">
-                      <Button size="small" type="primary" ghost
-                              style={{ marginTop: 4, marginBottom: 8 }}
-                              onClick={() => applySuggestion(s.suggestion)}>
-                        📋 应用此建议
-                      </Button>
-                    </Tooltip>
-                  ))}
+    <>
+      <Drawer title={`💬 讨论:${systemName}`} width={620} open={open} onClose={onClose}
+              styles={{ body: { display: 'flex', flexDirection: 'column', padding: '12px 16px' } }}>
+        <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12 }}>
+          {messages.length === 0 && (
+            <Typography.Text type="secondary" style={{ display: 'block', textAlign: 'center', marginTop: 40 }}>
+              跑完了?跟 AI 教练聊聊这次结果,<br/>让它帮你优化 prompt。<br/><br/>
+              试试:"为什么没分析 X?" / "怎么改进输出格式?"
+            </Typography.Text>
+          )}
+          {messages.map((msg, i) => {
+            const suggestions = msg.role === 'assistant' ? extractSuggestions(msg.content) : []
+            return (
+              <div key={i} style={{
+                marginBottom: 12,
+                display: 'flex',
+                justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              }}>
+                <div style={{
+                  maxWidth: '85%',
+                  padding: msg.role === 'user' ? '8px 14px' : '10px 14px',
+                  borderRadius: msg.role === 'user' ? '12px 12px 2px 12px' : '12px 12px 12px 2px',
+                  background: msg.role === 'user' ? '#1677ff' : '#f6f8fa',
+                  color: msg.role === 'user' ? '#fff' : '#333',
+                }}>
+                  {msg.role === 'user' ? (
+                    <span style={{ fontSize: 14, lineHeight: 1.5 }}>{msg.content}</span>
+                  ) : (
+                    <>
+                      <div className="markdown-body" style={{ fontSize: 14 }}>
+                        <Markdown remarkPlugins={[remarkGfm]}>{msg.content}</Markdown>
+                      </div>
+                      {/* 单个应用按钮(仅当有建议代码块时) */}
+                      {suggestions.length > 0 && (
+                        <Button size="small" type="primary" ghost
+                                style={{ marginTop: 8 }}
+                                onClick={() => {
+                                  setApplyTarget(suggestions.join('\n\n---\n\n'))
+                                  // 默认选第一个非 system prompt
+                                  const first = (prompts.data ?? []).find((p: any) => p.stage !== '(system)')
+                                  setApplyPrompt(first?.prompt ?? '')
+                                }}>
+                          📝 应用建议到 prompt({suggestions.length} 条)
+                        </Button>
+                      )}
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
+            )
+          })}
+          {sending && (
+            <div style={{ textAlign: 'center', padding: 12 }}>
+              <Spin size="small" /> <Typography.Text type="secondary">AI 正在思考...</Typography.Text>
+            </div>
+          )}
+          <div ref={bottomRef} />
+        </div>
+
+        <div style={{ borderTop: '1px solid #e8e8e8', paddingTop: 12 }}>
+          <Input.TextArea rows={2} value={input} onChange={(e) => setInput(e.target.value)}
+            onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); send() } }}
+            placeholder="输入问题,Enter 发送" disabled={sending} />
+          <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
+            <Button type="primary" onClick={send} loading={sending} disabled={!input.trim()}>发送</Button>
+          </div>
+        </div>
+      </Drawer>
+
+      {/* 应用建议弹窗 */}
+      <Modal title="应用建议到 prompt" open={!!applyTarget} onCancel={() => setApplyTarget(null)}
+             onOk={handleApply} okText="保存为新版本" width={720}
+             okButtonProps={{ disabled: !applyPrompt }}>
+        <Space direction="vertical" style={{ width: '100%' }} size={12}>
+          <Select style={{ width: '100%' }} value={applyPrompt} onChange={setApplyPrompt}
+                  placeholder="选择要更新的 prompt"
+                  options={(prompts.data ?? []).map((p: any) => ({
+                    value: p.prompt,
+                    label: `${p.stage} → ${p.prompt}${p.latest_version ? ` (当前 v${p.latest_version})` : ''}`,
+                  }))} />
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12 }}>当前版本</Typography.Text>
+              <pre style={{ ...preStyle, background: '#fff' }}>
+                {(currentContent.data ?? '').slice(0, 1500)}
+              </pre>
+            </div>
+            <div style={{ flex: 1 }}>
+              <Typography.Text type="secondary" style={{ fontSize: 12, color: '#1677ff' }}>AI 建议(将替换)</Typography.Text>
+              <pre style={{ ...preStyle, background: '#f0f7ff', borderColor: '#91caff' }}>
+                {(applyTarget ?? '').slice(0, 1500)}
+              </pre>
             </div>
           </div>
-        ))}
-        {sending && (
-          <div style={{ textAlign: 'center', padding: 12 }}>
-            <Spin size="small" /> <Typography.Text type="secondary">AI 正在思考...</Typography.Text>
-          </div>
-        )}
-        <div ref={bottomRef} />
-      </div>
-
-      {/* 输入区 */}
-      <div style={{ borderTop: '1px solid #e8e8e8', paddingTop: 12 }}>
-        <Input.TextArea
-          rows={2}
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onPressEnter={(e) => { if (!e.shiftKey) { e.preventDefault(); send() } }}
-          placeholder="输入问题,Enter 发送,Shift+Enter 换行"
-          disabled={sending}
-        />
-        <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end' }}>
-          <Button type="primary" onClick={send} loading={sending} disabled={!input.trim()}>
-            发送
-          </Button>
-        </div>
-      </div>
-    </Drawer>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            ⚠ 建议内容将完全替换当前 prompt。如果有多个建议,已合并(--- 分隔)。旧版永在版本库可回滚。
+          </Typography.Text>
+        </Space>
+      </Modal>
+    </>
   )
+}
+
+const preStyle: React.CSSProperties = {
+  padding: 10, borderRadius: 6, border: '1px solid #d9d9d9',
+  fontSize: 11, maxHeight: 300, overflow: 'auto',
+  whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0,
+  fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',
 }
