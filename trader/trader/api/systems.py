@@ -1,4 +1,5 @@
 """api·系统端点:manifest 读写 + prompt 在线编辑(版本库,FE-1 的 PromptEditor 吃这组)。"""
+from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -81,6 +82,21 @@ def save_prompt(name: str, prompt: str, body: dict, who: dict = Depends(require_
     r = default_prompt_versions().save(prompt, body.get("content", ""),
                                         user_id=who["user"]["id"])
     return {"prompt": prompt, "version": r["version"], "changed": r["changed"]}
+
+
+@router.delete("/{name}")
+def delete_system(name: str, who: dict = Depends(require_user)):
+    """归档系统(软删除,数据保留,状态→archived)。"""
+    from trader.core.db import _connect
+    uid = who["user"]["id"]
+    if default_systems().get(name, user_id=uid) is None:
+        raise HTTPException(404, f"系统不存在:{name}")
+    with _connect() as conn:
+        conn.execute("UPDATE systems SET status='archived', updated_at=%s"
+                     " WHERE user_id=%s AND name=%s",
+                     (datetime.now().isoformat(timespec="seconds"), uid, name))
+    return {"deleted": name, "status": "archived",
+            "note": "系统已归档(数据保留,场次历史不受影响;恢复改 status=active)"}
 
 
 # ── 运行系统(子进程,每会话一进程)──────────────────────

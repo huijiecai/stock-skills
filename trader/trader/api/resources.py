@@ -99,14 +99,15 @@ def run_rounds(run_id: int, who: dict = Depends(require_user)):
         return {"rounds": [{"n": 1, "has_transcript": bool(transcripts),
                             "single": True, "outputs": outputs}]}
 
-    mode = "live" if run["kind"] == "live" else "replay"
     docs = default_documents()
-    logs = sorted((int(d["name"][1:]) for d in docs.list(f"watch_{mode}", run["trade_date"],
-                                                          bag_id=run["bag_id"])
-                   if d["name"].startswith("r") and d["name"][1:].isdigit()))
-    ts = {int(d["name"][1:]) for d in docs.list(f"transcript_{mode}", run["trade_date"],
-                                                bag_id=run["bag_id"])
-          if d["name"].startswith("r") and d["name"][1:].isdigit()}
+    # 搜该袋该日的所有 watch_* 轮日志(不限死 watch_live/watch_replay,自定义 log_type 也能找到)
+    all_docs = docs.list(trade_date=run["trade_date"], bag_id=run["bag_id"])
+    logs = sorted(int(d["name"][1:]) for d in all_docs
+                  if d["doc_type"].startswith("watch_")
+                  and (d["name"] or "").startswith("r") and (d["name"] or "r")[1:].isdigit())
+    ts = {int(d["name"][1:]) for d in all_docs
+          if d["doc_type"].startswith("transcript_")
+          and (d["name"] or "").startswith("r") and (d["name"] or "r")[1:].isdigit()}
     return {"rounds": [{"n": n, "has_transcript": n in ts} for n in logs]}
 
 
@@ -137,9 +138,16 @@ def run_round_detail(run_id: int, n: int, who: dict = Depends(require_user)):
                                trade_date=date, bag_id=bag)
                 break
     else:
-        mode = "live" if run["kind"] == "live" else "replay"
-        log = docs.get(f"watch_{mode}", name=f"r{n}", trade_date=date, bag_id=bag)
-        raw = docs.get(f"transcript_{mode}", name=f"r{n}", trade_date=date, bag_id=bag)
+        # 搜该袋该日的 watch_* / transcript_*(不限死 live/replay)
+        all_docs = docs.list(trade_date=date, bag_id=bag)
+        for d in all_docs:
+            if d["doc_type"].startswith("watch_") and (d["name"] or "") == f"r{n}":
+                log = docs.get(d["doc_type"], name=f"r{n}", trade_date=date, bag_id=bag)
+                break
+        for d in all_docs:
+            if d["doc_type"].startswith("transcript_") and (d["name"] or "") == f"r{n}":
+                raw = docs.get(d["doc_type"], name=f"r{n}", trade_date=date, bag_id=bag)
+                break
     steps, usage = [], {}
     if raw:
         t = json.loads(raw)

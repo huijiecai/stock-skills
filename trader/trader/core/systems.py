@@ -80,7 +80,7 @@ class Systems:
         where, args = ("", []) if user_id is None else ("WHERE user_id=%s", [user_id])
         with _connect(self.schema) as conn:
             return conn.execute(
-                "SELECT id, user_id, name, status, created_at, updated_at FROM systems"
+                "SELECT id, user_id, name, manifest, status, created_at, updated_at FROM systems"
                 f" {where} ORDER BY id", args
             ).fetchall()
 

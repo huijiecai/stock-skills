@@ -167,7 +167,7 @@ def run_single(system_name: str, stage_name: str, user_id: int = 0, **cli: str) 
 
     # 建场次登记(让场次页可见)
     runs = default_runs()
-    name = f"{system_name}-{stage_name}-{date}" if date else f"{system_name}-{stage_name}-{datetime.now():%H%M%S}"
+    name = f"{system_name}-{stage_name}-{date}-{datetime.now():%H%M%S}"
     try:
         run = runs.create(name, "single", date, _prompt_cover(manifest, user_id),
                           system=system_name, user_id=user_id)

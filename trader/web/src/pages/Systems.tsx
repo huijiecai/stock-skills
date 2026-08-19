@@ -2,7 +2,7 @@ import { Card, Table, Tag, Button, Drawer, message, Modal, Form, Input, Select,
          Switch, Space, DatePicker, Typography, Alert, Divider } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { get, post, put } from '../api/client'
+import { get, post, put, getToken } from '../api/client'
 import PromptEditor from '../components/PromptEditor'
 
 const TOOL_GROUPS = [
@@ -179,6 +179,14 @@ export default function Systems() {
     } catch (e: any) { message.error(e.message) }
   }
 
+  async function handleArchive(name: string) {
+    try {
+      await fetch(`/systems/${name}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } })
+      message.success(`系统 ${name} 已归档`)
+      qc.invalidateQueries({ queryKey: ['systems'] })
+    } catch { message.error('归档失败') }
+  }
+
   async function handleRun(v: any) {
     const date = v.date?.format('YYYYMMDD')
     try {
@@ -217,11 +225,14 @@ export default function Systems() {
                    }},
                  { title: '状态', dataIndex: 'status', width: 70,
                    render: (s: string) => <Tag color={s === 'active' ? 'green' : 'default'}>{s}</Tag> },
-                 { title: '', width: 200, render: (_: any, r: any) => (
+                 { title: '', width: 220, render: (_: any, r: any) => (
+                   r.status === 'archived' ? <Typography.Text type="secondary">已归档</Typography.Text> : (
                    <Space>
                      <a onClick={() => setEditing(r.name)}>编辑 prompts</a>
                      <a onClick={() => { setRunningSystem(r.name); runForm.resetFields(); setSelectedStage('') }}>▶ 运行</a>
+                     <a style={{ color: '#999' }} onClick={() => handleArchive(r.name)}>归档</a>
                    </Space>
+                   )
                  )},
                ]} />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
