@@ -34,7 +34,7 @@ export default function Runs() {
           <Badge status="processing" text={
             <span>
               <b>{running.length} 个任务执行中</b>
-              {running.map(r => (
+              {running.map((r: any) => (
                 <Tag key={r.id} style={{ marginLeft: 8 }}>
                   {r.system}·{r.trade_date}
                 </Tag>
