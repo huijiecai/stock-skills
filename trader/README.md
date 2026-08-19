@@ -108,5 +108,19 @@ uv run python -m trader.tools call get_doc doc_type=close trade_date=20260818
 | 层 | 命令 | 成本 | 用途 |
 |---|---|---|---|
 | 单工具 | `python -m trader.tools call ...` | 免费 | 开发调试 |
-| 回归 | `pytest` | 免费 | 改动后护栏 |
+| 回归 | `pytest`(见下) | 免费 | 改动后护栏 |
 | 端到端 | `runner` 各命令 | 花 token | 完整流程验证 |
+
+## 跑测试
+
+```bash
+uv run pytest -v                                # 全部用例(含盘中专用自动跳过项)
+uv run pytest tests/test_api.py -v              # 单个文件
+uv run pytest tests/test_api.py::test_auth_flow -v   # 单个用例
+uv run pytest -v --lf                           # 只跑上次失败的
+uv run pytest -v --tb=long                      # 失败时输出完整堆栈
+```
+
+- 用 `uv run` 自动走 `.venv`,无需手动安装依赖(dev 组已含 pytest)
+- API 层测试(如 test_api.py)走 FastAPI TestClient,不经网络、不需要起服务
+- 盘中专用用例会在盘后自动跳过(`-v` 里显示 `SKIPPED`),属预期行为

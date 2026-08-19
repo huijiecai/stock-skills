@@ -36,7 +36,7 @@ export default function Dashboard() {
                  { title: '#', dataIndex: 'id', width: 50 },
                  { title: '场次', render: (_: any, r: any) => <Link to={`/runs/${r.id}`}>{r.name}</Link> },
                  { title: '类型', dataIndex: 'kind', width: 70,
-                   render: (k: string) => <Tag color={k === 'live' ? 'red' : 'blue'}>{k === 'live' ? '实盘' : '模拟'}</Tag> },
+                   render: (k: string) => <Tag color={k === 'live' ? 'red' : k === 'single' ? 'purple' : 'blue'}>{k === 'live' ? '实盘' : k === 'single' ? '分析' : '模拟'}</Tag> },
                  { title: '数据日', dataIndex: 'trade_date', width: 100 },
                  { title: '收益', width: 90,
                    render: (_: any, r: any) => r.metrics ? <Tag color={r.metrics.return_pct >= 0 ? 'green' : 'red'}>{r.metrics.return_pct}%</Tag> : '-' },

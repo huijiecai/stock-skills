@@ -31,6 +31,8 @@ export default function Runs() {
                  render: (_: any, r: any) =>
                    r.kind === 'live'
                      ? <Tag color="red">主账本</Tag>
+                     : r.kind === 'single'
+                     ? <Tag color="purple">分析</Tag>
                      : <Tag color="cyan">沙盒 #{r.bag_id}</Tag> },
                { title: '指纹', width: 90,
                  render: (_: any, r: any) => <span className="mono">{(r.fingerprint ?? '').slice(0, 8) || '-'}</span> },

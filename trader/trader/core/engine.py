@@ -154,21 +154,40 @@ def _last_round(doc_type: str, trade_date: str) -> int:
 # ── single 阶段(premarket/close/research,跑正本袋)────
 
 def run_single(system_name: str, stage_name: str, user_id: int = 0, **cli: str) -> None:
-    """单次阶段:装配 → 注入变量 → 跑一次 → 思考流落库。产物写用户的 live 账本袋。"""
+    """单次阶段:建 run 登记 → 装配 → 跑一次 → 思考流落库 → 封场。
+    产物写用户的 live 账本袋;场次页可见。"""
     from trader.core.ledger import default_ledgers
 
     agent, manifest = build_agent(system_name, user_id)
     stage = manifest["stages"][stage_name]
-    set_context(default_ledgers().live_bag(user_id), None, user_id)
+    bag = default_ledgers().live_bag(user_id)
+    set_context(bag, None, user_id)
     vars_ = _stage_vars(stage, **cli)
     date = cli.get("date", "")
+
+    # 建场次登记(让场次页可见)
+    runs = default_runs()
+    name = f"{system_name}-{stage_name}-{date}" if date else f"{system_name}-{stage_name}-{datetime.now():%H%M%S}"
+    try:
+        run = runs.create(name, "single", date, _prompt_cover(manifest, user_id),
+                          system=system_name, user_id=user_id)
+    except ValueError:
+        run = runs.get(name, user_id)  # 同名重跑 → 接续
+    runs.set_bag(run["id"], bag)
+    from trader.core.context import set_context as _sc
+    _sc(bag, run["id"], user_id)
+
     print(f"\n{'=' * 60}\n{system_name} · {stage_name} {date or vars_.get('topic', '')}\n{'=' * 60}")
-    prompt = load(stage["prompt"], user_id, **vars_)
-    result = _run_round(agent, prompt, [],
-                        UsageLimits(request_limit=stage.get("request_limit", 200)))
-    _save_transcript(stage_name, date, 0, datetime.now().strftime("%H:%M"),
-                     result.all_messages(), result.usage)
-    print(result.output)
+    try:
+        prompt = load(stage["prompt"], user_id, **vars_)
+        result = _run_round(agent, prompt, [],
+                            UsageLimits(request_limit=stage.get("request_limit", 200)))
+        _save_transcript(stage_name, date, 0, datetime.now().strftime("%H:%M"),
+                         result.all_messages(), result.usage)
+        print(result.output)
+    finally:
+        runs.seal(run["id"])
+        print(f"📦 已封存:{name}")
 
 
 # ── loop 阶段(live/replay)────────────────────────────

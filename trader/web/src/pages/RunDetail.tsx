@@ -30,7 +30,7 @@ export default function RunDetail() {
 
   return (
     <div>
-      <Card title={<span>{r.name} <Tag color={r.kind === 'live' ? 'red' : 'blue'}>{r.kind === 'live' ? '实盘' : '模拟'}</Tag>
+      <Card title={<span>{r.name} <Tag color={r.kind === 'live' ? 'red' : r.kind === 'single' ? 'purple' : 'blue'}>{r.kind === 'live' ? '实盘' : r.kind === 'single' ? '分析' : '模拟'}</Tag>
         <Tag>{r.status}</Tag><Tag color="purple">{r.system}</Tag></span>}
         extra={<span className="mono">指纹 {(r.fingerprint ?? '').slice(0, 10) || '-'}</span>}>
         <Row gutter={16}>
@@ -51,6 +51,8 @@ export default function RunDetail() {
       {trading.data && (
         <Card title={<span>沙盒账本 {r.kind === 'live'
           ? <Tag color="red">主账本</Tag>
+          : r.kind === 'single'
+          ? <Tag color="purple">主账本(分析)</Tag>
           : <Tag color="cyan">沙盒 #{trading.data.bag}</Tag>}</span>}
           size="small" style={{ marginTop: 16 }}>
           <Row gutter={16}>
