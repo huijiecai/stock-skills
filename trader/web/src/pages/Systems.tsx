@@ -5,30 +5,55 @@ import { useState } from 'react'
 import { get, post } from '../api/client'
 import PromptEditor from '../components/PromptEditor'
 
-const ALL_TOOLS = [
-  { value: 'get_quotes', label: '股票报价' },
-  { value: 'get_indices', label: '指数行情' },
-  { value: 'get_kline', label: 'K线序列' },
-  { value: 'get_block_rank', label: '板块排名' },
-  { value: 'get_block_members', label: '板块成分股' },
-  { value: 'get_candidates', label: '异动候选' },
-  { value: 'get_limit_up', label: '涨停清单' },
-  { value: 'get_market_summary', label: '市场概览' },
-  { value: 'get_top_amount', label: '成交额排行' },
-  { value: 'get_us_market', label: '全球市场快照' },
-  { value: 'get_positions', label: '当前持仓' },
-  { value: 'get_account', label: '账户资产' },
-  { value: 'get_trades', label: '成交流水' },
-  { value: 'execute', label: '下单交易' },
-  { value: 'scan_market', label: '快扫(含自选组)' },
-  { value: 'save_doc', label: '保存文档' },
-  { value: 'get_doc', label: '读文档' },
-  { value: 'list_docs', label: '列文档' },
-  { value: 'set_doc_meta', label: '改文档meta' },
-  { value: 'save_watchlist', label: '保存自选组' },
-  { value: 'get_watchlist', label: '查自选组' },
-  { value: 'get_watchlist_quotes', label: '自选组报价' },
-  { value: 'remove_watchlist_member', label: '剔自选组成员' },
+const TOOL_GROUPS = [
+  {
+    label: '📊 行情数据',
+    options: [
+      { value: 'get_quotes', label: '股票报价' },
+      { value: 'get_indices', label: '指数行情' },
+      { value: 'get_kline', label: 'K线序列' },
+      { value: 'get_block_rank', label: '板块排名' },
+      { value: 'get_block_members', label: '板块成分股' },
+      { value: 'get_candidates', label: '异动候选' },
+      { value: 'get_limit_up', label: '涨停清单' },
+      { value: 'get_market_summary', label: '市场概览' },
+      { value: 'get_top_amount', label: '成交额排行' },
+      { value: 'get_us_market', label: '全球市场快照(美股/商品)' },
+    ],
+  },
+  {
+    label: '💰 交易与账户',
+    options: [
+      { value: 'get_positions', label: '当前持仓' },
+      { value: 'get_account', label: '账户资产' },
+      { value: 'get_trades', label: '成交流水' },
+      { value: 'execute', label: '下单交易 ⚠' },
+    ],
+  },
+  {
+    label: '🔍 看盘组合',
+    options: [
+      { value: 'scan_market', label: '快扫(指数+持仓+自选组+板块+异动)' },
+    ],
+  },
+  {
+    label: '📝 文档(报告/笔记/知识)',
+    options: [
+      { value: 'save_doc', label: '保存文档' },
+      { value: 'get_doc', label: '读文档' },
+      { value: 'list_docs', label: '列文档' },
+      { value: 'set_doc_meta', label: '改文档meta' },
+    ],
+  },
+  {
+    label: '⭐ 自选组(股票池)',
+    options: [
+      { value: 'save_watchlist', label: '保存自选组' },
+      { value: 'get_watchlist', label: '查自选组' },
+      { value: 'get_watchlist_quotes', label: '自选组报价(X/Y统计)' },
+      { value: 'remove_watchlist_member', label: '剔自选组成员' },
+    ],
+  },
 ]
 
 const DEFAULT_TOOLS = ['get_quotes', 'get_indices', 'get_kline', 'get_limit_up',
@@ -123,8 +148,9 @@ export default function Systems() {
               </Form.Item>
             ) : null}
           </Form.Item>
-          <Form.Item name="tools" label="工具白名单(AI 能用什么)" rules={[{ required: true }]}>
-            <Select mode="multiple" options={ALL_TOOLS} placeholder="勾选 AI 可调用的工具" />
+          <Form.Item name="tools" label="工具白名单(AI 能用什么,按分类勾选)" rules={[{ required: true }]}>
+            <Select mode="multiple" options={TOOL_GROUPS} placeholder="勾选 AI 可调用的工具"
+                     dropdownStyle={{ maxHeight: 400, overflow: 'auto' }} />
           </Form.Item>
           <Form.Item name="webSearch" label="联网搜索" valuePropName="checked">
             <Switch />
