@@ -47,15 +47,6 @@ export default function Systems() {
     } catch (e: any) { message.error(e.message) }
   }
 
-  async function handleRun(stage: string) {
-    if (!editing) return
-    try {
-      const today = new Date().toISOString().slice(0, 10).replaceAll('-', '')
-      const r = await post(`/systems/${editing}/run`, { date: today, stage })
-      message.success(r.note || '已发起')
-    } catch (e: any) { message.error(e.message) }
-  }
-
   async function handleArchive(name: string) {
     try {
       await fetch(`/systems/${name}`, { method: 'DELETE', headers: { Authorization: `Bearer ${getToken()}` } })
@@ -120,7 +111,7 @@ export default function Systems() {
       {/* 系统编辑器 */}
       <Drawer title={`编辑系统:${editing}`} width={860} open={!!editing}
               onClose={() => { setEditing(null); qc.invalidateQueries({ queryKey: ['systems'] }) }}>
-        {editing && <SystemEditor system={editing} onRun={handleRun} />}
+        {editing && <SystemEditor system={editing} />}
       </Drawer>
     </div>
   )

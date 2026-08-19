@@ -48,9 +48,9 @@ class ReplayIn(BaseModel):
 
 
 @runs_router.get("")
-def list_runs(kind: str = "", date: str = "", who: dict = Depends(require_user)):
+def list_runs(kind: str = "", date: str = "", system: str = "", who: dict = Depends(require_user)):
     return default_runs().list(kind=kind or None, trade_date=date or None,
-                               user_id=who["user"]["id"])
+                               user_id=who["user"]["id"], system=system or None)
 
 
 @runs_router.post("/replay")

@@ -73,11 +73,14 @@ class Runs:
         return 1
 
     def list(self, kind: str | None = None, trade_date: str | None = None,
-             user_id: int | None = None) -> list[dict]:
+             user_id: int | None = None, system: str | None = None) -> list[dict]:
         where, params = [], []
         if user_id is not None:
             where.append("user_id=%s")
             params.append(user_id)
+        if system:
+            where.append("system=%s")
+            params.append(system)
         if kind:
             where.append("kind=%s")
             params.append(kind)
