@@ -1,5 +1,6 @@
 import { Card, Collapse, Spin, Tag } from 'antd'
 import Markdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 
 export type Step = {
   kind: 'prompt' | 'text' | 'call' | 'ret' | 'retry'
@@ -29,7 +30,9 @@ export default function TranscriptTimeline({ loading, steps, logMd, usage }: {
     items.push({
       key: 'log',
       label: '📄 轮日志(md)',
-      children: <div style={{ maxHeight: 400, overflow: 'auto' }}><Markdown>{logMd}</Markdown></div>,
+      children: <div className="markdown-body" style={{ maxHeight: 500, overflow: 'auto', padding: '0 8px' }}>
+        <Markdown remarkPlugins={[remarkGfm]}>{logMd}</Markdown>
+      </div>,
     })
   }
   items.push({
