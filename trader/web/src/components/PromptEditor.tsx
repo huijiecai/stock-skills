@@ -1,12 +1,28 @@
-import { Select, Input, Button, message, Space, Typography, Tabs, Tooltip } from 'antd'
+import { Input, Button, message, Typography, Tabs, Select, Space, Tag } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { get, put } from '../api/client'
 
-/** Prompt 在线编辑器:选 stage → 载入某版 → 编辑/预览切换 → 保存新版本。
- *  版本库能力前端化;md 编辑面在此退役(实现设计附录 8)。 */
+/** 阶段图标 */
+function stageIcon(stage: string): string {
+  if (stage === '(system)') return '⚙️'
+  if (stage.includes('live')) return '📊'
+  if (stage.includes('premarket')) return '🌅'
+  if (stage.includes('close')) return '🌙'
+  if (stage.includes('research')) return '🔍'
+  if (stage.includes('replay')) return '🔄'
+  return '📄'
+}
+
+/** 阶段友好名 */
+function stageLabel(stage: string): string {
+  if (stage === '(system)') return '系统设定'
+  return stage
+}
+
+/** Prompt 在线编辑器:阶段Tab + 版本栏 + 编辑/预览。 */
 export default function PromptEditor({ system }: { system: string }) {
   const qc = useQueryClient()
   const prompts = useQuery({ queryKey: ['prompts', system], queryFn: () => get(`/systems/${system}/prompts`) })
@@ -37,31 +53,52 @@ export default function PromptEditor({ system }: { system: string }) {
 
   async function save() {
     const r = await put(`/systems/${system}/prompts/${prompt}`, { content })
-    message.success(r.changed ? `已保存 v${r.version}` : '内容未变,无新版本')
+    message.success(r.changed ? `已保存 v${r.version}` : '内容未变')
     setDirty(false)
     load(prompt)
     qc.invalidateQueries({ queryKey: ['prompts', system] })
   }
 
+  const current = (prompts.data ?? []).find((p: any) => p.prompt === prompt)
+
   return (
     <div>
-      <Space style={{ marginBottom: 12 }} wrap>
-        <Select style={{ width: 260 }} value={prompt} onChange={load}
-                placeholder="选择 prompt" loading={prompts.isLoading}
-                options={(prompts.data ?? []).map((x: any) => ({
-                  value: x.prompt, label: `${x.stage} → ${x.prompt}${x.latest_version ? ` (v${x.latest_version})` : ''}`,
-                }))} />
-        <Select style={{ width: 120 }} value={version}
-                onChange={(v) => loadVersion(prompt, v)}
-                placeholder="版本"
-                options={versions.map((v: any) => ({ value: v.version, label: `v${v.version}` }))} />
-        <Tooltip title={dirty ? '有未保存的修改' : '保存为新版本(旧版永在版本库)'}>
-          <Button type="primary" onClick={save} disabled={!version}>
-            {dirty ? '保存修改 *' : '保存新版本'}
-          </Button>
-        </Tooltip>
+      {/* 阶段切换 Tab(替代下拉,一目了然) */}
+      <Tabs
+        size="small"
+        activeKey={prompt}
+        onChange={load}
+        items={(prompts.data ?? []).map((p: any) => ({
+          key: p.prompt,
+          label: (
+            <span>
+              {stageIcon(p.stage)} {stageLabel(p.stage)}
+              {p.latest_version > 1 && (
+                <Tag style={{ marginLeft: 6, fontSize: 10 }} color="blue">v{p.latest_version}</Tag>
+              )}
+            </span>
+          ),
+        }))}
+      />
+
+      {/* 版本栏 */}
+      <Space style={{ marginBottom: 12, width: '100%', justifyContent: 'space-between' }}>
+        <Space>
+          <Select size="small" style={{ width: 180 }} value={version}
+                  onChange={(v) => loadVersion(prompt, v)}
+                  placeholder="版本"
+                  options={versions.map((v: any) => ({
+                    value: v.version,
+                    label: `v${v.version}${v.version === versions[0]?.version ? ' (最新)' : ''}`,
+                  }))} />
+          {dirty && <Tag color="orange">未保存</Tag>}
+        </Space>
+        <Button type="primary" size="small" onClick={save} disabled={!version}>
+          {dirty ? '保存修改 *' : '保存新版本'}
+        </Button>
       </Space>
 
+      {/* 编辑/预览 */}
       <Tabs size="small" items={[
         {
           key: 'edit',
@@ -72,7 +109,6 @@ export default function PromptEditor({ system }: { system: string }) {
               rows={22}
               value={content}
               onChange={(e) => { setContent(e.target.value); setDirty(true) }}
-              className="mono"
               style={{ fontSize: 12, fontFamily: 'ui-monospace, SF Mono, Menlo, monospace' }}
               placeholder={'在此编写 prompt...\n支持 {date} 等占位符(engine 运行时注入)\n支持 Markdown 语法'}
             />
@@ -84,19 +120,17 @@ export default function PromptEditor({ system }: { system: string }) {
           children: (
             <div className="markdown-body" style={{
               minHeight: 400, maxHeight: 600, overflow: 'auto',
-              border: '1px solid #d9d9d9', borderRadius: 6, padding: 16,
-              background: '#fff',
+              border: '1px solid #d9d9d9', borderRadius: 6, padding: 16, background: '#fff',
             }}>
               {content ? <Markdown remarkPlugins={[remarkGfm]}>{content}</Markdown>
-                        : <Typography.Text type="secondary">编辑内容后此处显示 Markdown 预览</Typography.Text>}
+                        : <Typography.Text type="secondary">编辑内容后此处显示预览</Typography.Text>}
             </div>
           ),
         },
       ]} />
 
-      <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 8, display: 'block' }}>
-        切版本=回看/回滚起点,保存=固化新版本;旧版永在版本库,新版本即刻生效于下一场。
-        支持 {'{date}'} {'{prev}'} {'{weekday}'} 等占位符。
+      <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 4, display: 'block' }}>
+        切版本=回看/回滚 · 保存=新版本即刻生效于下一场 · 支持 {'{date}'} {'{prev}'} {'{weekday}'} 占位符
       </Typography.Text>
     </div>
   )
