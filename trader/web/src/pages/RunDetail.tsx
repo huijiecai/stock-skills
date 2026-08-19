@@ -1,9 +1,10 @@
-import { Card, Col, Row, Statistic, Tag, Timeline, Typography, Table, Collapse } from 'antd'
+import { Card, Col, Row, Statistic, Tag, Timeline, Typography, Table, Collapse, Button } from 'antd'
 import { useParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get } from '../api/client'
 import TranscriptTimeline from '../components/TranscriptTimeline'
+import ChatDrawer from '../components/ChatDrawer'
 
 export default function RunDetail() {
   const { id } = useParams()
@@ -24,6 +25,8 @@ export default function RunDetail() {
     queryFn: () => get(`/runs/${id}/trading`),
   })
 
+  const [chatOpen, setChatOpen] = useState(false)
+
   if (run.isLoading) return <Card>加载中…</Card>
   if (run.error) return <Card>{(run.error as any).message}</Card>
   const r = run.data
@@ -32,7 +35,12 @@ export default function RunDetail() {
     <div>
       <Card title={<span>{r.name} <Tag color={r.kind === 'live' ? 'red' : r.kind === 'single' ? 'purple' : 'blue'}>{r.kind === 'live' ? '实盘' : r.kind === 'single' ? '分析' : '模拟'}</Tag>
         <Tag>{r.status}</Tag><Tag color="purple">{r.system}</Tag></span>}
-        extra={<span className="mono">指纹 {(r.fingerprint ?? '').slice(0, 10) || '-'}</span>}>
+        extra={<span>
+          <Button size="small" type="primary" ghost onClick={() => setChatOpen(true)} style={{ marginRight: 12 }}>
+            💬 讨论结果
+          </Button>
+          <span className="mono">指纹 {(r.fingerprint ?? '').slice(0, 10) || '-'}</span>
+        </span>}>
         <Row gutter={16}>
           {r.metrics && <>
             <Col span={4}><Statistic title="收益" suffix="%" value={r.metrics.return_pct}
@@ -120,6 +128,9 @@ export default function RunDetail() {
           ) : <Card>选择左侧轮次查看详情</Card>}
         </Col>
       </Row>
+
+      {/* 讨论抽屉 */}
+      <ChatDrawer runId={r.id} systemName={r.system} open={chatOpen} onClose={() => setChatOpen(false)} />
     </div>
   )
 }

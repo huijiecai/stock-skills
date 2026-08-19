@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from trader.api.auth import router as auth_router
+from trader.api.chat import router as chat_router
 from trader.api.envelope import EnvelopeMiddleware
 from trader.api.resources import (docs_router, router as ledgers_router,
                                   runs_router, trading_router, watch_router)
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     app.include_router(systems_router)
     app.include_router(ledgers_router)
     app.include_router(runs_router)
+    app.include_router(chat_router)
     app.include_router(trading_router)
     app.include_router(docs_router)
     app.include_router(watch_router)
