@@ -97,7 +97,7 @@ class Documents:
             where.append("COALESCE(trade_date,'')=%s")
             params.append(trade_date)
         sql = ("SELECT id,doc_type,name,trade_date,ref_id,meta,"
-               "LENGTH(content) AS size,updated_at FROM documents"
+               "LENGTH(content) AS size,created_at,updated_at FROM documents"
                " WHERE " + " AND ".join(where) + " ORDER BY updated_at DESC")
         with _connect(self.schema) as conn:
             return conn.execute(sql, params).fetchall()

@@ -93,9 +93,11 @@ def run_rounds(run_id: int, who: dict = Depends(require_user)):
         # transcript: doc_type 以 transcript_ 开头且 name 为空(非轮次)
         transcripts = [d for d in docs.list(trade_date=date, bag_id=bag)
                        if d["doc_type"].startswith("transcript_") and not (d["name"] or "").startswith("r")]
-        # 产出文档:非 transcript/watch 类
+        # 产出文档:非 transcript/watch/chat 类,且在本场次时间范围内
+        run_start = run.get("created_at", "")
         outputs = [d for d in docs.list(trade_date=date, bag_id=bag)
-                   if not d["doc_type"].startswith(("transcript_", "watch_"))]
+                   if not d["doc_type"].startswith(("transcript_", "watch_", "chat"))
+                   and (d.get("updated_at") or "") >= run_start]
         return {"rounds": [{"n": 1, "has_transcript": bool(transcripts),
                             "single": True, "outputs": outputs}]}
 
@@ -125,15 +127,18 @@ def run_round_detail(run_id: int, n: int, who: dict = Depends(require_user)):
 
     log, raw = None, None
     if run["kind"] == "single":
-        # 找产出文档(报告)作为"轮日志"
+        # 找产出文档(报告)作为"轮日志":排除 chat/watch/transcript,限定本场次时间范围
+        run_start = run.get("created_at", "")
         for d in docs.list(trade_date=date, bag_id=bag):
-            if not d["doc_type"].startswith(("transcript_", "watch_")):
+            if (not d["doc_type"].startswith(("transcript_", "watch_", "chat"))
+                    and (d.get("updated_at") or "") >= run_start):
                 log = docs.get(d["doc_type"], name=d["name"] or "",
                                trade_date=date, bag_id=bag)
                 break
-        # 找 transcript(doc_type 以 transcript_ 开头,name 不以 r 开头)
+        # 找 transcript(doc_type 以 transcript_ 开头,name 不以 r 开头,本场次时间范围)
         for d in docs.list(trade_date=date, bag_id=bag):
-            if d["doc_type"].startswith("transcript_") and not (d["name"] or "").startswith("r"):
+            if (d["doc_type"].startswith("transcript_") and not (d["name"] or "").startswith("r")
+                    and (d.get("updated_at") or "") >= run_start):
                 raw = docs.get(d["doc_type"], name=d["name"] or "",
                                trade_date=date, bag_id=bag)
                 break
