@@ -16,23 +16,23 @@ from trader.core.ledger import INITIAL_CASH, Account
 KNOWLEDGE_TYPES = ("expectation", "research", "note")
 
 
-def open_live(run_id: int) -> None:
-    """实盘场:写正本袋(bag 0)。"""
-    set_context(0, run_id)
+def open_live(run_id: int, bag: int = 0, user_id: int = 0) -> None:
+    """实盘场:写用户的 live 账本袋(多用户设计 §3:正本=ledger 拥有的持久 bag)。"""
+    set_context(bag, run_id, user_id)
 
 
-def open_replay(run_id: int, date: str, mode: str = "fresh",
-                custom: dict | None = None, as_of: str = "") -> str:
-    """模拟场开局:建钱包 + 复制知识,切上下文到袋子。返回全状态指纹。"""
-    bag = run_id
+def open_replay(bag: int, date: str, mode: str = "fresh",
+                custom: dict | None = None, as_of: str = "",
+                user_id: int = 0, source_bag: int = 0, run_id: int | None = None) -> str:
+    """模拟场开局:建钱包 + 从源袋(账本)复制知识,切上下文。返回全状态指纹。"""
     acct = Account()
     # ① 钱包
     if mode == "fresh":
         acct.open_wallet(INITIAL_CASH, INITIAL_CASH, bag)
     elif mode == "fork":
-        _copy_wallet(acct, bag)
+        _copy_wallet(acct, bag, source_bag)
     elif mode == "fork-as-of":
-        _wallet_as_of(acct, bag, as_of or date)
+        _wallet_as_of(acct, bag, as_of or date, source_bag)
     elif mode == "custom":
         c = custom or {}
         cash = round(float(c.get("cash", 0)) * 100)
@@ -48,9 +48,9 @@ def open_replay(run_id: int, date: str, mode: str = "fresh",
                 )
     else:
         raise ValueError(f"未知开局模式:{mode}")
-    # ② 知识复制(所有模式同规则:知识文档全量 + 当日预案 + 全部自选组)
-    _copy_knowledge(bag, date)
-    set_context(bag, run_id)
+    # ② 知识复制(所有模式同规则:从源袋全量 + 当日预案 + 全部自选组)
+    _copy_knowledge(bag, date, source_bag)
+    set_context(bag, run_id, user_id)
     return fingerprint(bag)
 
 
@@ -90,35 +90,37 @@ def delete_bag(bag: int) -> None:
 
 # ── 内部 ────────────────────────────────────────────────
 
-def _copy_wallet(acct: Account, bag: int) -> None:
-    """fork:现金/持仓/流水(含历史)原样复制正本。"""
+def _copy_wallet(acct: Account, bag: int, source_bag: int = 0) -> None:
+    """fork:现金/持仓/流水(含历史)原样复制源袋(账本)。"""
     with _connect() as conn:
-        src = conn.execute("SELECT cash_cents, initial_cents FROM wallets WHERE bag_id=0").fetchone()
+        src = conn.execute("SELECT cash_cents, initial_cents FROM wallets WHERE bag_id=%s",
+                           (source_bag,)).fetchone()
         if src is None:
-            raise ValueError("正本钱包不存在(先跑一次 live 或 migration)")
+            raise ValueError(f"源袋 {source_bag} 钱包不存在(先跑一次 live 或 migration)")
         acct.open_wallet(src["cash_cents"], src["initial_cents"], bag)
         conn.execute(
             "INSERT INTO positions(bag_id, code, name, quantity, sellable, avg_cost_cents, bought_on)"
             " SELECT %s, code, name, quantity, sellable, avg_cost_cents, bought_on"
-            " FROM positions WHERE bag_id=0", (bag,))
+            " FROM positions WHERE bag_id=%s", (bag, source_bag))
         conn.execute(
             "INSERT INTO fills(bag_id, run_id, code, side, quantity, price_cents,"
             " cash_before_cents, cash_after_cents, position_before, position_after,"
             " created_at, reason, name, trade_time)"
             " SELECT %s, run_id, code, side, quantity, price_cents, cash_before_cents,"
             " cash_after_cents, position_before, position_after, created_at, reason,"
-            " name, trade_time FROM fills WHERE bag_id=0", (bag,))
+            " name, trade_time FROM fills WHERE bag_id=%s", (bag, source_bag))
 
 
-def _wallet_as_of(acct: Account, bag: int, as_of: str) -> None:
-    """fork-as-of:从正本流水折叠出截至 as_of 收盘的钱包(现金/持仓/T+1)。"""
+def _wallet_as_of(acct: Account, bag: int, as_of: str, source_bag: int = 0) -> None:
+    """fork-as-of:从源袋(账本)流水折叠出截至 as_of 收盘的钱包(现金/持仓/T+1)。"""
     d = as_of.replace("-", "")
     iso = f"{d[:4]}-{d[4:6]}-{d[6:8]}"
     with _connect() as conn:
         initial = conn.execute(
-            "SELECT initial_cents FROM wallets WHERE bag_id=0").fetchone()["initial_cents"]
+            "SELECT initial_cents FROM wallets WHERE bag_id=%s",
+            (source_bag,)).fetchone()["initial_cents"]
         fills = conn.execute(
-            "SELECT * FROM fills WHERE bag_id=0 ORDER BY id").fetchall()
+            "SELECT * FROM fills WHERE bag_id=%s ORDER BY id", (source_bag,)).fetchall()
     cash, pos = initial, {}   # code → {qty, cost_cents(total), bought_on}
     for f in fills:
         ts = (f["trade_time"] or f["created_at"] or "")[:10]
@@ -156,22 +158,23 @@ def _wallet_as_of(acct: Account, bag: int, as_of: str) -> None:
             )
 
 
-def _copy_knowledge(bag: int, date: str) -> None:
-    """知识随袋:知识文档全量 + 目标日预案 + 全部自选组(不带 archived- 前缀规则,原样)。"""
+def _copy_knowledge(bag: int, date: str, source_bag: int = 0) -> None:
+    """知识随袋:从源袋全量知识文档 + 目标日预案 + 全部自选组。"""
     with _connect() as conn:
         marks = ",".join(["%s"] * len(KNOWLEDGE_TYPES))
         n = conn.execute(
             f"INSERT INTO documents(doc_type,name,trade_date,ref_id,content,"
-            f" created_at,updated_at,meta,bag_id)"
-            f" SELECT doc_type,name,trade_date,ref_id,content,created_at,updated_at,meta,%s"
-            f" FROM documents WHERE bag_id=0 AND (doc_type IN ({marks})"
+            f" created_at,updated_at,meta,bag_id,user_id)"
+            f" SELECT doc_type,name,trade_date,ref_id,content,created_at,updated_at,meta,%s,user_id"
+            f" FROM documents WHERE bag_id=%s AND (doc_type IN ({marks})"
             f" OR (doc_type='premarket' AND COALESCE(trade_date,'')=%s))",
-            (bag, *KNOWLEDGE_TYPES, date)).rowcount
+            (bag, source_bag, *KNOWLEDGE_TYPES, date)).rowcount
         conn.execute(
-            "INSERT INTO watchlists(bag_id, name, created_at, updated_at)"
-            " SELECT %s, name, created_at, updated_at FROM watchlists WHERE bag_id=0", (bag,))
+            "INSERT INTO watchlists(bag_id, name, created_at, updated_at, user_id)"
+            " SELECT %s, name, created_at, updated_at, user_id FROM watchlists WHERE bag_id=%s",
+            (bag, source_bag))
         conn.execute(
-            "INSERT INTO watchlist_members(bag_id, list_name, code, name, fields, updated_at)"
-            " SELECT %s, list_name, code, name, fields, updated_at"
-            " FROM watchlist_members WHERE bag_id=0", (bag,))
+            "INSERT INTO watchlist_members(bag_id, list_name, code, name, fields, updated_at, user_id)"
+            " SELECT %s, list_name, code, name, fields, updated_at, user_id"
+            " FROM watchlist_members WHERE bag_id=%s", (bag, source_bag))
     return n

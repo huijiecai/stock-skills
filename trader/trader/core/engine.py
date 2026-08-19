@@ -33,12 +33,12 @@ CLOSE = time(15, 0)
 
 # ── agent 装配 ──────────────────────────────────────────
 
-def build_agent(system_name: str) -> tuple[Agent, dict]:
-    """按 systems 行装配 agent(工具白名单 + system prompt + 联网开关)。
+def build_agent(system_name: str, user_id: int = 0) -> tuple[Agent, dict]:
+    """按 systems 行装配 agent(工具白名单 + system prompt + 联网开关,按用户命名空间)。
     返回 (agent, manifest);白名单里不存在的工具名跳过并告警。"""
     from trader.core.systems import default_systems
 
-    row = default_systems().get(system_name)
+    row = default_systems().get(system_name, user_id)
     if row is None:
         raise RuntimeError(f"系统 {system_name} 未注册(systems 表无此行)")
     manifest = row["manifest"]
@@ -46,7 +46,7 @@ def build_agent(system_name: str) -> tuple[Agent, dict]:
     agent = Agent(
         build_model(),
         capabilities=caps,
-        system_prompt=load(manifest["system_prompt"]),
+        system_prompt=load(manifest["system_prompt"], user_id),
         model_settings=ModelSettings({"anthropic_thinking": {"type": "disabled"}},
                                      max_tokens=4000),
     )
@@ -153,15 +153,17 @@ def _last_round(doc_type: str, trade_date: str) -> int:
 
 # ── single 阶段(premarket/close/research,跑正本袋)────
 
-def run_single(system_name: str, stage_name: str, **cli: str) -> None:
-    """单次阶段:装配 → 注入变量 → 跑一次 → 思考流落库。产物由 AI 经工具写正本。"""
-    agent, manifest = build_agent(system_name)
+def run_single(system_name: str, stage_name: str, user_id: int = 0, **cli: str) -> None:
+    """单次阶段:装配 → 注入变量 → 跑一次 → 思考流落库。产物写用户的 live 账本袋。"""
+    from trader.core.ledger import default_ledgers
+
+    agent, manifest = build_agent(system_name, user_id)
     stage = manifest["stages"][stage_name]
-    set_context(0, None)  # single 阶段一律正本袋
+    set_context(default_ledgers().live_bag(user_id), None, user_id)
     vars_ = _stage_vars(stage, **cli)
     date = cli.get("date", "")
     print(f"\n{'=' * 60}\n{system_name} · {stage_name} {date or vars_.get('topic', '')}\n{'=' * 60}")
-    prompt = load(stage["prompt"], **vars_)
+    prompt = load(stage["prompt"], user_id, **vars_)
     result = _run_round(agent, prompt, [],
                         UsageLimits(request_limit=stage.get("request_limit", 200)))
     _save_transcript(stage_name, date, 0, datetime.now().strftime("%H:%M"),
@@ -172,21 +174,24 @@ def run_single(system_name: str, stage_name: str, **cli: str) -> None:
 # ── loop 阶段(live/replay)────────────────────────────
 
 def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
-             max_rounds: int | None = None) -> None:
-    """实盘循环:写正本袋(bag 0)。跨重启按当日轮日志接续;午休跳过;15:05 收工。"""
-    agent, manifest = build_agent(system_name)
+             max_rounds: int | None = None, user_id: int = 0) -> None:
+    """实盘循环:写用户的 live 账本袋。跨重启按当日轮日志接续;午休跳过;15:05 收工。"""
+    from trader.core.ledger import default_ledgers
+
+    agent, manifest = build_agent(system_name, user_id)
     stage = manifest["stages"][stage_name]
     log_type = stage.get("log_type", "watch_live")
     today = datetime.now().strftime("%Y%m%d")
     runs = default_runs()
-    run = runs.get(f"live-{today}")
+    bag = default_ledgers().live_bag(user_id)
+    run = runs.get(f"live-{today}", user_id)
     if run is None:
-        run = runs.create(f"live-{today}", "live", today, _prompt_cover(manifest),
-                          system=system_name)
-        print(f"📦 档案袋已建:live-{today}(bag 0=正本,#run_{run['id']})")
+        run = runs.create(f"live-{today}", "live", today, _prompt_cover(manifest, user_id),
+                          system=system_name, user_id=user_id)
+        print(f"📦 档案袋已建:live-{today}(bag {bag}=live账本,#run_{run['id']})")
     else:
         print(f"📦 接续档案袋:live-{today}(status={run['status']})")
-    open_live(run["id"])
+    open_live(run["id"], bag, user_id)
     unlocked = default_account().settle(datetime.now().date().isoformat())
     if unlocked:
         print(f"↺ T+1 结算:解锁 {unlocked} 只昨日持仓的可卖状态")
@@ -209,7 +214,8 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
             rounds += 1
             now = datetime.now().strftime("%H:%M:%S")
             print(f"\n{'=' * 60}\n第 {rounds} 轮 · 实时看盘 {now}\n{'=' * 60}")
-            result = _run_round(agent, load(stage["prompt"], rounds=rounds, now=now, date=today),
+            result = _run_round(agent,
+                                load(stage["prompt"], user_id, rounds=rounds, now=now, date=today),
                                 history, limits)
             history = _trim_rounds(result.all_messages())
             _save_transcript(stage_name, today, rounds, now,
@@ -221,39 +227,45 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
             if sleep_seconds > 0:
                 time_mod.sleep(sleep_seconds)
     finally:
-        runs.seal(run["id"], metrics=compute_metrics(0, today))
+        runs.seal(run["id"], metrics=compute_metrics(bag, today))
         print(f"📦 档案袋已封存:live-{today}")
 
 
 def run_replay(system_name: str, date: str, stage_name: str = "replay",
                interval: int = 5, max_rounds: int | None = None, resume: bool = False,
                tag: str = "", opening: str = "fresh", custom_file: str = "",
-               as_of: str = "") -> None:
-    """模拟循环:一场一袋(行级 bag=run id),开局三模式(§6)。"""
-    agent, manifest = build_agent(system_name)
+               as_of: str = "", user_id: int = 0) -> None:
+    """模拟循环:一场一袋(bag 从 Bags 登记发号),开局三模式(§6),源=用户账本。"""
+    from trader.core.ledger import default_bags, default_ledgers
+
+    agent, manifest = build_agent(system_name, user_id)
     stage = manifest["stages"][stage_name]
     log_type = stage.get("log_type", "watch_replay")
     runs = default_runs()
     interval = interval or stage.get("interval", 5)
     if resume:
-        cands = runs.list(kind="replay", trade_date=date)
+        cands = runs.list(kind="replay", trade_date=date, user_id=user_id)
         if not cands:
             print(f"⚠ {date} 没有可接续的回放场,按全新实验开始")
         run = cands[0]
         from trader.core.context import set_context as _sc
         bag = run.get("bag_id") or run["id"]
-        _sc(bag, run["id"])
+        _sc(bag, run["id"], user_id)
         done = _last_round(log_type, date)
         print(f"📦 接续档案袋:{run['name']}(bag {bag},已有 {done} 轮,从第 {done + 1} 轮继续)")
         rounds, hhmm = done, _resume_clock(log_type, date, done)
         fingerprint = run.get("fingerprint") or ""
     else:
         name = f"{date}-{tag}" if tag else f"{date}-{datetime.now():%H%M%S}"
-        run = runs.create(name, "replay", date, _prompt_cover(manifest), system=system_name)
-        bag = run["id"]
+        run = runs.create(name, "replay", date, _prompt_cover(manifest, user_id),
+                          system=system_name, user_id=user_id)
+        bag = default_bags().create(user_id, "ephemeral", run["id"])
         runs.set_bag(run["id"], bag)
         custom = _load_custom(custom_file)
-        fingerprint = open_replay(bag, date, opening, custom, as_of)
+        fingerprint = open_replay(bag, date, opening, custom, as_of,
+                                  user_id=user_id,
+                                  source_bag=default_ledgers().default_bag(user_id),
+                                  run_id=run["id"])
         runs.set_fingerprint(run["id"], fingerprint)
         warn = ("(⚠ fork 现状回放历史日=带未来持仓)" if opening == "fork" else "")
         print(f"📦 档案袋已建:{name}(bag {bag},开局 {opening},指纹 {fingerprint}){warn}")
@@ -267,7 +279,8 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
             rounds += 1
             clock = hhmm.strftime("%H:%M")
             print(f"\n{'=' * 60}\n第 {rounds} 轮 · 模拟看盘 {date} {clock}\n{'=' * 60}")
-            result = _run_round(agent, load(stage["prompt"], rounds=rounds, date=date, clock=clock),
+            result = _run_round(agent,
+                                load(stage["prompt"], user_id, rounds=rounds, date=date, clock=clock),
                                 history, limits)
             history = _trim_rounds(result.all_messages())
             _save_transcript(stage_name, date, rounds, clock,
@@ -303,14 +316,18 @@ def _load_custom(path: str) -> dict | None:
         return json.load(f)
 
 
-def _prompt_cover(manifest: dict) -> dict:
-    """封面:当次使用的各 prompt 版本(跑过的场不因后续编辑变化)。"""
+def _prompt_cover(manifest: dict, user_id: int = 0) -> dict:
+    """封面:当次使用的各 prompt 版本(跑过的场不因后续编辑变化)。
+    md 编辑面只属于 user 0(平台所有者),其他用户只读 PG。"""
+    from trader.core.promptver import default_prompt_versions
     from trader.prompts import sync_prompts
-    results = sync_prompts()
-    changed = [r for r in results if r["changed"]]
-    if changed:
-        print("✎ prompt 版本入库:" + ", ".join(f"{r['name']}→v{r['version']}" for r in changed))
-    return {r["name"]: r["version"] for r in results}
+
+    if user_id == 0:
+        results = sync_prompts()
+        changed = [r for r in results if r["changed"]]
+        if changed:
+            print("✎ prompt 版本入库:" + ", ".join(f"{r['name']}→v{r['version']}" for r in changed))
+    return {r["name"]: r["version"] for r in default_prompt_versions().versions(user_id=user_id)}
 
 
 # ── 封场指标(§8:由流水推算,粒度=成交时点)────────────

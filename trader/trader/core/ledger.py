@@ -7,8 +7,8 @@
 - bag_id 参数缺省 = 当前袋子(core.context,engine 唯一注入)
 - schema 参数仅测试隔离用(老 schema 路径已退役)
 """
-from trader.core.context import current_bag, current_run
-from trader.core.db import _connect
+from trader.core.context import current_bag, current_run, current_user
+from trader.core.db import _connect, ensure_once
 
 INITIAL_CASH = 100_000_00  # 初始资金 ¥100,000(单位:分)
 
@@ -121,11 +121,11 @@ class Account:
                 cash_after = cash_before - notional
                 conn.execute("UPDATE wallets SET cash_cents=%s WHERE bag_id=%s", (cash_after, b))
                 conn.execute(
-                    "INSERT INTO fills(bag_id, run_id, code, side, quantity, price_cents,"
+                    "INSERT INTO fills(bag_id, run_id, user_id, code, side, quantity, price_cents,"
                     " cash_before_cents, cash_after_cents, position_before, position_after,"
                     " created_at, reason, name, trade_time)"
-                    " VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (b, rid, code, "BUY", quantity, price_c, cash_before, cash_after,
+                    " VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (b, rid, current_user(), code, "BUY", quantity, price_c, cash_before, cash_after,
                      pos_before, pos_before + quantity, now, reason, name, tt),
                 )
             except Exception:
@@ -166,11 +166,11 @@ class Account:
                 )
                 conn.execute("UPDATE wallets SET cash_cents=%s WHERE bag_id=%s", (cash_after, b))
                 conn.execute(
-                    "INSERT INTO fills(bag_id, run_id, code, side, quantity, price_cents,"
+                    "INSERT INTO fills(bag_id, run_id, user_id, code, side, quantity, price_cents,"
                     " cash_before_cents, cash_after_cents, position_before, position_after,"
                     " created_at, reason, name, trade_time)"
-                    " VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (b, rid, code, "SELL", quantity, price_c, cash_before, cash_after,
+                    " VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                    (b, rid, current_user(), code, "SELL", quantity, price_c, cash_before, cash_after,
                      pos["quantity"], new_qty, now, reason, pos["name"], tt),
                 )
             except Exception:
@@ -188,8 +188,8 @@ class Account:
             if row:
                 raise AccountError(f"袋子 {bag_id} 钱包已开局")
             conn.execute(
-                "INSERT INTO wallets(bag_id, cash_cents, initial_cents) VALUES(%s,%s,%s)",
-                (_eff(bag_id), cash_cents, initial_cents)
+                "INSERT INTO wallets(bag_id, cash_cents, initial_cents, user_id) VALUES(%s,%s,%s,%s)",
+                (_eff(bag_id), cash_cents, initial_cents, current_user())
             )
 
     # ── T+1 ─────────────────────────────────────────────
@@ -264,6 +264,9 @@ class Account:
             "ALTER TABLE positions ADD COLUMN IF NOT EXISTS bag_id INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE fills ADD COLUMN IF NOT EXISTS bag_id INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE fills ADD COLUMN IF NOT EXISTS run_id INTEGER",
+            "ALTER TABLE positions ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE fills ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE wallets ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0",
             # 老 code 主键 → (bag_id, code) 唯一
             "ALTER TABLE positions DROP CONSTRAINT IF EXISTS positions_pkey",
             "CREATE UNIQUE INDEX IF NOT EXISTS positions_bag_code ON positions(bag_id, code)",
@@ -288,3 +291,138 @@ def default_account() -> Account:
     if _default is None:
         _default = Account()
     return _default
+
+
+# ── 袋登记 + 账本(多用户设计 §3:账本=持久 bag)────────
+
+class Bags:
+    """袋子登记簿:一切 bag id 从这里发号(ledger 持久袋 / run 一次性袋),
+    避免两类主人各自发号互相撞车。"""
+
+    def __init__(self, schema: str = "public") -> None:
+        self.schema = schema
+        ensure_once(f"bags:{schema}", self._init_db)
+
+    def create(self, owner_user: int, kind: str, ref_id: int | None = None) -> int:
+        """发一个新袋号。kind=persistent(账本)/ephemeral(场次);ref_id=主人表 id。"""
+        from datetime import datetime as _dt
+        with _connect(self.schema) as conn:
+            r = conn.execute(
+                "INSERT INTO bags(owner_user, kind, ref_id, created_at)"
+                " VALUES(%s,%s,%s,%s) RETURNING id",
+                (owner_user, kind, ref_id, _dt.now().isoformat(timespec="seconds"))).fetchone()
+        return r["id"]
+
+    def get(self, bag_id: int) -> dict | None:
+        with _connect(self.schema) as conn:
+            return conn.execute("SELECT * FROM bags WHERE id=%s", (bag_id,)).fetchone()
+
+    def _init_db(self) -> None:
+        with _connect(self.schema) as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS bags (
+                    id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    owner_user INTEGER NOT NULL DEFAULT 0,
+                    kind TEXT NOT NULL CHECK (kind IN ('persistent','ephemeral')),
+                    ref_id INTEGER,
+                    created_at TEXT NOT NULL
+                )""")
+            # bag 0 = 创始用户的正本(迁移脚本会补登记行)
+            conn.execute(
+                "INSERT INTO bags(id, owner_user, kind, ref_id, created_at)"
+                " VALUES(0, 0, 'persistent', NULL, '2026-08-18 00:00:00')"
+                " ON CONFLICT (id) DO NOTHING")
+
+
+class Ledgers:
+    """账本登记簿:用户的持久袋子(live 实盘 / paper 模拟),一个账本一个 bag。"""
+
+    def __init__(self, schema: str = "public") -> None:
+        self.schema = schema
+        ensure_once(f"ledgers:{schema}", self._init_db)
+
+    def create(self, user_id: int, name: str, kind: str = "paper",
+               bag_id: int | None = None) -> dict:
+        """开账本(幂等拒绝重名)。kind=live(内测仅管理员)/paper。"""
+        import psycopg
+        from datetime import datetime as _dt
+        if kind not in ("live", "paper"):
+            raise ValueError(f"账本类型非法:{kind}(允许 live/paper)")
+        bags = Bags(self.schema)
+        bag_id = bag_id if bag_id is not None else bags.create(user_id, "persistent")
+        with _connect(self.schema) as conn:
+            try:
+                r = conn.execute(
+                    "INSERT INTO ledgers(user_id, name, kind, bag_id, created_at)"
+                    " VALUES(%s,%s,%s,%s,%s) RETURNING *",
+                    (user_id, name, kind, bag_id,
+                     _dt.now().isoformat(timespec="seconds"))).fetchone()
+            except psycopg.errors.UniqueViolation as e:
+                raise ValueError(f"账本已存在:{name}") from e
+        return r
+
+    def get(self, user_id: int, name: str) -> dict | None:
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT * FROM ledgers WHERE user_id=%s AND name=%s",
+                (user_id, name)).fetchone()
+
+    def get_by_bag(self, bag_id: int) -> dict | None:
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT * FROM ledgers WHERE bag_id=%s", (bag_id,)).fetchone()
+
+    def list(self, user_id: int) -> list[dict]:
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT * FROM ledgers WHERE user_id=%s ORDER BY id", (user_id,)).fetchall()
+
+    def live_bag(self, user_id: int) -> int:
+        """用户的第一个 live 账本袋(engine 开场用;没有则报错指引)。"""
+        with _connect(self.schema) as conn:
+            row = conn.execute(
+                "SELECT bag_id FROM ledgers WHERE user_id=%s AND kind='live'"
+                " ORDER BY id LIMIT 1", (user_id,)).fetchone()
+        if row is None:
+            raise RuntimeError(f"用户 {user_id} 没有 live 账本(先建:ledgers.create(kind='live'))")
+        return row["bag_id"]
+
+    def default_bag(self, user_id: int) -> int:
+        """默认源袋:live 优先,否则第一个账本(fork/知识复制的源)。"""
+        with _connect(self.schema) as conn:
+            row = conn.execute(
+                "SELECT bag_id FROM ledgers WHERE user_id=%s"
+                " ORDER BY kind='live' DESC, id LIMIT 1", (user_id,)).fetchone()
+        return row["bag_id"] if row else 0
+
+    def _init_db(self) -> None:
+        Bags(self.schema)  # 袋登记先行
+        with _connect(self.schema) as conn:
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS ledgers (
+                    id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    user_id INTEGER NOT NULL DEFAULT 0,
+                    name TEXT NOT NULL,
+                    kind TEXT NOT NULL CHECK (kind IN ('live','paper')),
+                    bag_id INTEGER NOT NULL UNIQUE,
+                    created_at TEXT NOT NULL,
+                    UNIQUE (user_id, name)
+                )""")
+
+
+_bags: Bags | None = None
+_ledgers: Ledgers | None = None
+
+
+def default_bags() -> Bags:
+    global _bags
+    if _bags is None:
+        _bags = Bags()
+    return _bags
+
+
+def default_ledgers() -> Ledgers:
+    global _ledgers
+    if _ledgers is None:
+        _ledgers = Ledgers()
+    return _ledgers

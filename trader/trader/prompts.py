@@ -15,17 +15,18 @@ from pathlib import Path
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
 
-def load(name: str, **variables: str) -> str:
-    """读 prompt:PG 版本库最新版是运行时正本(实现设计 §7)。
-    本地 md 仍是编辑面——内容与 PG 不一致时自动入库再读(md 最终退役,附录 8)。
-    {var} 占位用 variables 替换;占位符缺变量时明确报错
-    (8/17 曾因 prompt 加了 {date} 而调用方没传,KeyError 裸抛烧掉三轮重试)。"""
+def load(name: str, user_id: int = 0, **variables: str) -> str:
+    """读 prompt:PG 版本库最新版是运行时正本(按 user 命名空间,多用户设计 §4-4)。
+    本地 md 是 user 0(平台所有者)的编辑面——内容与 PG 不一致时自动入库再读
+    (md 最终退役,实现设计附录 8);其他用户的 prompt 只存在于 PG。
+    {var} 占位用 variables 替换;占位符缺变量时明确报错。"""
     from trader.core.promptver import default_prompt_versions
 
     pv = default_prompt_versions()
-    pg_text = pv.latest(name)
+    pg_text = pv.latest(name, user_id)
     path = PROMPTS_DIR / f"{name}.md"
-    file_text = path.read_text(encoding="utf-8") if path.exists() else None
+    file_text = (path.read_text(encoding="utf-8")
+                 if user_id == 0 and path.exists() else None)
     if file_text is not None and file_text != pg_text:
         pv.save(name, file_text)  # 编辑面有变更 → 入库后生效
         pg_text = file_text

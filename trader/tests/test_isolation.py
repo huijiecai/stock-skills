@@ -49,3 +49,45 @@ def test_wallet_reopen_rejected(request):
     acct.open_wallet(100_000_00, 100_000_00)
     with pytest.raises(AccountError, match="已开局"):
         acct.open_wallet(100_000_00, 100_000_00)
+
+
+def test_user_four_dimension_isolation(request):
+    """M1 验收:用户 B 的四维世界(系统/prompt/知识/账本)与用户 A 完全隔离。"""
+    from trader.core.documents import Documents
+    from trader.core.identity import Identity
+    from trader.core.ledger import Ledgers
+    from trader.core.promptver import PromptVersions
+    from trader.core.runs import Runs
+    from trader.core.systems import Systems
+    from trader.core.watchlist import Watchlists
+
+    schema = f"t_{request.node.name[:40]}"
+    idt, ledgers = Identity(schema=schema), Ledgers(schema=schema)
+    docs, pv, runs, sysm = (Documents(schema=schema), PromptVersions(schema=schema),
+                            Runs(schema=schema), Systems(schema=schema))
+    a = idt.create_user("a@iso.test", "p")["id"]
+    b = idt.create_user("b@iso.test", "p")["id"]
+    la = ledgers.create(a, "A本", "live")
+    lb = ledgers.create(b, "B本", "paper")
+
+    # B 建自己的系统/prompt/知识/场次
+    sysm.upsert("my-system", {"stages": {}}, user_id=b)
+    pv.save("system", "B 的方法论", user_id=b)
+    set_context(lb["bag_id"], None, b)
+    docs.save("expectation", "B 的预期", meta={"status": "active"})
+    Watchlists(schema=schema).save("B池", [{"code": "000001"}])
+    runs.create("B-run", "replay", "20260818", {}, user_id=b)
+
+    # 维度①系统:A 查不到 B 的系统
+    assert sysm.get("my-system", user_id=a) is None and sysm.get("my-system", user_id=b) is not None
+    # 维度②prompt:A 的 latest 拿不到 B 的版本
+    assert pv.latest("system", user_id=a) is None and "B 的方法论" in pv.latest("system", user_id=b)
+    # 维度③知识:A 的上下文里看不到 B 的文档/自选组
+    set_context(la["bag_id"], None, a)
+    assert all(d["name"] != "B 的预期" for d in docs.list("expectation"))
+    assert not any(w["name"] == "B池" for w in Watchlists(schema=schema).list_all())
+    # 维度④场次/账本:A 查不到 B 的场;账本各归各
+    assert runs.get("B-run", user_id=a) is None and runs.get("B-run", user_id=b) is not None
+    assert [x["name"] for x in ledgers.list(a)] == ["A本"] and \
+           [x["name"] for x in ledgers.list(b)] == ["B本"]
+    print(f"  → 四维隔离:user{a}(A本 bag{la['bag_id']}) 与 user{b}(B本 bag{lb['bag_id']}) 互不可见")

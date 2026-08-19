@@ -10,7 +10,7 @@ from datetime import datetime as _dt
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-from trader.core.context import current_bag
+from trader.core.context import current_bag, current_user
 from trader.core.db import _connect
 from trader.core.documents import _init_versions, _log_version
 from trader.core.market import _fetch_quotes, _tool_error_text
@@ -41,10 +41,10 @@ class Watchlists:
             ).fetchone()
             if row is None:
                 conn.execute(
-                    "INSERT INTO watchlists(bag_id, name, created_at, updated_at)"
-                    " VALUES(%s,%s,%s,%s)", (bag_id, name, now, now)
+                    "INSERT INTO watchlists(bag_id, name, created_at, updated_at, user_id)"
+                    " VALUES(%s,%s,%s,%s,%s)", (bag_id, name, now, now, current_user())
                 )
-                _log_version(conn, "watchlist", _sid(bag_id, name), "create", {"name": name}, bag=bag_id)
+                _log_version(conn, "watchlist", _sid(bag_id, name), "create", {"name": name}, bag=bag_id, user=current_user())
             for m in members:
                 code = (m.get("code") or "").strip()
                 if not code:
@@ -65,7 +65,7 @@ class Watchlists:
                 _log_version(conn, "watchlist", _sid(bag_id, name),
                              "update" if old else "add",
                              {"code": code, "name": m.get("name", ""),
-                              "fields": m.get("fields") or {}}, bag=bag_id)
+                              "fields": m.get("fields") or {}}, bag=bag_id, user=current_user())
             conn.execute("UPDATE watchlists SET updated_at=%s WHERE bag_id=%s AND name=%s",
                          (now, bag_id, name))
 
@@ -79,7 +79,7 @@ class Watchlists:
             )
             if cur.rowcount == 0:
                 raise ValueError(f"成员不存在:{code}(自选组 {name})")
-            _log_version(conn, "watchlist", _sid(bag_id, name), "remove", {"code": code}, bag=bag_id)
+            _log_version(conn, "watchlist", _sid(bag_id, name), "remove", {"code": code}, bag=bag_id, user=current_user())
 
     # ── 读 ──────────────────────────────────────────────
 
@@ -149,6 +149,8 @@ class Watchlists:
             )
             conn.execute("CREATE INDEX IF NOT EXISTS watchlist_members_lookup"
                          " ON watchlist_members(bag_id, list_name)")
+            conn.execute("ALTER TABLE watchlists ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE watchlist_members ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
             _init_versions(conn)
 
 

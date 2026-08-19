@@ -16,25 +16,27 @@ class Runs:
         ensure_once(f"runs:{schema}", self._init_db)
 
     def create(self, name: str, kind: str, trade_date: str,
-               prompt_versions: dict, system: str = "expectation") -> dict:
+               prompt_versions: dict, system: str = "expectation",
+               user_id: int = 0) -> dict:
         """建档(同名已存在→ValueError)。kind=live/replay;bag 建档后由调用方 set_bag。"""
         now = _dt.now().isoformat(timespec="seconds")
         with _connect(self.schema) as conn:
             try:
                 r = conn.execute(
-                    "INSERT INTO runs(name, kind, trade_date, status,"
+                    "INSERT INTO runs(user_id, name, kind, trade_date, status,"
                     " prompt_versions, system, created_at)"
-                    " VALUES(%s,%s,%s,'running',%s,%s,%s) RETURNING *",
-                    (name, kind, trade_date,
+                    " VALUES(%s,%s,%s,%s,'running',%s,%s,%s) RETURNING *",
+                    (user_id, name, kind, trade_date,
                      json.dumps(prompt_versions, ensure_ascii=False), system, now),
                 ).fetchone()
             except psycopg.errors.UniqueViolation as e:
                 raise ValueError(f"场次已存在:{name}(换个名字,或 replay-rm 删除旧场)") from e
         return r
 
-    def get(self, name: str) -> dict | None:
+    def get(self, name: str, user_id: int = 0) -> dict | None:
         with _connect(self.schema) as conn:
-            return conn.execute("SELECT * FROM runs WHERE name=%s", (name,)).fetchone()
+            return conn.execute("SELECT * FROM runs WHERE user_id=%s AND name=%s",
+                                (user_id, name)).fetchone()
 
     def set_bag(self, run_id: int, bag_id: int) -> None:
         """replay 场:bag=场次 id(engine 建袋后回填);live 场 bag=0(正本)。"""
@@ -57,10 +59,10 @@ class Runs:
                 conn.execute("UPDATE runs SET status='sealed', sealed_at=%s WHERE id=%s",
                              (now, run_id))
 
-    def delete(self, name: str) -> int:
-        """删场:行级袋子整体销毁(一个事务)再删登记行。"""
+    def delete(self, name: str, user_id: int = 0) -> int:
+        """删场(按用户+名):行级袋子整体销毁(一个事务)再删登记行。"""
         from trader.core.bag import delete_bag
-        run = self.get(name)
+        run = self.get(name, user_id)
         if run is None:
             return 0
         bag = run.get("bag_id") or 0
@@ -70,15 +72,19 @@ class Runs:
             conn.execute("DELETE FROM runs WHERE id=%s", (run["id"],))
         return 1
 
-    def list(self, kind: str | None = None, trade_date: str | None = None) -> list[dict]:
+    def list(self, kind: str | None = None, trade_date: str | None = None,
+             user_id: int | None = None) -> list[dict]:
         where, params = [], []
+        if user_id is not None:
+            where.append("user_id=%s")
+            params.append(user_id)
         if kind:
             where.append("kind=%s")
             params.append(kind)
         if trade_date:
             where.append("trade_date=%s")
             params.append(trade_date)
-        sql = ("SELECT id, name, kind, trade_date, bag_id, status, system,"
+        sql = ("SELECT id, user_id, name, kind, trade_date, bag_id, status, system,"
                " prompt_versions, fingerprint, metrics, created_at, sealed_at FROM runs")
         if where:
             sql += " WHERE " + " AND ".join(where)
@@ -106,6 +112,10 @@ class Runs:
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS bag_id INTEGER NOT NULL DEFAULT 0")
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS metrics JSONB")
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS fingerprint TEXT")
+            # 多租户命名空间:场次名按用户唯一,老全局约束退役
+            conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
+            conn.execute("ALTER TABLE runs DROP CONSTRAINT IF EXISTS runs_name_key")
+            conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS runs_user_name ON runs(user_id, name)")
 
 
 _runs: Runs | None = None

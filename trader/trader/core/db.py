@@ -16,7 +16,7 @@ DATABASE_URL = os.environ.get(
     "DATABASE_URL", "postgresql://postgres:password@localhost:5432/trader"
 )
 
-_init_lock = threading.Lock()
+_init_lock = threading.RLock()  # 可重入:_init_db 内部再建子表(如 Ledgers→Bags)不自锁
 _init_done: set[str] = set()
 
 

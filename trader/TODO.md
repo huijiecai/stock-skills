@@ -30,7 +30,13 @@
    - 可选对比:viewer 对比页勾 live-20260819 vs 20260818-v2验收(同 prompt 不同钱包,复现测试)
 2. 实盘跑顺后,再从缓办清单挑下一项
 
-## ⏳ 待办(缓办,均有主见实现设计附录)
+## ⏳ 待办
+
+- [x] **M1 多租户已实施(8/19 晚)**:identity(注册/登录/会话/sk- Key)+bags/ledgers(账本=持久bag)
+      +user_id 贯穿+命名空间+RLS 测试+四维隔离测试;user B 端到端模拟跑通;66 tests
+- [ ] M1.5 服务化:core→FastAPI;/auth/register /auth/login;CLI trader login(多用户设计 §5)
+
+## ⏳ 缓办(均有主见实现设计附录)
 
 - [ ] 盘前"重跑转抄旧报告数字"漏洞:两行 prompt 补丁("旧报告仅对照,禁止转抄数字")——已定修法,暂缓
 - [ ] metrics 扩展:超额收益(vs 大盘)/单笔归因(v1.1 候选)

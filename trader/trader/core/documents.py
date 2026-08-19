@@ -7,7 +7,7 @@
 """
 from datetime import datetime as _dt
 
-from trader.core.context import current_bag
+from trader.core.context import current_bag, current_user
 from trader.core.db import _connect
 
 
@@ -44,10 +44,10 @@ class Documents:
             else:
                 r = conn.execute(
                     "INSERT INTO documents(doc_type,name,trade_date,ref_id,content,"
-                    "created_at,updated_at,meta,bag_id) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s)"
+                    "created_at,updated_at,meta,bag_id,user_id) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)"
                     " RETURNING id",
                     (doc_type, name, trade_date, ref_id, content, now, now,
-                     _meta_json(meta), b),
+                     _meta_json(meta), b, current_user()),
                 ).fetchone()
                 doc_id = r["id"]
             _log_version(conn, "document", doc_id, "save",
@@ -59,7 +59,7 @@ class Documents:
         """浅合并更新 meta(只传变化的键;值传 None 表示删键)。"""
         import json as _json
         with _connect(self.schema) as conn:
-            row = conn.execute("SELECT meta, bag_id FROM documents WHERE id=%s", (doc_id,)).fetchone()
+            row = conn.execute("SELECT meta, bag_id, user_id FROM documents WHERE id=%s", (doc_id,)).fetchone()
             if row is None:
                 raise ValueError(f"文档 {doc_id} 不存在")
             merged = dict(row["meta"] or {})
@@ -71,7 +71,8 @@ class Documents:
             conn.execute("UPDATE documents SET meta=%s, updated_at=%s WHERE id=%s",
                          (_json.dumps(merged, ensure_ascii=False),
                           _dt.now().isoformat(timespec="seconds"), doc_id))
-            _log_version(conn, "document", doc_id, "meta", {"meta": merged}, bag=row["bag_id"])
+            _log_version(conn, "document", doc_id, "meta", {"meta": merged},
+                         bag=row["bag_id"], user=row["user_id"])
 
     def get(self, doc_type: str, name: str = "", trade_date: str = "",
             bag_id: int | None = None) -> str | None:
@@ -134,6 +135,8 @@ class Documents:
             conn.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS meta JSONB NOT NULL DEFAULT '{}'")
             conn.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS bag_id INTEGER NOT NULL DEFAULT 0")
             conn.execute("CREATE INDEX IF NOT EXISTS documents_bag ON documents(bag_id)")
+            conn.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
+            conn.execute("CREATE INDEX IF NOT EXISTS documents_user ON documents(user_id)")
             _init_versions(conn)
 
 
@@ -163,18 +166,21 @@ def _init_versions(conn) -> None:
                  " ON versions(subject_type, subject_id)")
     conn.execute("ALTER TABLE versions ADD COLUMN IF NOT EXISTS bag_id INTEGER NOT NULL DEFAULT 0")
     conn.execute("CREATE INDEX IF NOT EXISTS versions_bag ON versions(bag_id)")
+    conn.execute("ALTER TABLE versions ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
+    conn.execute("CREATE INDEX IF NOT EXISTS versions_user ON versions(user_id)")
 
 
 def _log_version(conn, subject_type: str, subject_id, action: str,
-                 payload: dict, bag: int = 0) -> None:
+                 payload: dict, bag: int = 0, user: int | None = None) -> None:
     """追加一条版本事件(与业务写操作同事务,业务回滚它也回滚)。"""
     import json as _json
     conn.execute(
-        "INSERT INTO versions(subject_type, subject_id, action, payload, ts, bag_id)"
-        " VALUES(%s,%s,%s,%s,%s,%s)",
+        "INSERT INTO versions(subject_type, subject_id, action, payload, ts, bag_id, user_id)"
+        " VALUES(%s,%s,%s,%s,%s,%s,%s)",
         (subject_type, str(subject_id), action,
          _json.dumps(payload, ensure_ascii=False),
-         _dt.now().isoformat(timespec="seconds"), bag),
+         _dt.now().isoformat(timespec="seconds"), bag,
+         current_user() if user is None else user),
     )
 
 
