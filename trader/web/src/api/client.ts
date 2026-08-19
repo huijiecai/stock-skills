@@ -1,4 +1,4 @@
-/** API 客户端:fetch 封装,Bearer 自动携带,401 统一踢回登录。 */
+/** API 客户端:fetch 封装,Bearer 自动携带,401 统一踢回登录,自动解包标准响应信封。 */
 export const TOKEN_KEY = 'trader_token'
 
 export function getToken(): string {
@@ -11,6 +11,13 @@ export function setToken(t: string) {
 
 export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
+}
+
+export interface Envelope<T = any> {
+  data: T
+  status: 'SUCCESS' | 'ERROR'
+  message?: string
+  traceId?: string
 }
 
 export async function api<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
@@ -27,11 +34,12 @@ export async function api<T = any>(path: string, opts: RequestInit = {}): Promis
     if (!location.pathname.startsWith('/login')) location.href = '/login'
     throw new Error('未登录或登录已过期')
   }
-  if (!res.ok) {
-    const detail = await res.json().catch(() => ({}))
-    throw new Error(detail.detail ?? `HTTP ${res.status}`)
+  const body: Envelope<T> = await res.json().catch(() => ({ data: null, status: 'ERROR' }))
+  if (!res.ok || body.status === 'ERROR') {
+    throw new Error(body.message ?? `HTTP ${res.status}`)
   }
-  return res.json()
+  // 登录接口的 token 在 data 里,直接透传
+  return body.data
 }
 
 export const get = <T = any>(p: string) => api<T>(p)

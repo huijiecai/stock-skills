@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from trader.api.auth import router as auth_router
+from trader.api.envelope import EnvelopeMiddleware
 from trader.api.resources import (docs_router, router as ledgers_router,
                                   runs_router, trading_router, watch_router)
 from trader.api.systems import router as systems_router
@@ -24,6 +25,7 @@ def create_app() -> FastAPI:
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # vite dev
         allow_credentials=True, allow_methods=["*"], allow_headers=["*"],
     )
+    app.add_middleware(EnvelopeMiddleware)  # 标准响应包(信封):内层 CORS 先执行
     app.include_router(auth_router)
     app.include_router(systems_router)
     app.include_router(ledgers_router)
