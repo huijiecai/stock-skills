@@ -1,8 +1,8 @@
 import { Card, Table, Tag, Button, Drawer, message, Modal, Form, Input, Select,
-         Switch, Space, DatePicker, Typography, Alert } from 'antd'
+         Switch, Space, DatePicker, Typography, Alert, Divider } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { get, post } from '../api/client'
+import { get, post, put } from '../api/client'
 import PromptEditor from '../components/PromptEditor'
 
 const TOOL_GROUPS = [
@@ -60,7 +60,65 @@ const DEFAULT_TOOLS = ['get_quotes', 'get_indices', 'get_kline', 'get_limit_up',
   'get_top_amount', 'get_market_summary', 'get_positions', 'get_account',
   'scan_market', 'save_doc', 'get_doc', 'list_docs']
 
-/** 阶段类型中文描述 */
+/** 阶段类型选项 */
+const STAGE_TYPES = [
+  { value: 'single', label: '📄 单次分析(跑一次出报告)', mode: '' },
+  { value: 'replay', label: '🔄 模拟看盘(回放某天 9:35-15:00)', mode: 'replay' },
+  { value: 'live', label: '🔴 实时看盘(当前行情,15:05 自动停)', mode: 'live' },
+]
+
+/** 模板:一键生成阶段组合 */
+const TEMPLATES = [
+  {
+    value: 'daily',
+    label: '📋 每日闭环(盘前分析 → 实时看盘 → 盘后总结)',
+    stages: [
+      { name: 'premarket', type: 'single', interval: 0 },
+      { name: 'live', type: 'live', interval: 5 },
+      { name: 'close', type: 'single', interval: 0 },
+    ],
+  },
+  {
+    value: 'analysis',
+    label: '📄 单次分析(如涨停复盘/专题研究)',
+    stages: [{ name: 'run', type: 'single', interval: 0 }],
+  },
+  {
+    value: 'backtest',
+    label: '🔄 模拟回测(回放某天看盘)',
+    stages: [{ name: 'replay', type: 'replay', interval: 5 }],
+  },
+  {
+    value: 'blank',
+    label: '✏️ 自定义(手动添加阶段)',
+    stages: [],
+  },
+]
+
+/** 从阶段行构建 manifest.stages */
+function buildStages(rows: any[], systemName: string): Record<string, any> {
+  const out: Record<string, any> = {}
+  for (const r of rows) {
+    if (!r?.name) continue
+    if (r.type === 'single') {
+      out[r.name] = { kind: 'single', prompt: `${systemName}-${r.name}`,
+                      request_limit: 100, vars: ['date'] }
+    } else if (r.type === 'live') {
+      out[r.name] = { kind: 'loop', prompt: `${systemName}-${r.name}`,
+                      request_limit: 50, data_mode: 'live', clock: 'real',
+                      window: '09:35-15:05', skip_lunch: true,
+                      log_type: `watch_${r.name}` }
+    } else { // replay
+      out[r.name] = { kind: 'loop', prompt: `${systemName}-${r.name}`,
+                      request_limit: 50, data_mode: 'replay', clock: 'simulated',
+                      interval: r.interval || 5, window: '09:35-15:00',
+                      skip_lunch: true, log_type: `watch_${r.name}` }
+    }
+  }
+  return out
+}
+
+/** 阶段类型中文 */
 function stageKindLabel(stage: any): string {
   if (!stage) return ''
   if (stage.kind === 'single') return '单次分析'
@@ -87,27 +145,34 @@ export default function Systems() {
   const [selectedStage, setSelectedStage] = useState<string>('')
   const currentStageDef = stages[selectedStage]
 
-  // 默认选第一个阶段
   useEffect(() => {
     if (stageNames.length && !selectedStage) setSelectedStage(stageNames[0])
   }, [stageNames])
 
   async function handleCreate(v: any) {
+    const stageRows = (v.stages ?? []).filter((s: any) => s?.name)
+    if (stageRows.length === 0) { message.error('至少添加一个阶段'); return }
+    const manifestStages = buildStages(stageRows, v.name)
     try {
       await post('/systems', {
         name: v.name,
         manifest: {
           system_prompt: `${v.name}-system`,
-          stages: v.stageKind === 'single'
-            ? { run: { kind: 'single', prompt: `${v.name}-prompt`, request_limit: 100, vars: ['date'] } }
-            : { replay: { kind: 'loop', prompt: `${v.name}-prompt`, request_limit: 50,
-                         data_mode: 'replay', clock: 'simulated', interval: v.interval ?? 5,
-                         window: '09:35-15:00', skip_lunch: true, log_type: `watch_${v.name}` } },
+          stages: manifestStages,
           tools: v.tools,
           web_search: v.webSearch,
         },
       })
-      message.success(`系统 ${v.name} 已建,现在编辑 prompts`)
+      // 为每个阶段自动创建空 prompt 模板
+      for (const r of stageRows) {
+        if (r?.name) {
+          await put(`/systems/${v.name}/prompts/${v.name}-${r.name}`,
+                    { content: `# ${v.name} · ${r.name}\n\n(在此编写此阶段的 prompt...)\n` })
+        }
+      }
+      await put(`/systems/${v.name}/prompts/${v.name}-system`,
+                { content: `你是 ${(v.displayName || v.name)} 的 AI agent。\n(在此编写系统级角色设定...)\n` })
+      message.success(`系统 ${v.name} 已建(${stageRows.length} 个阶段),现在编辑 prompts`)
       setCreating(false)
       setEditing(v.name)
       qc.invalidateQueries({ queryKey: ['systems'] })
@@ -126,16 +191,24 @@ export default function Systems() {
     } catch (e: any) { message.error(e.message) }
   }
 
+  // 模板切换时填充阶段列表
+  function handleTemplate(templateValue: string) {
+    const tpl = TEMPLATES.find(t => t.value === templateValue)
+    if (tpl) {
+      form.setFieldValue('stages', tpl.stages.map(s => ({ ...s })))
+    }
+  }
+
   return (
     <div>
       <Card title="我的交易系统" extra={
-        <Button type="primary" onClick={() => setCreating(true)}>新建系统</Button>
+        <Button type="primary" onClick={() => { form.resetFields(); setCreating(true) }}>新建系统</Button>
       }>
         <Table rowKey="id" size="small" dataSource={systems.data ?? []}
                columns={[
                  { title: '系统', dataIndex: 'name',
                    render: (n: string) => <a onClick={() => setEditing(n)}><b>{n}</b></a> },
-                 { title: '阶段', width: 200,
+                 { title: '阶段', width: 280,
                    render: (_: any, r: any) => {
                      const st = r.manifest?.stages ?? {}
                      return Object.entries(st).map(([k, v]: [string, any]) => (
@@ -147,38 +220,72 @@ export default function Systems() {
                  { title: '', width: 200, render: (_: any, r: any) => (
                    <Space>
                      <a onClick={() => setEditing(r.name)}>编辑 prompts</a>
-                     <a onClick={() => { setRunningSystem(r.name); runForm.resetFields() }}>▶ 运行</a>
+                     <a onClick={() => { setRunningSystem(r.name); runForm.resetFields(); setSelectedStage('') }}>▶ 运行</a>
                    </Space>
                  )},
                ]} />
         <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-          新建系统 = 起名 + 选阶段类型 + 勾工具 + 写 prompt,零代码。
-          单次分析跑一次出报告;模拟看盘从 9:35 循环到 15:00;实时看盘对接当前行情。
+          新建系统 = 起名 + 选模板(或手动加阶段)+ 勾工具 + 写 prompt,零代码。
+          多阶段系统如「盘前分析→实时看盘→盘后总结」一条龙。
         </Typography.Text>
       </Card>
 
       {/* 新建系统表单 */}
       <Modal title="新建交易系统" open={creating} onCancel={() => setCreating(false)}
-             onOk={() => form.submit()} width={620} okText="创建">
+             onOk={() => form.submit()} width={680} okText="创建">
         <Form form={form} layout="vertical" onFinish={handleCreate}
-              initialValues={{ stageKind: 'single', tools: DEFAULT_TOOLS, webSearch: true, interval: 5 }}>
+              initialValues={{ tools: DEFAULT_TOOLS, webSearch: true, stages: [] }}>
           <Form.Item name="name" label="系统名(英文,如 limitup-review / momentum)"
                      rules={[{ required: true, pattern: /^[a-z0-9-]+$/, message: '小写英文/数字/横杠' }]}>
             <Input placeholder="my-system" />
           </Form.Item>
-          <Form.Item name="stageKind" label="阶段类型" rules={[{ required: true }]}>
-            <Select options={[
-              { value: 'single', label: '📄 单次分析(跑一次出报告,如涨停复盘/盘前分析/研究)' },
-              { value: 'loop', label: '🔄 模拟看盘(回放某天,从 9:35 循环到 15:00)' },
-            ]} />
+
+          {/* 模板快速选择 */}
+          <Form.Item label="快速开始(选模板自动填阶段,可再手动改)">
+            <Select placeholder="选一个模板..." onChange={handleTemplate}
+                    options={TEMPLATES.map(t => ({ value: t.value, label: t.label }))} />
           </Form.Item>
-          <Form.Item noStyle shouldUpdate>
-            {({ getFieldValue }) => getFieldValue('stageKind') === 'loop' ? (
-              <Form.Item name="interval" label="每轮间隔(分钟)">
-                <Select options={[1, 3, 5, 10, 15, 20, 30].map(i => ({ value: i, label: `${i} 分钟` }))} />
-              </Form.Item>
-            ) : null}
+
+          {/* 动态阶段列表 */}
+          <Form.Item label="阶段定义(一个系统可以有多个阶段,如盘前/盘中/盘后)">
+            <Form.List name="stages">
+              {(fields, { add, remove }) => (
+                <>
+                  {fields.map(({ key, name, ...restField }) => (
+                    <Space key={key} style={{ display: 'flex', marginBottom: 4 }} align="baseline">
+                      <Form.Item {...restField} name={[name, 'name']}
+                                 rules={[{ required: true, message: '阶段名' }]}>
+                        <Input placeholder="阶段名(如 premarket)" style={{ width: 130 }} />
+                      </Form.Item>
+                      <Form.Item {...restField} name={[name, 'type']} initialValue="single"
+                                 rules={[{ required: true }]}>
+                        <Select style={{ width: 200 }} options={STAGE_TYPES.map(t => ({
+                          value: t.value, label: t.label,
+                        }))} />
+                      </Form.Item>
+                      <Form.Item noStyle shouldUpdate>
+                        {({ getFieldValue }) => {
+                          const type = getFieldValue(['stages', name, 'type'])
+                          return type === 'replay' ? (
+                            <Form.Item {...restField} name={[name, 'interval']} initialValue={5}>
+                              <Select style={{ width: 100 }} options={[1, 3, 5, 10, 15, 20, 30].map(i => ({
+                                value: i, label: `${i}分钟/轮`,
+                              }))} />
+                            </Form.Item>
+                          ) : null
+                        }}
+                      </Form.Item>
+                      <Button type="text" danger onClick={() => remove(name)}>删除</Button>
+                    </Space>
+                  ))}
+                  <Button type="dashed" onClick={() => add({ type: 'single', interval: 5 })}
+                          style={{ width: '100%' }}>+ 添加阶段</Button>
+                </>
+              )}
+            </Form.List>
           </Form.Item>
+
+          <Divider />
           <Form.Item name="tools" label="工具白名单(AI 能用什么,按分类勾选)" rules={[{ required: true }]}>
             <Select mode="multiple" options={TOOL_GROUPS} placeholder="勾选 AI 可调用的工具"
                      dropdownStyle={{ maxHeight: 400, overflow: 'auto' }} />
@@ -198,19 +305,16 @@ export default function Systems() {
           <Form form={runForm} layout="vertical" onFinish={handleRun}>
             <Form.Item name="stage" label="运行哪个阶段" rules={[{ required: true }]}>
               <Select options={stageNames.map(n => ({
-                value: n,
-                label: `${n}(${stageKindLabel(stages[n])})`,
+                value: n, label: `${n}(${stageKindLabel(stages[n])})`,
               }))}
               onChange={(v) => setSelectedStage(v)} />
             </Form.Item>
-
-            {/* 根据阶段类型动态适配输入 */}
             {currentStageDef?.kind === 'single' && (
               <Form.Item name="date" label="交易日" rules={[{ required: true }]}>
                 <DatePicker style={{ width: '100%' }} />
               </Form.Item>
             )}
-            {currentStageDef?.kind === 'loop' && (
+            {currentStageDef?.kind === 'loop' && currentStageDef?.data_mode === 'replay' && (
               <>
                 <Form.Item name="date" label="回放日期(哪天的行情)" rules={[{ required: true }]}>
                   <DatePicker style={{ width: '100%' }} />
@@ -222,15 +326,14 @@ export default function Systems() {
               </>
             )}
             {currentStageDef?.data_mode === 'live' && (
-              <Alert type="info" message="实时看盘:点击开始后立即对接当前行情,Ctrl+C 或 15:05 自动停止"
+              <Alert type="info" message="实时看盘:点击开始后立即对接当前行情,15:05 自动停止"
                      style={{ marginBottom: 12 }} />
             )}
             {currentStageDef?.kind === 'single' && (
-              <Alert type="info" message="单次分析:跑一次,产出报告后自动结束"
-                     style={{ marginBottom: 12 }} />
+              <Alert type="info" message="单次分析:跑一次,产出报告后自动结束" style={{ marginBottom: 12 }} />
             )}
-            {currentStageDef?.kind === 'loop' && (
-              <Alert type="info" message={`模拟看盘:回放当天行情,9:35 开始每轮间隔分析,15:00 收盘结束。${currentStageDef?.window ? `交易窗口:${currentStageDef.window}` : ''}`}
+            {currentStageDef?.kind === 'loop' && currentStageDef?.data_mode === 'replay' && (
+              <Alert type="info" message={`模拟看盘:回放当天行情,9:35 开始循环分析,15:00 收盘结束。${currentStageDef?.window ? `窗口:${currentStageDef.window}` : ''}`}
                      style={{ marginBottom: 12 }} />
             )}
           </Form>
