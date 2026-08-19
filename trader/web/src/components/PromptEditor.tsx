@@ -59,7 +59,6 @@ export default function PromptEditor({ system }: { system: string }) {
     qc.invalidateQueries({ queryKey: ['prompts', system] })
   }
 
-  const current = (prompts.data ?? []).find((p: any) => p.prompt === prompt)
 
   return (
     <div>
