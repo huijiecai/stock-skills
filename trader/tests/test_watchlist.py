@@ -78,7 +78,7 @@ def test_systems_manifest():
     row = ensure_expectation_system()
     manifest = row["manifest"]
     stages = manifest["stages"]
-    print(f"  → 系统 {row['name']}:阶段 {list(stages)},工具 {len(manifest['tools'])} 个")
+    print(f"  → 系统 {row['slug']}:阶段 {list(stages)},工具 {len(manifest['tools'])} 个")
     assert set(stages) == {"premarket", "live", "replay", "close", "research"}
     missing = [t for t in manifest["tools"] if t not in TOOLS]
     assert not missing, f"manifest 引用了不存在的工具:{missing}"

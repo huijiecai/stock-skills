@@ -14,9 +14,10 @@ from pydantic_ai.native_tools import WebSearchTool
 from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
-from trader.core.bag import open_live, open_replay
+from trader.core.portfolios import default_portfolios, open_experiment, open_live
 from trader.core.context import set_context
-from trader.core.ledger import Account, default_account
+from trader.core.events import emit, instrument, set_current_round
+from trader.core.ledger import default_wallet
 from trader.core.llm import build_model
 from trader.core.registry import TOOLS, WRITE_TOOLS
 from trader.core.runs import default_runs
@@ -33,9 +34,9 @@ CLOSE = time(15, 0)
 
 # ── agent 装配 ──────────────────────────────────────────
 
-def build_agent(system_name: str, user_id: int = 0) -> tuple[Agent, dict]:
+def build_agent(system_name: str, user_id: int = 0) -> tuple[Agent, dict, int]:
     """按 systems 行装配 agent(工具白名单 + system prompt + 联网开关,按用户命名空间)。
-    返回 (agent, manifest);白名单里不存在的工具名跳过并告警。"""
+    返回 (agent, manifest, system_id);白名单里不存在的工具名跳过并告警。"""
     from trader.core.systems import default_systems
 
     row = default_systems().get(system_name, user_id)
@@ -46,7 +47,7 @@ def build_agent(system_name: str, user_id: int = 0) -> tuple[Agent, dict]:
     agent = Agent(
         build_model(),
         capabilities=caps,
-        system_prompt=load(manifest["system_prompt"], user_id),
+        system_prompt=load(manifest["system_prompt"], system_id=row["id"], user_id=user_id),
         model_settings=ModelSettings({"anthropic_thinking": {"type": "disabled"}},
                                      max_tokens=4000),
     )
@@ -55,8 +56,9 @@ def build_agent(system_name: str, user_id: int = 0) -> tuple[Agent, dict]:
         if fn is None:
             print(f"  ⚠ 工具 {name} 不在注册表,已跳过(manifest 与代码不一致)")
             continue
+        fn = instrument(fn)   # 调用前后落事件 → 前端实时看思考过程
         agent.tool(fn, retries=3) if name in WRITE_TOOLS else agent.tool(fn)
-    return agent, manifest
+    return agent, manifest, row["id"]
 
 
 # ── 阶段变量提供器(附录 14 已定:engine 内置通用提供器)──
@@ -156,62 +158,95 @@ def _last_round(doc_type: str, trade_date: str) -> int:
 def run_single(system_name: str, stage_name: str, user_id: int = 0, **cli: str) -> None:
     """单次阶段:建 run 登记 → 装配 → 跑一次 → 思考流落库 → 封场。
     产物写用户的 live 账本袋;场次页可见。"""
-    from trader.core.ledger import default_ledgers
-
-    agent, manifest = build_agent(system_name, user_id)
+    agent, manifest, system_id = build_agent(system_name, user_id)
     stage = manifest["stages"][stage_name]
-    bag = default_ledgers().live_bag(user_id)
-    set_context(bag, None, user_id)
+    prow = default_portfolios().main_of(user_id, system_id)
+    if prow is None:
+        raise RuntimeError(f"用户 {user_id} 在系统 {system_name} 没有实盘组合(先在 web 创建)")
+    portfolio_id = prow["id"]
+    set_context(portfolio_id, None, user_id)
     vars_ = _stage_vars(stage, **cli)
     date = cli.get("date", "")
 
     # 建场次登记(让场次页可见)
     runs = default_runs()
-    name = f"{system_name}-{stage_name}-{date}-{datetime.now():%H%M%S}"
+    slug = f"{system_name}-{stage_name}-{date}-{datetime.now():%H%M%S}"
     try:
-        run = runs.create(name, "single", date, _prompt_cover(manifest, user_id),
-                          system=system_name, user_id=user_id)
+        run = runs.create(slug, "single", date,
+                          _prompt_cover(manifest, system_id, user_id, stage_name),
+                          system_id=system_id, user_id=user_id, stage=stage_name,
+                          portfolio_id=portfolio_id)
     except ValueError:
-        run = runs.get(name, user_id)  # 同名重跑 → 接续
-    runs.set_bag(run["id"], bag)
+        run = runs.get(slug, user_id)  # 同名重跑 → 接续
     from trader.core.context import set_context as _sc
-    _sc(bag, run["id"], user_id)
+    _sc(portfolio_id, run["id"], user_id)
 
     print(f"\n{'=' * 60}\n{system_name} · {stage_name} {date or vars_.get('topic', '')}\n{'=' * 60}")
+    set_current_round(1)
+    emit("round_start", body=f"单次分析 {date or vars_.get('topic', '')}")
     try:
-        prompt = load(stage["prompt"], user_id, **vars_)
+        prompt = load(stage["prompt"], system_id=system_id, user_id=user_id, **vars_)
         result = _run_round(agent, prompt, [],
                             UsageLimits(request_limit=stage.get("request_limit", 200)))
         _save_transcript(stage_name, date, 0, datetime.now().strftime("%H:%M"),
                          result.all_messages(), result.usage)
         print(result.output)
     finally:
+        emit("round_end", body="完成")
         runs.seal(run["id"])
         print(f"📦 已封存:{name}")
 
 
 # ── loop 阶段(live/replay)────────────────────────────
 
+def _stop_requested(run_id: int) -> bool:
+    """优雅停止:web 置 status='stopping',循环每轮/等待分片轮询。
+    DB 短暂不可用(Docker 重启等)当作未请求,保住进程。"""
+    from trader.core.runs import default_runs
+    try:
+        r = default_runs().get_by_id(run_id)
+        return bool(r) and r["status"] == "stopping"
+    except Exception:
+        return False
+
+
+def _interruptible_sleep(seconds: int, run_id: int, chunk: int = 10) -> bool:
+    """分片等待:每 chunk 秒查停止标志;返回 True=已请求停止。"""
+    waited = 0
+    while waited < seconds:
+        if _stop_requested(run_id):
+            return True
+        step = min(chunk, seconds - waited)
+        time_mod.sleep(step)
+        waited += step
+    return _stop_requested(run_id)
+
+
 def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
              max_rounds: int | None = None, user_id: int = 0) -> None:
-    """实盘循环:写用户的 live 账本袋。跨重启按当日轮日志接续;午休跳过;15:05 收工。"""
-    from trader.core.ledger import default_ledgers
-
-    agent, manifest = build_agent(system_name, user_id)
+    """实盘循环:写该系统的实盘组合。跨重启按当日轮日志接续;午休跳过;15:05 收工。"""
+    agent, manifest, system_id = build_agent(system_name, user_id)
     stage = manifest["stages"][stage_name]
     log_type = stage.get("log_type", "watch_live")
     today = datetime.now().strftime("%Y%m%d")
     runs = default_runs()
-    bag = default_ledgers().live_bag(user_id)
+    prow = default_portfolios().main_of(user_id, system_id)
+    if prow is None:
+        raise RuntimeError(f"用户 {user_id} 在系统 {system_name} 没有实盘组合(先在 web 创建)")
+    portfolio_id = prow["id"]
     run = runs.get(f"live-{today}", user_id)
     if run is None:
-        run = runs.create(f"live-{today}", "live", today, _prompt_cover(manifest, user_id),
-                          system=system_name, user_id=user_id)
-        print(f"📦 档案袋已建:live-{today}(bag {bag}=live账本,#run_{run['id']})")
+        run = runs.create(f"live-{today}", "live", today,
+                          _prompt_cover(manifest, system_id, user_id, stage_name),
+                          system_id=system_id, user_id=user_id, stage=stage_name,
+                          portfolio_id=portfolio_id)
+        print(f"📦 场次已建:live-{today}(组合 {portfolio_id}=实盘,#run_{run['id']})")
     else:
-        print(f"📦 接续档案袋:live-{today}(status={run['status']})")
-    open_live(run["id"], bag, user_id)
-    unlocked = default_account().settle(datetime.now().date().isoformat())
+        print(f"📦 接续场次:live-{today}(status={run['status']})")
+        if run["status"] != "running":
+            runs.set_status(run["id"], "running")   # 停止/封存后再续:复活状态
+    open_live(run["id"], portfolio_id, user_id)
+    unlocked = default_wallet().settle(datetime.now().date().isoformat())
     if unlocked:
         print(f"↺ T+1 结算:解锁 {unlocked} 只昨日持仓的可卖状态")
     rounds = _last_round(log_type, today)
@@ -221,6 +256,9 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
     limits = UsageLimits(request_limit=stage.get("request_limit", 50))
     try:
         while True:
+            if _stop_requested(run["id"]):
+                print("\n⏹ 收到停止请求,完成收尾后退出(轮次与留痕完整,重新运行可接续)")
+                break
             now_t = datetime.now().time()
             if now_t >= time(15, 5):
                 print("\n已过 15:05 收盘,看盘自动结束。盘后总结:uv run python -m trader.runner close YYYYMMDD")
@@ -228,36 +266,57 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
             if LUNCH_BREAK[0] < now_t < LUNCH_BREAK[1]:
                 wait_min = 13 * 60 - (now_t.hour * 60 + now_t.minute)
                 print(f"午休中,睡 {wait_min} 分钟到 13:00 再继续")
-                time_mod.sleep(max(60, wait_min * 60))
+                if _interruptible_sleep(max(60, wait_min * 60), run["id"]):
+                    print("\n⏹ 午休中收到停止请求,退出")
+                    break
                 continue
             rounds += 1
+            set_current_round(rounds)
             now = datetime.now().strftime("%H:%M:%S")
             print(f"\n{'=' * 60}\n第 {rounds} 轮 · 实时看盘 {now}\n{'=' * 60}")
-            result = _run_round(agent,
-                                load(stage["prompt"], user_id, rounds=rounds, now=now, date=today),
-                                history, limits)
-            history = _trim_rounds(result.all_messages())
-            _save_transcript(stage_name, today, rounds, now,
-                             result.all_messages(), result.usage)
-            print(result.output)
+            emit("round_start", body=f"第 {rounds} 轮 · 实时看盘 {now}")
+            try:
+                result = _run_round(agent,
+                                    load(stage["prompt"], system_id=system_id, user_id=user_id,
+                                         rounds=rounds, now=now, date=today),
+                                    history, limits)
+                history = _trim_rounds(result.all_messages())
+                _save_transcript(stage_name, today, rounds, now,
+                                 result.all_messages(), result.usage)
+                print(result.output)
+                if datetime.now().time() >= time(15, 0):
+                    print("\n已过 15:00 收盘,收盘确认完成,看盘收工(收盘窗口只跑一轮,不再空转)")
+                    break
+            except Exception as e:  # 轮级容错:DB/LLM 瞬断不杀进程,重试本轮
+                rounds -= 1
+                emit("round_end", body=f"中断重试: {type(e).__name__}")
+                print(f"⚠ 第 {rounds + 1} 轮中断({type(e).__name__}: {str(e)[:120]});"
+                      f"60 秒后重试本轮,进程不退出")
+                if _interruptible_sleep(60, run["id"]):
+                    break
+                continue
+            emit("round_end", body="本轮完成")
             if max_rounds and rounds >= max_rounds:
                 print(f"\n(达到 max_rounds={max_rounds},停止)")
                 break
             if sleep_seconds > 0:
-                time_mod.sleep(sleep_seconds)
+                if _interruptible_sleep(sleep_seconds, run["id"]):
+                    print("\n⏹ 轮间隔中收到停止请求,退出")
+                    break
     finally:
-        runs.seal(run["id"], metrics=compute_metrics(bag, today))
-        print(f"📦 档案袋已封存:live-{today}")
+        try:
+            runs.seal(run["id"], metrics=compute_metrics(portfolio_id, today))
+            print(f"📦 场次已封存:live-{today}")
+        except Exception as e:  # noqa: BLE001 —— 封场失败不崩,场留 running 可接续/强封
+            print(f"⚠ 封场失败({type(e).__name__}),场留在 running——重新运行会接续,或 web 强制封存")
 
 
 def run_replay(system_name: str, date: str, stage_name: str = "replay",
                interval: int = 5, max_rounds: int | None = None, resume: bool = False,
                tag: str = "", opening: str = "fresh", custom_file: str = "",
                as_of: str = "", user_id: int = 0) -> None:
-    """模拟循环:一场一袋(bag 从 Bags 登记发号),开局三模式(§6),源=用户账本。"""
-    from trader.core.ledger import default_bags, default_ledgers
-
-    agent, manifest = build_agent(system_name, user_id)
+    """重演循环:一场一个实验组合(发号登记),开局三模式,源=用户默认组合。"""
+    agent, manifest, system_id = build_agent(system_name, user_id)
     stage = manifest["stages"][stage_name]
     log_type = stage.get("log_type", "watch_replay")
     runs = default_runs()
@@ -268,51 +327,73 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
             print(f"⚠ {date} 没有可接续的回放场,按全新实验开始")
         run = cands[0]
         from trader.core.context import set_context as _sc
-        bag = run.get("bag_id") or run["id"]
-        _sc(bag, run["id"], user_id)
+        if run["status"] != "running":
+            runs.set_status(run["id"], "running")   # 停止后再续:复活状态
+        portfolio_id = run.get("portfolio_id") or run["id"]
+        _sc(portfolio_id, run["id"], user_id)
         done = _last_round(log_type, date)
-        print(f"📦 接续档案袋:{run['name']}(bag {bag},已有 {done} 轮,从第 {done + 1} 轮继续)")
+        print(f"📦 接续场次:{run['slug']}(组合 {portfolio_id},已有 {done} 轮,从第 {done + 1} 轮继续)")
         rounds, hhmm = done, _resume_clock(log_type, date, done)
         fingerprint = run.get("fingerprint") or ""
     else:
-        name = f"{date}-{tag}" if tag else f"{date}-{datetime.now():%H%M%S}"
-        run = runs.create(name, "replay", date, _prompt_cover(manifest, user_id),
-                          system=system_name, user_id=user_id)
-        bag = default_bags().create(user_id, "ephemeral", run["id"])
-        runs.set_bag(run["id"], bag)
+        slug = f"{date}-{tag}" if tag else f"{date}-{datetime.now():%H%M%S}"
+        portfolio_id = default_portfolios().create(user_id, "experiment", system_id)
+        run = runs.create(slug, "replay", date,
+                          _prompt_cover(manifest, system_id, user_id, stage_name),
+                          system_id=system_id, user_id=user_id, stage=stage_name,
+                          clock="simulated", clock_date=date, portfolio_id=portfolio_id)
         custom = _load_custom(custom_file)
-        fingerprint = open_replay(bag, date, opening, custom, as_of,
-                                  user_id=user_id,
-                                  source_bag=default_ledgers().default_bag(user_id),
-                                  run_id=run["id"])
+        fingerprint = open_experiment(portfolio_id, date, opening, custom, as_of,
+                                      user_id=user_id,
+                                      source_portfolio=default_portfolios().default_for(user_id),
+                                      run_id=run["id"])
         runs.set_fingerprint(run["id"], fingerprint)
         warn = ("(⚠ fork 现状回放历史日=带未来持仓)" if opening == "fork" else "")
-        print(f"📦 档案袋已建:{name}(bag {bag},开局 {opening},指纹 {fingerprint}){warn}")
+        print(f"📦 场次已建:{slug}(实验组合 {portfolio_id},开局 {opening},指纹 {fingerprint}){warn}")
         rounds, hhmm = 0, MORNING_START
     history: list[ModelMessage] = []
     limits = UsageLimits(request_limit=stage.get("request_limit", 50))
     try:
         while hhmm <= CLOSE:
+            if _stop_requested(run["id"]):
+                print("\n⏹ 收到停止请求,完成收尾后退出(重新运行 --resume 可接续)")
+                break
             if LUNCH_BREAK[0] < hhmm < LUNCH_BREAK[1]:
                 hhmm = LUNCH_BREAK[1]
             rounds += 1
+            set_current_round(rounds)
             clock = hhmm.strftime("%H:%M")
             print(f"\n{'=' * 60}\n第 {rounds} 轮 · 模拟看盘 {date} {clock}\n{'=' * 60}")
-            result = _run_round(agent,
-                                load(stage["prompt"], user_id, rounds=rounds, date=date, clock=clock),
-                                history, limits)
-            history = _trim_rounds(result.all_messages())
-            _save_transcript(stage_name, date, rounds, clock,
-                             result.all_messages(), result.usage)
-            print(result.output)
+            emit("round_start", body=f"第 {rounds} 轮 · 模拟看盘 {date} {clock}")
+            try:
+                result = _run_round(agent,
+                                    load(stage["prompt"], system_id=system_id, user_id=user_id,
+                                         rounds=rounds, date=date, clock=clock),
+                                    history, limits)
+                history = _trim_rounds(result.all_messages())
+                _save_transcript(stage_name, date, rounds, clock,
+                                 result.all_messages(), result.usage)
+                print(result.output)
+            except Exception as e:  # 轮级容错:DB/LLM 瞬断不杀进程,重试本轮
+                rounds -= 1
+                emit("round_end", body=f"中断重试: {type(e).__name__}")
+                print(f"⚠ 第 {rounds + 1} 轮中断({type(e).__name__}: {str(e)[:120]});"
+                      f"60 秒后重试本轮,进程不退出")
+                if _interruptible_sleep(60, run["id"]):
+                    break
+                continue
+            emit("round_end", body="本轮完成")
             if max_rounds and rounds >= max_rounds:
                 print(f"\n(达到 max_rounds={max_rounds},停止)")
                 break
             minutes = hhmm.hour * 60 + hhmm.minute + interval
             hhmm = time(minutes // 60, minutes % 60)
     finally:
-        runs.seal(run["id"], metrics=compute_metrics(bag, date))
-        print(f"📦 档案袋已封存:{run['name']}(viewer「场次」可查;replay-rm 删除)")
+        try:
+            runs.seal(run["id"], metrics=compute_metrics(portfolio_id, date))
+            print(f"📦 场次已封存:{run['slug']}(viewer「场次」可查;replay-rm 删除)")
+        except Exception as e:  # noqa: BLE001 —— 封场失败不崩,场留 running 可接续/强封
+            print(f"⚠ 封场失败({type(e).__name__}),场留在 running——重新运行会接续,或 web 强制封存")
 
 
 def _resume_clock(doc_type: str, date: str, last_round: int) -> time:
@@ -335,8 +416,9 @@ def _load_custom(path: str) -> dict | None:
         return json.load(f)
 
 
-def _prompt_cover(manifest: dict, user_id: int = 0) -> dict:
-    """封面:当次使用的各 prompt 版本(跑过的场不因后续编辑变化)。
+def _prompt_cover(manifest: dict, system_id: int, user_id: int = 0, stage: str = "") -> dict:
+    """封面:本场实际用到的 prompt 版本(系统设定 + 当前阶段;跑过的场不因后续编辑变化)。
+    只记用到的——别的系统/别的阶段的 prompt 变动不影响本场封面,对比归因才干净。
     md 编辑面只属于 user 0(平台所有者),其他用户只读 PG。"""
     from trader.core.promptver import default_prompt_versions
     from trader.prompts import sync_prompts
@@ -345,22 +427,31 @@ def _prompt_cover(manifest: dict, user_id: int = 0) -> dict:
         results = sync_prompts()
         changed = [r for r in results if r["changed"]]
         if changed:
-            print("✎ prompt 版本入库:" + ", ".join(f"{r['name']}→v{r['version']}" for r in changed))
-    return {r["name"]: r["version"] for r in default_prompt_versions().versions(user_id=user_id)}
+            print("✎ prompt 版本入库:" + ", ".join(f"{r['slug']}→v{r['version']}" for r in changed))
+    pv = default_prompt_versions()
+    sdef = (manifest.get("stages") or {}).get(stage) or {}
+    names = [manifest.get("system_prompt"), sdef.get("prompt")]
+    out = {}
+    for n in filter(None, names):
+        rows = pv.versions(system_id, n, user_id=user_id)
+        if rows:
+            out[n] = rows[0]["version"]
+    return out
 
 
 # ── 封场指标(§8:由流水推算,粒度=成交时点)────────────
 
-def compute_metrics(bag: int, date: str) -> dict:
+def compute_metrics(portfolio_id: int, date: str) -> dict:
     """封场自动算:收益/净值曲线最大回撤/胜率盈亏比/计数。"""
     from trader.core.market import _fetch_quotes
     from trader.core.db import _connect
 
-    acct = default_account()
-    fills = acct.fills(bag)
+    acct = default_wallet()
+    fills = acct.fills(portfolio_id)
     with _connect() as conn:
         wrow = conn.execute(
-            "SELECT cash_cents, initial_cents FROM wallets WHERE bag_id=%s", (bag,)
+            "SELECT cash_cents, initial_cents FROM wallets WHERE portfolio_id=%s",
+            (portfolio_id,)
         ).fetchone()
     initial = wrow["initial_cents"] if wrow else 100_000_00
     cash = wrow["cash_cents"] if wrow else 0
@@ -401,7 +492,7 @@ def compute_metrics(bag: int, date: str) -> dict:
                 p["cost"] -= unit * qty
     wins = [r for r in realized if r > 0]
     losses = [r for r in realized if r <= 0]
-    positions = acct.positions(bag)
+    positions = acct.positions(portfolio_id)
     cost_value = sum(p["quantity"] * round(p["avg_cost"] * 100) for p in positions)
     # 期末市值:优先回放收盘价,失败退成本
     market_value = cost_value

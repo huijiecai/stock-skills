@@ -76,15 +76,15 @@ def main() -> None:
     elif args.cmd == "replay-rm":
         from trader.core.runs import default_runs
         n = default_runs().delete(args.name, user_id=uid)
-        print(f"已删除场次 {args.name}(袋子整体销毁)" if n else f"没有这个场次:{args.name}")
+        print(f"已删除场次 {args.name}(组合整体销毁)" if n else f"没有这个场次:{args.name}")
     elif args.cmd == "replay-ls":
         from tabulate import tabulate
         from trader.core.runs import default_runs
         rows = default_runs().list(kind="replay", trade_date=args.date or None, user_id=uid)
-        print(tabulate([[r["id"], r["name"], r["status"], r.get("bag_id"),
+        print(tabulate([[r["id"], r["slug"], r["status"], r.get("portfolio_id"),
                          (r.get("fingerprint") or "")[:8],
                          (r["prompt_versions"] or "")[:40], r["created_at"][:16]] for r in rows],
-                       headers=["#", "场次", "状态", "bag", "指纹", "prompt版本", "建档"],
+                       headers=["#", "场次", "状态", "组合", "指纹", "prompt版本", "建档"],
                        tablefmt="plain") if rows else "(没有回放场次)")
     elif args.cmd == "premarket":
         engine.run_single("expectation", "premarket", user_id=uid,

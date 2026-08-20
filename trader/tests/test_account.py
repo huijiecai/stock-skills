@@ -1,4 +1,4 @@
-"""Account 测试:模拟账户(SQLite,tmp 库,不碰真实数据)。
+"""Wallet 测试:模拟钱包(tmp schema,不碰真实数据)。
 
 覆盖:初始化 / 买入(T+1锁/加权成本) / 卖出(可卖校验) / settle 解锁 / 现金不足。
 
@@ -6,14 +6,14 @@ docstring 统一格式:<场景>:<验证点>
 """
 import pytest
 
-from trader.core.ledger import Account, AccountError
+from trader.core.ledger import Wallet, WalletError
 
 TOOL = "account"
 
 
 def _acct(request, initial=100_000_00):
     """每个测试独立 schema(t_<测试名>),互不污染。"""
-    return Account(schema=f"t_{request.node.name[:40]}", initial_cash=initial)
+    return Wallet(schema=f"t_{request.node.name[:40]}", initial_cash=initial)
 
 
 # ── 初始化 ─────────────────────────────────────────────
@@ -56,7 +56,7 @@ def test_buy_add_weighted_cost(request):
 def test_buy_cash_insufficient(request):
     """现金不足:拒绝并保持状态不变。"""
     a = _acct(request, initial=5_000_00)  # ¥5,000
-    with pytest.raises(AccountError, match="现金不足"):
+    with pytest.raises(WalletError, match="现金不足"):
         a.buy("000021", 200, 40.00)
     assert a.cash() == 5_000_00
     assert a.positions() == []
@@ -68,7 +68,7 @@ def test_sell_reject_before_settle(request):
     """T+1 锁定:当日买入卖不出(可卖不足拒绝)。"""
     a = _acct(request)
     a.buy("000021", 100, 40.00, on="2026-08-12")
-    with pytest.raises(AccountError, match="可卖不足"):
+    with pytest.raises(WalletError, match="可卖不足"):
         a.sell("000021", 100, 41.00)
     assert a.position("000021")["quantity"] == 100  # 持仓不变
 

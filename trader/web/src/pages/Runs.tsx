@@ -58,7 +58,7 @@ export default function Runs() {
                dataSource={runs.data ?? []}
                columns={[
                  { title: '#', dataIndex: 'id', width: 50 },
-                 { title: '场次', render: (_: any, r: any) => <Link to={`/runs/${r.id}`}>{r.name}</Link> },
+                 { title: '场次', render: (_: any, r: any) => <Link to={`/runs/${r.id}`}>{r.slug}</Link> },
                  { title: '类型', dataIndex: 'kind', width: 70, render: kindTag },
                  { title: '数据日', dataIndex: 'trade_date', width: 100 },
                  { title: '系统', dataIndex: 'system', width: 110 },
@@ -66,7 +66,7 @@ export default function Runs() {
                    render: (_: any, r: any) =>
                      r.kind === 'live' ? <Tag color="red">主账本</Tag>
                      : r.kind === 'single' ? <Tag color="purple">分析</Tag>
-                     : <Tag color="cyan">沙盒 #{r.bag_id}</Tag> },
+                     : <Tag color="cyan">沙盒 #{r.portfolio_id}</Tag> },
                  { title: '指纹', width: 90,
                    render: (_: any, r: any) => <span className="mono">{(r.fingerprint ?? '').slice(0, 8) || '-'}</span> },
                  { title: '收益', width: 90,

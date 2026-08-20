@@ -47,7 +47,7 @@ def test_scan_position_alert():
     """持仓标警:构造持仓后,±2% 出现 ⚠(用临时库替换默认账户)。"""
     import trader.core.ledger as ledger
 
-    a = ledger.Account(schema="t_scan")
+    a = ledger.Wallet(schema="t_scan")
     a.buy("000021", 100, 40.0, on="2026-08-11")
     a.settle("2026-08-12")
     original = ledger._default

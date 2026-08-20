@@ -1,18 +1,18 @@
 """账户查询工具(AI 调用):get_positions / get_account。
 
-底层是 store.Account(SQLite);市值/浮盈需要实时价,调 tools/market 底层。
+底层是 store.Wallet(SQLite);市值/浮盈需要实时价,调 tools/market 底层。
 """
 
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-from trader.core.ledger import default_account
+from trader.core.ledger import default_wallet
 from trader.core.market import _fetch_quotes, _tool_error_text
 
 
 def get_positions(ctx: RunContext[None]) -> str:
     """查当前持仓(代码/名称/数量/可卖/成本/买入日)。"可卖"受 T+1 限制。"""
-    data = default_account().positions()
+    data = default_wallet().positions()
     if not data:
         return "无持仓"
     rows = [[p["code"], p["name"] or "-", p["quantity"], p["sellable"],
@@ -23,7 +23,7 @@ def get_positions(ctx: RunContext[None]) -> str:
 
 def get_account(ctx: RunContext[None]) -> str:
     """查账户:现金/持仓市值/总资产/浮盈(市值按实时价,查不到用成本价)。"""
-    acct = default_account()
+    acct = default_wallet()
     cash = acct.cash() / 100
     positions = acct.positions()
     market_value = 0.0
@@ -43,7 +43,7 @@ get_account = _tool_error_text(get_account)
 
 def get_trades(ctx: RunContext[None]) -> str:
     """查全部成交记录(含每笔的决策留痕:为什么买/卖、关联哪条预期)。复盘用。"""
-    fills = default_account().fills()
+    fills = default_wallet().fills()
     if not fills:
         return "无成交记录"
     rows = []

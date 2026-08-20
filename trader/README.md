@@ -59,13 +59,13 @@ trader/
 ├── trader/
 │   ├── core/                ← 平台:不知道任何方法论(验收=无"预期"业务概念)
 │   │   ├── market.py        ← 行情 9 工具(live/replay 双模 + time 截断防未来)
-│   │   ├── ledger.py        ← 账本(分计价/T+1/fills 留痕/40% 闸)——行级 bag_id 隔离
+│   │   ├── ledger.py        ← 钱包(分计价/T+1/fills 留痕)——行级 portfolio_id 隔离
 │   │   ├── documents.py     ← 万物记忆(meta + versions 统一版本史)
 │   │   ├── watchlist.py     ← 自选组(唯一结构化原语,as_of 历史重建)
 │   │   ├── systems.py       ← 交易系统注册表(manifest 纯数据;换系统=换一行)
 │   │   ├── engine.py        ← 引擎:读 manifest 装配 agent,驱动 single/loop 阶段
-│   │   ├── bag.py           ← 袋子开局三模式(fresh/fork-as-of/custom)+ 指纹
-│   │   ├── runs.py          ← 场次登记(封面=prompt 版本+指纹+metrics)
+│   │   ├── portfolios.py    ← 组合登记+实验开局三模式(fresh/fork-as-of/custom)+ 指纹
+│   │   ├── runs.py          ← 场次登记(封面=prompt 版本+指纹+metrics;clock/portfolio 归属)
 │   │   ├── scan.py          ← scan_market 快扫(含【自选组快览】)
 │   │   └── registry.py      ← 能力注册表(工具名 → 实现)
 │   ├── runner.py            ← CLI 薄壳:五命令=expectation 别名;通用 run <system> <stage>
@@ -77,7 +77,41 @@ trader/
 ```
 
 **核心约定**:预期=文档(doc_type='expectation',meta 存 stage/status),池=自选组(fields.role 分级);
-一切管理在 PG(单库行级多租户:正本=bag_id 0,一场模拟=一个 bag_id)。
+一切管理在 PG(单库行级多租户:实盘=portfolio 0,一场实验=一个实验组合)。
+
+## 全库关系速查:两个世界,一座桥(P0 迁移目标形态)
+
+> 忘了表关系看这张图。详细字段见 [docs/工作台架构.md](docs/工作台架构.md) §8;现状→目标的迁移清单见其 §6。
+
+```
+定义世界(是什么)               核算世界(钱和知识在哪)
+┌──────────────────┐         ┌────────────────────────┐
+│ systems 打法      │         │ portfolios 组合          │
+│   ├ prompts 指令   │         │   ├ wallets    现金      │
+│   │   └ prompt_versions│    │   ├ positions  持仓      │
+│   │                │         │   ├ documents 知识/产出  │
+│   └ doc_classes    │         │   ├ watchlists + members│
+│                    │         │   └ versions   版本史    │
+└─────────┬──────────┘         └───────────┬────────────┘
+          │                                │
+          └───────────┐      ┌─────────────┘
+                      ▼      ▼
+   users ──(执行者)──► ┌──────────┐     ┌───────────────┐
+                      │  runs    │────►│ run_events    │ 过程:轮/工具事件
+   唯一同时连两个世界  │ 一座桥    │────►│ run_documents │ 这场读了/写了哪些文档 ──► documents
+                      └────┬─────┘     └───────────────┘
+                           │
+                           └──► fills 成交(唯一双归属的明细):
+                                 portfolio_id 记在哪个组合的账上(必填,主人是组合)
+                                 run_id        是哪场下的单(可空,行为归因)
+```
+
+三条规则:
+1. **runs 是唯一同时连两个世界的表**——发起一次执行 = 在桥上落一行(system_id + portfolio_id + clock)
+2. **每个枢纽只挂一种东西**:指令挂 systems;钱和知识挂 portfolios;过程记录挂 runs
+3. **fills 双归属**:钱按组合算(portfolio_id),行为按场次算(run_id)——出入金/期初等非执行流水没有 run_id 也成立
+
+users 出现三次:系统归属 / 组合主人 / 执行者(三个独立事实)。
 
 ## 常用查看命令
 

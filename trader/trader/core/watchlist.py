@@ -10,18 +10,18 @@ from datetime import datetime as _dt
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-from trader.core.context import current_bag, current_user
+from trader.core.context import current_portfolio, current_user
 from trader.core.db import _connect
 from trader.core.documents import _init_versions, _log_version
 from trader.core.market import _fetch_quotes, _tool_error_text
 
 
-def _eff(bag_id: int | None) -> int:
-    return bag_id if bag_id is not None else current_bag()
+def _eff(portfolio_id: int | None) -> int:
+    return portfolio_id if portfolio_id is not None else current_portfolio()
 
 
 class Watchlists:
-    """自选组存储:按 (bag_id, name) 一组,成员按 code 去重。"""
+    """自选组存储:按 (portfolio_id, name) 一组,成员按 code 去重。"""
 
     def __init__(self, schema: str = "public") -> None:
         self.schema = schema
@@ -30,74 +30,74 @@ class Watchlists:
 
     # ── 写 ──────────────────────────────────────────────
 
-    def save(self, name: str, members: list[dict], bag_id: int | None = None) -> None:
+    def save(self, name: str, members: list[dict], portfolio_id: int | None = None) -> None:
         """建组/追加/更新成员(按 code upsert,不改本次未提及的成员)。
         members=[{code, name?, fields?}];fields 是自由字典,整体替换该成员的 fields。"""
-        bag_id = _eff(bag_id)
+        portfolio_id = _eff(portfolio_id)
         now = _dt.now().isoformat(timespec="seconds")
         with _connect(self.schema) as conn:
             row = conn.execute(
-                "SELECT 1 FROM watchlists WHERE bag_id=%s AND name=%s", (bag_id, name)
+                "SELECT 1 FROM watchlists WHERE portfolio_id=%s AND name=%s", (portfolio_id, name)
             ).fetchone()
             if row is None:
                 conn.execute(
-                    "INSERT INTO watchlists(bag_id, name, created_at, updated_at, user_id)"
-                    " VALUES(%s,%s,%s,%s,%s)", (bag_id, name, now, now, current_user())
+                    "INSERT INTO watchlists(portfolio_id, name, created_at, updated_at, user_id)"
+                    " VALUES(%s,%s,%s,%s,%s)", (portfolio_id, name, now, now, current_user())
                 )
-                _log_version(conn, "watchlist", _sid(bag_id, name), "create", {"name": name}, bag=bag_id, user=current_user())
+                _log_version(conn, "watchlist", _sid(portfolio_id, name), "create", {"name": name}, portfolio=portfolio_id, user=current_user())
             for m in members:
                 code = (m.get("code") or "").strip()
                 if not code:
                     continue
                 old = conn.execute(
                     "SELECT name, fields FROM watchlist_members"
-                    " WHERE bag_id=%s AND list_name=%s AND code=%s", (bag_id, name, code)
+                    " WHERE portfolio_id=%s AND list_name=%s AND code=%s", (portfolio_id, name, code)
                 ).fetchone()
                 conn.execute(
-                    "INSERT INTO watchlist_members(bag_id, list_name, code, name, fields, updated_at)"
+                    "INSERT INTO watchlist_members(portfolio_id, list_name, code, name, fields, updated_at)"
                     " VALUES(%s,%s,%s,%s,%s,%s)"
-                    " ON CONFLICT (bag_id, list_name, code)"
+                    " ON CONFLICT (portfolio_id, list_name, code)"
                     " DO UPDATE SET name=excluded.name, fields=excluded.fields,"
                     " updated_at=excluded.updated_at",
-                    (bag_id, name, code, m.get("name", ""),
+                    (portfolio_id, name, code, m.get("name", ""),
                      json.dumps(m.get("fields") or {}, ensure_ascii=False), now),
                 )
-                _log_version(conn, "watchlist", _sid(bag_id, name),
+                _log_version(conn, "watchlist", _sid(portfolio_id, name),
                              "update" if old else "add",
                              {"code": code, "name": m.get("name", ""),
-                              "fields": m.get("fields") or {}}, bag=bag_id, user=current_user())
-            conn.execute("UPDATE watchlists SET updated_at=%s WHERE bag_id=%s AND name=%s",
-                         (now, bag_id, name))
+                              "fields": m.get("fields") or {}}, portfolio=portfolio_id, user=current_user())
+            conn.execute("UPDATE watchlists SET updated_at=%s WHERE portfolio_id=%s AND name=%s",
+                         (now, portfolio_id, name))
 
-    def remove_member(self, name: str, code: str, bag_id: int | None = None) -> None:
+    def remove_member(self, name: str, code: str, portfolio_id: int | None = None) -> None:
         """从组中剔除一个成员(重新研究调整用;versions 落 remove 事件)。"""
-        bag_id = _eff(bag_id)
+        portfolio_id = _eff(portfolio_id)
         with _connect(self.schema) as conn:
             cur = conn.execute(
                 "DELETE FROM watchlist_members"
-                " WHERE bag_id=%s AND list_name=%s AND code=%s", (bag_id, name, code)
+                " WHERE portfolio_id=%s AND list_name=%s AND code=%s", (portfolio_id, name, code)
             )
             if cur.rowcount == 0:
                 raise ValueError(f"成员不存在:{code}(自选组 {name})")
-            _log_version(conn, "watchlist", _sid(bag_id, name), "remove", {"code": code}, bag=bag_id, user=current_user())
+            _log_version(conn, "watchlist", _sid(portfolio_id, name), "remove", {"code": code}, portfolio=portfolio_id, user=current_user())
 
     # ── 读 ──────────────────────────────────────────────
 
-    def get(self, name: str, as_of: str = "", bag_id: int | None = None) -> list[dict]:
+    def get(self, name: str, as_of: str = "", portfolio_id: int | None = None) -> list[dict]:
         """组成员列表 [{code, name, fields}]。as_of(YYYYMMDD 或 ISO 日期)→
         从 versions 折叠出该日时点的成员(复盘/历史重建用)。"""
-        bag_id = _eff(bag_id)
+        portfolio_id = _eff(portfolio_id)
         if not as_of:
             with _connect(self.schema) as conn:
                 return conn.execute(
                     "SELECT code, name, fields FROM watchlist_members"
-                    " WHERE bag_id=%s AND list_name=%s ORDER BY code", (bag_id, name)
+                    " WHERE portfolio_id=%s AND list_name=%s ORDER BY code", (portfolio_id, name)
                 ).fetchall()
         with _connect(self.schema) as conn:
             events = conn.execute(
                 "SELECT action, payload, ts FROM versions"
                 " WHERE subject_type='watchlist' AND subject_id=%s AND ts <= %s"
-                " ORDER BY id", (_sid(bag_id, name), _as_of_ts(as_of))
+                " ORDER BY id", (_sid(portfolio_id, name), _as_of_ts(as_of))
             ).fetchall()
         members: dict[str, dict] = {}
         for e in events:
@@ -110,16 +110,16 @@ class Watchlists:
                                  "fields": p.get("fields", {})}
         return sorted(members.values(), key=lambda m: m["code"])
 
-    def list_all(self, bag_id: int | None = None) -> list[dict]:
+    def list_all(self, portfolio_id: int | None = None) -> list[dict]:
         """全部自选组概览(名称/成员数/更新时间)。scan 快览用。"""
-        bag_id = _eff(bag_id)
+        portfolio_id = _eff(portfolio_id)
         with _connect(self.schema) as conn:
             return conn.execute(
                 "SELECT w.name, COUNT(m.code) AS member_count, w.updated_at"
                 " FROM watchlists w LEFT JOIN watchlist_members m"
-                " ON m.bag_id = w.bag_id AND m.list_name = w.name"
-                " WHERE w.bag_id=%s GROUP BY w.name, w.updated_at"
-                " ORDER BY w.updated_at DESC", (bag_id,)
+                " ON m.portfolio_id = w.portfolio_id AND m.list_name = w.name"
+                " WHERE w.portfolio_id=%s GROUP BY w.name, w.updated_at"
+                " ORDER BY w.updated_at DESC", (portfolio_id,)
             ).fetchall()
 
     # ── 内部 ────────────────────────────────────────────
@@ -128,35 +128,35 @@ class Watchlists:
         with _connect(self.schema) as conn:
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS watchlists (
-                    bag_id INTEGER NOT NULL DEFAULT 0,
+                    portfolio_id INTEGER NOT NULL DEFAULT 0,
                     name TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
-                    UNIQUE (bag_id, name)
+                    UNIQUE (portfolio_id, name)
                 )"""
             )
             conn.execute(
                 """CREATE TABLE IF NOT EXISTS watchlist_members (
                     id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-                    bag_id INTEGER NOT NULL DEFAULT 0,
+                    portfolio_id INTEGER NOT NULL DEFAULT 0,
                     list_name TEXT NOT NULL,
                     code TEXT NOT NULL,
                     name TEXT NOT NULL DEFAULT '',
                     fields JSONB NOT NULL DEFAULT '{}',
                     updated_at TEXT NOT NULL,
-                    UNIQUE (bag_id, list_name, code)
+                    UNIQUE (portfolio_id, list_name, code)
                 )"""
             )
             conn.execute("CREATE INDEX IF NOT EXISTS watchlist_members_lookup"
-                         " ON watchlist_members(bag_id, list_name)")
+                         " ON watchlist_members(portfolio_id, list_name)")
             conn.execute("ALTER TABLE watchlists ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
             conn.execute("ALTER TABLE watchlist_members ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
             _init_versions(conn)
 
 
-def _sid(bag_id: int, name: str) -> str:
-    """versions.subject_id:袋子范围 + 组名。"""
-    return f"{bag_id}:{name}"
+def _sid(portfolio_id: int, name: str) -> str:
+    """versions.subject_id:组合子范围 + 组名。"""
+    return f"{portfolio_id}:{name}"
 
 
 def _as_of_ts(as_of: str) -> str:

@@ -7,7 +7,7 @@
 from pydantic_ai import RunContext
 from tabulate import tabulate
 
-from trader.core.ledger import default_account
+from trader.core.ledger import default_wallet
 from trader.core.market import (
     _fetch_block_rank,
     _fetch_candidates,
@@ -42,7 +42,7 @@ def scan_market(ctx: RunContext[None], mode: str = "live", date: str = "", time:
     parts = ["【指数】", _format_indices(_fetch_indices(mode, date, t)), ""]
 
     # ② 持仓(当日 ±2% 是交易系统的巡检触发线 → 标 ⚠ 提醒 AI 该评估)
-    positions = default_account().positions()
+    positions = default_wallet().positions()
     parts.append("【持仓】")
     if positions:
         quotes = _fetch_quotes(mode, [p["code"] for p in positions], date, t)

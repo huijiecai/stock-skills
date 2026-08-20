@@ -15,7 +15,7 @@ export default defineConfig({
     proxy: {
       '/auth': { target: PROXY_TARGET, bypass: bypassForPageNav },
       '/systems': { target: PROXY_TARGET, bypass: bypassForPageNav },
-      '/ledgers': { target: PROXY_TARGET, bypass: bypassForPageNav },
+      '/portfolios': { target: PROXY_TARGET, bypass: bypassForPageNav },
       '/runs': { target: PROXY_TARGET, bypass: bypassForPageNav },
       '/trading': { target: PROXY_TARGET, bypass: bypassForPageNav },
       '/docs': { target: PROXY_TARGET, bypass: bypassForPageNav },

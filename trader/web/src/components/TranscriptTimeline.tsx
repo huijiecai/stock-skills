@@ -44,7 +44,9 @@ export default function TranscriptTimeline({ loading, steps, logMd, usage }: {
           const m = KIND_META[s.kind]
           return (
             <div key={i} style={{ marginBottom: 6 }}>
-              <Tag color={m?.color}>{m?.label ?? s.kind}{s.tool ? ` ${s.tool}` : ''}</Tag>
+              <Tag color={m?.color}>
+                {m?.label ?? s.kind}{s.tool ? <> <span className="mono">{s.tool}</span></> : ''}
+              </Tag>
               <pre className="step-body">
                 {s.kind === 'call'
                   ? JSON.stringify(s.args, null, 1)

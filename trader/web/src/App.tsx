@@ -1,14 +1,23 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { Spin } from 'antd'
 import { getToken, get } from './api/client'
+import { orderedStages } from './lib/system'
 import Layout from './components/Layout'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
 import Runs from './pages/Runs'
 import RunDetail from './pages/RunDetail'
 import Compare from './pages/Compare'
-import Systems from './pages/Systems'
+import SystemWorkspace from './pages/SystemWorkspace'
+import SystemAsset from './pages/SystemAsset'
+import PromptWorkbench from './components/PromptWorkbench'
+import DataWorkbench from './components/DataWorkbench'
+import DocsBrowser from './components/DocsBrowser'
+import StageWorkspace from './pages/StageWorkspace'
+import Coach from './pages/Coach'
+import SystemRuns from './components/SystemRuns'
+import SystemPrompts from './components/SystemPrompts'
+import SystemSettings from './components/SystemSettings'
 
 function Guard({ children }: { children: React.ReactNode }) {
   const hasToken = !!getToken()
@@ -23,11 +32,38 @@ function Guard({ children }: { children: React.ReactNode }) {
   if (!hasToken) return <Navigate to="/login" replace />
   if (me.isLoading) return (
     <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <Spin size="large" tip="验证登录…" />
+      <Spin size="large"><div style={{padding:8}}>验证登录…</div></Spin>
     </div>
   )
   if (me.isError) return <Navigate to="/login" replace />
   return <>{children}</>
+}
+
+/** /systems → 第一个活跃系统(无则回工作台)。 */
+function SystemsRedirect() {
+  const systems = useQuery({ queryKey: ['systems'], queryFn: () => get('/systems') })
+  if (systems.isLoading)
+    return <div style={{ padding: 80, textAlign: 'center' }}><Spin size="large" /></div>
+  const first = (systems.data ?? []).find((s: any) => s.status !== 'archived')
+  return <Navigate to={first ? `/systems/${encodeURIComponent(first.slug)}` : '/'} replace />
+}
+
+
+
+/** /workbench → 第一条指令(按业务序第一个阶段的 prompt)。 */
+function WorkbenchRedirect() {
+  const { name = '' } = useParams()
+  const detail = useQuery({ queryKey: ['systemDetail', name], queryFn: () => get(`/systems/${encodeURIComponent(name)}`) })
+  if (detail.isLoading) return <Spin style={{ display: 'block', margin: '60px auto' }} />
+  const m = detail.data?.manifest
+  const first = orderedStages(m?.stages ?? {})[0]?.[1]?.prompt || m?.system_prompt
+  return <Navigate to={first ? `prompt/${encodeURIComponent(first)}` : '../settings'} replace />
+}
+
+/** /stage/:stage → 系统设定进 prompts,普通阶段进 runs。 */
+function StageIndex() {
+  const { stage = '' } = useParams()
+  return <Navigate to={stage === '_system' ? 'prompts' : 'runs'} replace />
 }
 
 export default function App() {
@@ -35,11 +71,28 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/" element={<Guard><Layout /></Guard>}>
-        <Route index element={<Dashboard />} />
+        <Route index element={<SystemsRedirect />} />   {/* 新首页=第一个系统的资产视图 */}
         <Route path="runs" element={<Runs />} />
         <Route path="runs/:id" element={<RunDetail />} />
         <Route path="compare" element={<Compare />} />
-        <Route path="systems" element={<Systems />} />
+        <Route path="systems" element={<SystemsRedirect />} />
+        <Route path="systems/:name">
+          <Route index element={<SystemAsset />} />   {/* 资产视图:独立全宽,无侧栏 */}
+          <Route element={<SystemWorkspace />}>      {/* 工作台外壳:类型化侧栏(指令/数据/文档) */}
+            <Route path="workbench" element={<WorkbenchRedirect />} />
+            <Route path="workbench/prompt/:prompt" element={<PromptWorkbench />} />
+            <Route path="workbench/data" element={<DataWorkbench />} />
+            <Route path="workbench/docs" element={<DocsBrowser />} />
+            <Route path="settings" element={<SystemSettings />} />
+            <Route path="coach" element={<Coach />} />
+            <Route path="coach/conversations" element={<Coach />} />
+            <Route path="stage/:stage" element={<StageWorkspace />}>
+              <Route index element={<StageIndex />} />
+              <Route path="runs" element={<SystemRuns />} />
+              <Route path="prompts" element={<SystemPrompts />} />
+            </Route>
+          </Route>
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

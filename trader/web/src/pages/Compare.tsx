@@ -1,7 +1,8 @@
-import { Card, Col, Row, Statistic, Table, Tag } from 'antd'
+import { Card, Col, Row, Table } from 'antd'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { get } from '../api/client'
+import { pnlColor, pnlArrow } from '../lib/ui'
 
 export default function Compare() {
   const [params] = useSearchParams()
@@ -31,18 +32,35 @@ export default function Compare() {
   const m = (r: any) => r.metrics ?? {}
   return (
     <div>
-      <Card title={<span>对比归因:<Tag color="purple">{attr}</Tag>{verdict}</span>} size="small" />
+      {/* 归因判定横幅 */}
+      <div className="verdict-banner">
+        <span className="verdict-tag">{attr}</span>
+        <span>{verdict}</span>
+      </div>
       <Row gutter={16} style={{ marginTop: 16 }}>
         {[ra, rb].map((r, i) => (
           <Col span={12} key={i}>
-            <Card title={<Link to={`/runs/${r.id}`}>{r.name}</Link>} size="small">
-              <Row gutter={8}>
-                <Col span={6}><Statistic title="收益" suffix="%" value={m(r).return_pct ?? '-'}
-                  valueStyle={{ color: (m(r).return_pct ?? 0) >= 0 ? '#3f8600' : '#cf1322' }} /></Col>
-                <Col span={6}><Statistic title="回撤" suffix="%" value={m(r).max_drawdown_pct ?? '-'} /></Col>
-                <Col span={6}><Statistic title="胜率" suffix="%" value={m(r).win_rate ?? '-'} /></Col>
-                <Col span={6}><Statistic title="交易" value={m(r).n_fills ?? 0} suffix="笔" /></Col>
-              </Row>
+            <Card title={<Link to={`/runs/${r.id}`}>{r.slug}</Link>} size="small">
+              <div className="metric-row" style={{ gridTemplateColumns: 'repeat(4, 1fr)', margin: 0 }}>
+                <div className="metric-card" style={{ boxShadow: 'none', padding: '8px 10px' }}>
+                  <div className="metric-label">收益</div>
+                  <div className="num" style={{ fontSize: 20, color: pnlColor(m(r).return_pct) }}>
+                    {pnlArrow(m(r).return_pct)}{Math.abs(m(r).return_pct ?? 0)}%
+                  </div>
+                </div>
+                <div className="metric-card" style={{ boxShadow: 'none', padding: '8px 10px' }}>
+                  <div className="metric-label">回撤</div>
+                  <div className="num" style={{ fontSize: 20 }}>{m(r).max_drawdown_pct ?? '-'}%</div>
+                </div>
+                <div className="metric-card" style={{ boxShadow: 'none', padding: '8px 10px' }}>
+                  <div className="metric-label">胜率</div>
+                  <div className="num" style={{ fontSize: 20 }}>{m(r).win_rate ?? '-'}%</div>
+                </div>
+                <div className="metric-card" style={{ boxShadow: 'none', padding: '8px 10px' }}>
+                  <div className="metric-label">交易</div>
+                  <div className="num" style={{ fontSize: 20 }}>{m(r).n_fills ?? 0}<span className="metric-label"> 笔</span></div>
+                </div>
+              </div>
             </Card>
           </Col>
         ))}
@@ -55,8 +73,8 @@ export default function Compare() {
           { k: '系统', a: ra.system, b: rb.system },
         ]} columns={[
           { title: '', dataIndex: 'k', width: 100 },
-          { title: ra.name, dataIndex: 'a', render: (v: string) => <span className="mono" style={{ fontSize: 12 }}>{v}</span> },
-          { title: rb.name, dataIndex: 'b', render: (v: string) => <span className="mono" style={{ fontSize: 12 }}>{v}</span> },
+          { title: ra.slug, dataIndex: 'a', render: (v: string) => <span className="mono" style={{ fontSize: 12 }}>{v}</span> },
+          { title: rb.slug, dataIndex: 'b', render: (v: string) => <span className="mono" style={{ fontSize: 12 }}>{v}</span> },
         ]} />
       </Card>
     </div>

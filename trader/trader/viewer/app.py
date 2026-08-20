@@ -18,7 +18,7 @@ from starlette.requests import Request
 
 from trader.core.db import _connect
 from trader.core.documents import Documents
-from trader.core.ledger import Account
+from trader.core.ledger import Wallet
 from trader.core.promptver import default_prompt_versions
 from trader.core.runs import default_runs
 from trader.core.watchlist import Watchlists
@@ -66,7 +66,7 @@ def _watch_dates(mode: str = "live") -> list[str]:
 
 
 def _transcript(date: str, n: int, mode: str = "live", bag: int = 0) -> dict[str, Any] | None:
-    raw = Documents().get(_tr(mode), name=f"r{n}", trade_date=date, bag_id=bag)
+    raw = Documents().get(_tr(mode), name=f"r{n}", trade_date=date, portfolio_id=bag)
     if not raw:
         return None
     try:
@@ -78,7 +78,7 @@ def _transcript(date: str, n: int, mode: str = "live", bag: int = 0) -> dict[str
 def _usage_sum(date: str, mode: str = "live", bag: int = 0) -> dict[str, int]:
     """当日全部轮次的 token 汇总(解析思考流文档头)。"""
     total = {"rounds": 0, "requests": 0, "input_tokens": 0, "output_tokens": 0}
-    for d in Documents().list(_tr(mode), date, bag_id=bag):
+    for d in Documents().list(_tr(mode), date, portfolio_id=bag):
         t = _transcript(date, _round_no(d["name"] or ""), mode, bag)
         if not t:
             continue
@@ -131,7 +131,7 @@ def _calls_tool(t: dict, name: str) -> bool:
 def _rule_stats(date: str, mode: str, bag: int = 0) -> dict:
     """规则执行统计:扫当日全部思考流(池评估覆盖/买点纪律/拒绝)。"""
     texts: dict[int, str] = {}
-    for d in Documents().list(_tr(mode), date, bag_id=bag):
+    for d in Documents().list(_tr(mode), date, portfolio_id=bag):
         r = _round_no(d["name"] or "")
         t = _transcript(date, r, mode, bag)
         if t:
@@ -147,7 +147,7 @@ def _rule_stats(date: str, mode: str, bag: int = 0) -> dict:
 
 def _fills_of(date: str, bag: int = 0) -> list[dict]:
     iso = _iso(date)
-    return [f for f in Account().fills(bag)
+    return [f for f in Wallet().fills(bag)
             if (f.get("trade_time") or f.get("created_at", "")).startswith(iso)]
 
 
@@ -162,14 +162,14 @@ def _fail_flag_of(content: str) -> str:
 
 def _expectation_rows(bag: int = 0) -> list[dict]:
     """预期库视图 = documents('expectation') + 各自选组(平台通用件上的约定层)。"""
-    docs = Documents().list("expectation", bag_id=bag)
+    docs = Documents().list("expectation", portfolio_id=bag)
     wl = Watchlists()
     rows = []
     for d in docs:
         meta = d.get("meta") or {}
         content = Documents().get("expectation", name=d["name"], trade_date=d["trade_date"] or "",
-                                  bag_id=bag) or ""
-        members = wl.get(meta.get("watchlist") or d["name"], bag_id=bag)
+                                  portfolio_id=bag) or ""
+        members = wl.get(meta.get("watchlist") or d["name"], portfolio_id=bag)
         rows.append({
             "id": d["id"], "name": d["name"],
             "direction": meta.get("direction", ""), "event": meta.get("event", ""),
@@ -185,12 +185,15 @@ def _expectation_rows(bag: int = 0) -> list[dict]:
 def _run_metrics(run: dict) -> dict:
     """一场的对比指标:现场算基础字段(模板要 cash/cost_value/stats/fills),
     封场 metrics(§8)存在则覆盖其上(收益/回撤/胜率以封场值为准)。"""
-    bag = run.get("bag_id") or 0
-    acct = Account()
+    bag = run.get("portfolio_id") or 0
+    acct = Wallet()
     date = run["trade_date"] or ""
     fills = _fills_of(date, bag)
-    cash = acct.cash(bag) / 100
-    cost_value = sum(p["quantity"] * p["avg_cost"] for p in acct.positions(bag))
+    try:
+        cash = acct.cash(bag) / 100
+        cost_value = sum(p["quantity"] * p["avg_cost"] for p in acct.positions(bag))
+    except Exception:  # noqa: BLE001 —— 历史灰区组合数据已清理:按空钱包展示
+        cash = cost_value = 0.0
     m = {
         "cash": cash, "cost_value": cost_value, "asset": cash + cost_value,
         "initial": 100_000, "pnl": cash + cost_value - 100_000,
@@ -219,7 +222,7 @@ def day(request: Request, date: str):
     t_rounds = {_round_no(d["name"] or "") for d in docs.list(_tr("live"), date)}
     dates = _watch_dates("live")
     idx = dates.index(date) if date in dates else -1
-    acct = Account()
+    acct = Wallet()
     docs_meta = []
     for dt in ("premarket", "close"):
         hits = docs.list(dt, date)
@@ -246,8 +249,8 @@ def round_detail(request: Request, date: str, n: int, mode: str = "live", run: i
     bag = 0
     if run:
         r = _run_or_404(run)
-        bag = (r.get("bag_id") or 0) if r else 0
-    log = Documents().get(_watch(mode), name=f"r{n}", trade_date=date, bag_id=bag)
+        bag = (r.get("portfolio_id") or 0) if r else 0
+    log = Documents().get(_watch(mode), name=f"r{n}", trade_date=date, portfolio_id=bag)
     log_html = _md(log) if log else None
     transcript = _transcript(date, n, mode, bag)
     usage = (transcript or {}).get("usage") or {}
@@ -301,21 +304,26 @@ def run_view(request: Request, run_id: int):
     if run is None:
         return templates.TemplateResponse(request, "runs.html",
                                           {"runs": default_runs().list()}, status_code=404)
-    bag = run.get("bag_id") or 0
+    bag = run.get("portfolio_id") or 0
     live = run["kind"] == "live"
     docs = Documents()
     date = run["trade_date"] or ""
     mode = "live" if live else "replay"
-    doc_rows = docs.list(_watch(mode), date, bag_id=bag)
+    doc_rows = docs.list(_watch(mode), date, portfolio_id=bag)
     rounds = sorted(_round_no(d["name"] or "") for d in doc_rows)
-    t_rounds = {_round_no(d["name"] or "") for d in docs.list(_tr(mode), date, bag_id=bag)}
-    acct = Account()
+    t_rounds = {_round_no(d["name"] or "") for d in docs.list(_tr(mode), date, portfolio_id=bag)}
+    acct = Wallet()
+    try:
+        cash = acct.cash(bag) / 100
+        positions = acct.positions(bag)
+    except Exception:  # noqa: BLE001 —— 历史灰区组合数据已清理
+        cash, positions = 0.0, []
     return templates.TemplateResponse(request, "run.html", {
         "run": run, "date": date, "mode": mode,
         "rounds": rounds, "t_rounds": t_rounds,
         "usage": _usage_sum(date, mode, bag),
-        "cash": acct.cash(bag) / 100,
-        "positions": acct.positions(bag),
+        "cash": cash,
+        "positions": positions,
         "fills": _fills_of(date, bag),
         "expectations": _expectation_rows(bag),
         "stats": _rule_stats(date, mode, bag),
@@ -368,24 +376,74 @@ def compare(request: Request, runs: str = ""):
 
 @app.get("/prompts")
 def prompts(request: Request):
-    return templates.TemplateResponse(request, "prompts.html", {
-        "prompts": default_prompt_versions().versions(),
-    })
+    """指令列表:全部身份(系统级+用户级),每条带最新版本。"""
+    pv = default_prompt_versions()
+    from trader.core.db import _connect
+    with _connect() as conn:
+        sysmap = {r["id"]: r["slug"] for r in conn.execute(
+            "SELECT id, slug FROM systems").fetchall()}
+    out = []
+    for p in pv.list_prompts():          # 用户级
+        vr = pv.versions(None, p["slug"], user_id=p["user_id"])
+        out.append({"name": p["slug"], "version": vr[0]["version"] if vr else None,
+                    "size": vr[0]["size"] if vr else 0, "system": "(用户级)",
+                    "created_at": (vr[0]["created_at"] if vr else "") or ""})
+    for sid, sslug in sysmap.items():     # 系统级
+        for p in pv.list_prompts(sid):
+            vr = pv.versions(sid, p["slug"])
+            out.append({"name": p["slug"], "version": vr[0]["version"] if vr else None,
+                        "size": vr[0]["size"] if vr else 0, "system": sslug,
+                        "created_at": (vr[0]["created_at"] if vr else "") or ""})
+    return templates.TemplateResponse(request, "prompts.html", {"prompts": out})
 
 
 @app.get("/prompt/{name}")
 def prompt_history(request: Request, name: str):
-    rows = default_prompt_versions().versions(name)
+    """版本史:同名指令可能在多个系统下,合并展示。"""
+    pv = default_prompt_versions()
+    from trader.core.db import _connect
+    with _connect() as conn:
+        sysmap = {r["id"]: r["slug"] for r in conn.execute(
+            "SELECT id, slug FROM systems").fetchall()}
+    rows = []
+    for p in pv.list_prompts():
+        if p["slug"] == name:
+            rows += pv.versions(None, name, user_id=p["user_id"])
+    for sid in sysmap:
+        for p in pv.list_prompts(sid):
+            if p["slug"] == name:
+                rows += pv.versions(sid, name)
+    rows.sort(key=lambda r: -r["version"])
     return templates.TemplateResponse(request, "prompt_history.html", {
         "name": name, "rows": rows or [],
     })
+
+
+def _pv_any(pv, name: str, v: int):
+    """跨命名空间找某版全文(名字在多系统/用户级可能重复,取第一命中)。"""
+    from trader.core.db import _connect
+    with _connect() as conn:
+        sysmap = {r["id"]: r["slug"] for r in conn.execute(
+            "SELECT id, slug FROM systems").fetchall()}
+    for p in pv.list_prompts():
+        if p["slug"] == name:
+            c = pv.get(None, name, v, user_id=p["user_id"])
+            if c:
+                return c
+    for sid in sysmap:
+        for p in pv.list_prompts(sid):
+            if p["slug"] == name:
+                c = pv.get(sid, name, v)
+                if c:
+                    return c
+    return None
 
 
 @app.get("/prompt/{name}/diff/{v1}/{v2}")
 def prompt_diff(request: Request, name: str, v1: int, v2: int):
     import difflib
     pv = default_prompt_versions()
-    a, b = pv.get(name, v1), pv.get(name, v2)
+    a, b = _pv_any(pv, name, v1), _pv_any(pv, name, v2)
     lines = []
     if a is not None and b is not None:
         for ln in difflib.unified_diff(a.splitlines(), b.splitlines(), lineterm="", n=2,
@@ -402,7 +460,7 @@ def prompt_diff(request: Request, name: str, v1: int, v2: int):
 
 @app.get("/prompt/{name}/{v}")
 def prompt_version(request: Request, name: str, v: int):
-    content = default_prompt_versions().get(name, v)
+    content = _pv_any(default_prompt_versions(), name, v)
     return templates.TemplateResponse(request, "prompt_version.html", {
         "name": name, "v": v,
         "content_html": _md(content) if content else None,

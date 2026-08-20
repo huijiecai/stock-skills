@@ -1,7 +1,7 @@
 """core·数据库连接。
 
 - DATABASE_URL:环境变量(默认本地 stock_postgres 的 trader 库)
-- _connect(schema):连接定位 schema(测试隔离用);生产数据全在 public 行级 bag_id
+- _connect(schema):连接定位 schema(测试隔离用);生产数据全在 public 行级 portfolio_id
 - schema_exists:schema 是否存在(测试/老数据探查)
 - ensure_once:DDL 幂等初始化进程内只跑一次——每连接跑 DDL 会与并发写抢
   AccessExclusiveLock 造成死锁(8/19 实测两次靠重试自愈),多用户下必须根治

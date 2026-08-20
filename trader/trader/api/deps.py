@@ -1,13 +1,13 @@
 """api·认证依赖:平台 API 的守门人(服务化设计 §2 铁律)。
 
 一切端点挂 require_user——token(session 或 sk- API Key)→ user,查不到 401。
-顺手把袋子上下文切到该用户的默认账本,下游 store 调用自动隔离。
+顺手把组合上下文切到该用户的默认实盘组合,下游 store 调用自动隔离。
 """
 from fastapi import Depends, HTTPException, Request
 
 from trader.core.context import set_context
 from trader.core.identity import default_identity
-from trader.core.ledger import default_ledgers
+from trader.core.portfolios import default_portfolios
 
 
 def _bearer(request: Request) -> str:
@@ -32,8 +32,8 @@ def require_user(request: Request) -> dict:
         from trader.core.db import _connect
         with _connect() as conn:
             user = conn.execute("SELECT * FROM users WHERE id=%s", (key["user_id"],)).fetchone()
-    # 切上下文到该用户默认账本(下游读写自动带上 user+bag)
-    set_context(default_ledgers().default_bag(user["id"]), None, user["id"])
+    # 切上下文到该用户默认实盘组合(下游读写自动带上 user+portfolio)
+    set_context(default_portfolios().default_for(user["id"]), None, user["id"])
     return {"user": dict(user), "scope": scope}
 
 

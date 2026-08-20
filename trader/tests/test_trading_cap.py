@@ -5,7 +5,7 @@ from trader.tools.trading import _check_position_cap
 
 
 def test_position_cap_blocks_and_allows():
-    a = store.Account(schema="t_cap")
+    a = store.Wallet(schema="t_cap")
     a.reset()
     # 账户 10 万,买 4 万(40%)应放行
     assert _check_position_cap(a, "603083", 200, 200.0) is None  # 4.0万=40.0% 边界内

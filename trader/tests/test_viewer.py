@@ -96,7 +96,7 @@ def test_compare_live_vs_replay():
 
 
 def test_replay_run_page_with_metrics():
-    """回放场详情:bag10(20260818-v2验收)轮次/思考流/封场指标齐全。"""
+    """重演场详情:场次10(20260818-v2验收)轮次/思考流/封场指标齐全。"""
     r = client.get("/run/10")
     assert r.status_code == 200
     assert "封场指标" in r.text and "metrics" in r.text
