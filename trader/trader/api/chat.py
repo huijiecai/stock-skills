@@ -25,6 +25,17 @@ class ChatIn(BaseModel):
     message: str
 
 
+def _stage_output_docs(run: dict, docs) -> list[dict]:
+    """本场阶段产物:新场认冻结槽位,老场兼容 watch_* 轮日志。"""
+    linked = docs.for_run(run["id"])
+    slots = set(((run.get("stage_contract") or {}).get("outputs") or {}).keys())
+    rows = [d for d in linked if d.get("relation") == "output"
+            and d.get("slot") in slots and d.get("stage") == run.get("stage")]
+    if rows:
+        return rows
+    return [d for d in linked if d["doc_type"].startswith("watch_")]
+
+
 def _build_context(run: dict, user_id: int) -> str:
     """构建首条注入:原 prompt + 执行结果摘要 + 工具调用摘要。"""
     docs = default_documents()
@@ -47,39 +58,40 @@ def _build_context(run: dict, user_id: int) -> str:
                 parts.append(f"### {pn}\n{content[:3000]}")  # 每个 prompt 截 3000 字
 
     # ② 执行产出(报告/轮日志摘要)
+    linked = docs.for_run(run["id"])
+    stage_outputs = _stage_output_docs(run, docs)
     outputs = []
-    for d in docs.list(trade_date=date, portfolio_id=portfolio):
+    for d in linked:
+        if d.get("relation") != "output":
+            continue
         if d["doc_type"].startswith(("transcript_", "watch_", "chat")):
             continue
-        content = docs.get(d["doc_type"], name=d["name"] or "",
-                           trade_date=date, portfolio_id=portfolio)
+        content = (docs.get_for_run(run["id"], d["id"]) or {}).get("content")
         if content:
             outputs.append(f"### 产出:{d['doc_type']}\n{content[:2000]}")
     if outputs:
         parts.append("## 执行产出(摘要)\n" + "\n\n".join(outputs[:2]))
 
     # ③ Agent 各轮总结(轮日志,最近 10 轮截断)——复盘"它每轮怎么想的"
-    watch = sorted(
-        [d for d in docs.list(trade_date=date, portfolio_id=portfolio)
-         if d["doc_type"].startswith("watch_")
-         and (d["name"] or "").startswith("r") and (d["name"] or "r")[1:].isdigit()],
-        key=lambda d: int(d["name"][1:]))
+    watch = sorted([d for d in stage_outputs if d.get("round")
+                    or ((d.get("name") or "").startswith("r")
+                        and (d.get("name") or "r")[1:].isdigit())],
+                   key=lambda d: d.get("round") or int(d["name"][1:]))
     if watch:
-        seg = [f"### {d['name']}\n{(docs.get(d['doc_type'], name=d['name'], trade_date=date, portfolio_id=portfolio) or '')[:400]}"
+        seg = [f"### {d['name']}\n{((docs.get_for_run(run['id'], d['id']) or {}).get('content') or '')[:400]}"
                for d in watch[-10:]]
         parts.append("## Agent 各轮总结(最近10轮,每轮截断)\n" + "\n\n".join(seg))
 
     # ④ 工具调用明细:最近 8 轮 transcript 的 调用参数+返回内容——复盘"它看到了什么数据"
     #    (全局统计另外给;早于 8 轮的只有次数没有内容)
     transcripts = sorted(
-        [d for d in docs.list(trade_date=date, portfolio_id=portfolio)
-         if d["doc_type"].startswith("transcript_")
+        [d for d in linked if d["doc_type"].startswith("transcript_")
          and (d["name"] or "").startswith("r") and (d["name"] or "r")[1:].isdigit()],
         key=lambda d: int(d["name"][1:]))
     from collections import Counter
     all_calls: Counter = Counter()
     for d in transcripts:
-        raw = docs.get(d["doc_type"], name=d["name"], trade_date=date, portfolio_id=portfolio)
+        raw = (docs.get_for_run(run["id"], d["id"]) or {}).get("content")
         if not raw:
             continue
         try:
@@ -96,7 +108,7 @@ def _build_context(run: dict, user_id: int) -> str:
     budget = 8000   # 工具返回内容总预算(字符)
     segs = []
     for d in transcripts[-8:]:
-        raw = docs.get(d["doc_type"], name=d["name"], trade_date=date, portfolio_id=portfolio)
+        raw = (docs.get_for_run(run["id"], d["id"]) or {}).get("content")
         if not raw:
             continue
         try:
@@ -147,6 +159,10 @@ class CoachIn(BaseModel):
     message: str
 
 
+class CoachArchiveIn(BaseModel):
+    archived: bool = True
+
+
 def _run_brief(run: dict, user_id: int) -> str:
     """单场精简档案:指标 + 所用 prompt 全文 + 最近几轮总结 + 工具返回。"""
     docs = default_documents()
@@ -167,21 +183,21 @@ def _run_brief(run: dict, user_id: int) -> str:
         content = pv.get(run.get("system_id") or 1, pn, ver, user_id=user_id)
         if content:
             parts.append(f"#### 它用的 prompt「{pn}」v{ver}:\n{content[:2500]}")
-    watch = sorted([d for d in docs.list(trade_date=date, portfolio_id=portfolio)
-                    if d["doc_type"].startswith("watch_")
-                    and (d["name"] or "").startswith("r") and (d["name"] or "r")[1:].isdigit()],
-                   key=lambda d: int(d["name"][1:]))
+    linked = docs.for_run(run["id"])
+    watch = sorted([d for d in _stage_output_docs(run, docs) if d.get("round")
+                    or ((d.get("name") or "").startswith("r")
+                        and (d.get("name") or "r")[1:].isdigit())],
+                   key=lambda d: d.get("round") or int(d["name"][1:]))
     for d in watch[-3:]:
-        c = docs.get(d["doc_type"], name=d["name"], trade_date=date, portfolio_id=portfolio)
+        c = (docs.get_for_run(run["id"], d["id"]) or {}).get("content")
         if c:
             parts.append(f"#### {d['name']} 轮总结:\n{c[:300]}")
-    transcripts = sorted([d for d in docs.list(trade_date=date, portfolio_id=portfolio)
-                          if d["doc_type"].startswith("transcript_")
+    transcripts = sorted([d for d in linked if d["doc_type"].startswith("transcript_")
                           and (d["name"] or "").startswith("r") and (d["name"] or "r")[1:].isdigit()],
                          key=lambda d: int(d["name"][1:]))
     budget = 2500
     for d in transcripts[-3:]:
-        raw = docs.get(d["doc_type"], name=d["name"], trade_date=date, portfolio_id=portfolio)
+        raw = (docs.get_for_run(run["id"], d["id"]) or {}).get("content")
         if not raw:
             continue
         try:
@@ -220,8 +236,22 @@ def _parse_refs(text: str) -> tuple[list[int], list[str]]:
     return run_ids, prompts
 
 
-def _load_conv(docs, system: str, seq: int) -> list:
-    raw = docs.get("coach", name=f"{system}-{seq}", trade_date="")
+def _coach_scope(system: str, who: dict) -> tuple[dict, int]:
+    """Resolve a coach conversation to the selected system's main portfolio."""
+    from trader.core.systems import default_systems
+
+    uid = who["user"]["id"]
+    system_row = default_systems().get(system, user_id=uid)
+    if system_row is None:
+        raise HTTPException(404, f"系统不存在:{system}")
+    portfolio_id = default_portfolios().ensure_main(uid, system_row["id"])
+    set_context(portfolio_id, None, uid)
+    return system_row, portfolio_id
+
+
+def _load_conv(docs, system: str, seq: int, portfolio_id: int) -> list:
+    raw = docs.get("coach", name=f"{system}-{seq}", trade_date="",
+                   portfolio_id=portfolio_id)
     if raw:
         try:
             return json.loads(raw).get("messages", [])
@@ -230,54 +260,89 @@ def _load_conv(docs, system: str, seq: int) -> list:
     return []
 
 
-def _save_conv(docs, system: str, seq: int, messages: list) -> None:
+def _save_conv(docs, system: str, seq: int, messages: list,
+               portfolio_id: int) -> None:
     docs.save("coach", json.dumps({"messages": messages}, ensure_ascii=False),
-              name=f"{system}-{seq}", trade_date="")
+              name=f"{system}-{seq}", trade_date="", portfolio_id=portfolio_id)
+
+
+def _conversation_doc(docs, system: str, seq: int, portfolio_id: int) -> dict:
+    target = f"{system}-{seq}"
+    row = next((d for d in docs.list("coach", portfolio_id=portfolio_id)
+                if d["name"] == target), None)
+    if row is None:
+        raise HTTPException(404, "教练对话不存在")
+    return row
+
+
+def _next_conversation_seq(docs, system: str, portfolio_id: int) -> int:
+    seqs = []
+    for row in docs.list("coach", portfolio_id=portfolio_id):
+        if (row["name"] or "").startswith(f"{system}-"):
+            try:
+                seqs.append(int(row["name"].rsplit("-", 1)[1]))
+            except (ValueError, IndexError):
+                pass
+    return (max(seqs) + 1) if seqs else 1
 
 
 coach_router = APIRouter(prefix="/systems", tags=["coach"])
 
 
 @coach_router.get("/{name}/coach/conversations")
-def coach_list(name: str, who: dict = Depends(require_user)):
+def coach_list(name: str, archived: bool = False,
+               who: dict = Depends(require_user)):
     """该系统的教练对话列表(新在前的 id/标题/时间)。"""
-    set_context(default_portfolios().default_for(who["user"]["id"]), None, who["user"]["id"])
+    _, portfolio_id = _coach_scope(name, who)
+    docs = default_documents()
     out = []
-    for d in default_documents().list("coach"):
+    for d in docs.list("coach", portfolio_id=portfolio_id):
         if not (d["name"] or "").startswith(f"{name}-"):
             continue
         try:
             seq = int(d["name"].rsplit("-", 1)[1])
         except (ValueError, IndexError):
             continue
-        out.append({"id": seq, "title": (d.get("meta") or {}).get("title") or d["name"],
+        if not _load_conv(docs, name, seq, portfolio_id):
+            continue
+        meta = d.get("meta") or {}
+        if bool(meta.get("archived")) != archived:
+            continue
+        out.append({"id": seq, "title": meta.get("title") or d["name"],
+                    "archived": bool(meta.get("archived")),
                     "updated_at": d.get("updated_at"), "size": d.get("size")})
-    return out
+    return sorted(out, key=lambda row: row["id"], reverse=True)
 
 
 @coach_router.post("/{name}/coach/conversations")
 def coach_new(name: str, who: dict = Depends(require_user)):
     """新开一个隔离的教练对话,返回对话 id。"""
-    uid = who["user"]["id"]
-    set_context(default_portfolios().default_for(uid), None, uid)
+    _, portfolio_id = _coach_scope(name, who)
     docs = default_documents()
-    seqs = []
-    for d in docs.list("coach"):
-        if (d["name"] or "").startswith(f"{name}-"):
-            try:
-                seqs.append(int(d["name"].rsplit("-", 1)[1]))
-            except (ValueError, IndexError):
-                pass
-    seq = (max(seqs) + 1) if seqs else 1
-    _save_conv(docs, name, seq, [])
+    seq = _next_conversation_seq(docs, name, portfolio_id)
+    _save_conv(docs, name, seq, [], portfolio_id)
     return {"id": seq}
 
 
 @coach_router.get("/{name}/coach/conversations/{seq}")
 def coach_get(name: str, seq: int, who: dict = Depends(require_user)):
     """读取某对话的消息。"""
-    set_context(default_portfolios().default_for(who["user"]["id"]), None, who["user"]["id"])
-    return {"messages": _load_conv(default_documents(), name, seq)}
+    _, portfolio_id = _coach_scope(name, who)
+    docs = default_documents()
+    row = _conversation_doc(docs, name, seq, portfolio_id)
+    return {"messages": _load_conv(docs, name, seq, portfolio_id),
+            "archived": bool((row.get("meta") or {}).get("archived"))}
+
+
+@coach_router.post("/{name}/coach/conversations/{seq}/archive")
+def coach_archive(name: str, seq: int, body: CoachArchiveIn,
+                  who: dict = Depends(require_user)):
+    """Archive or restore a conversation without losing its history."""
+    _, portfolio_id = _coach_scope(name, who)
+    docs = default_documents()
+    row = _conversation_doc(docs, name, seq, portfolio_id)
+    docs.set_meta(row["id"], {"archived": body.archived})
+    return {"id": seq, "archived": body.archived}
 
 
 @coach_router.post("/{name}/coach/conversations/{seq}")
@@ -288,14 +353,16 @@ def coach_send(name: str, seq: int, body: CoachIn, who: dict = Depends(require_u
     from trader.core.llm import build_model
 
     uid = who["user"]["id"]
-    set_context(default_portfolios().default_for(uid), None, uid)
-    from trader.core.systems import default_systems
-    system_row = default_systems().get(name, user_id=uid)
-    if system_row is None:
-        from fastapi import HTTPException
-        raise HTTPException(404, f"系统不存在:{name}")
+    system_row, portfolio_id = _coach_scope(name, who)
     docs = default_documents()
-    history = _load_conv(docs, name, seq)
+    if seq == 0:
+        seq = _next_conversation_seq(docs, name, portfolio_id)
+        history = []
+    else:
+        row = _conversation_doc(docs, name, seq, portfolio_id)
+        if (row.get("meta") or {}).get("archived"):
+            raise HTTPException(409, "对话已归档，请先恢复后再继续")
+        history = _load_conv(docs, name, seq, portfolio_id)
 
     # 解析引用;对比历史已注入的(<!--ref:...-->标记),只注入新引用
     run_ids, prompt_names = _parse_refs(body.message)
@@ -343,7 +410,7 @@ def coach_send(name: str, seq: int, body: CoachIn, who: dict = Depends(require_u
 
     history.append({"role": "user", "content": user_input})
     history.append({"role": "assistant", "content": reply})
-    _save_conv(docs, name, seq, history)
+    _save_conv(docs, name, seq, history, portfolio_id)
 
     # 首轮自动起标题(轻量小调用;失败退化用消息截断)
     title = None
@@ -356,12 +423,12 @@ def coach_send(name: str, seq: int, body: CoachIn, who: dict = Depends(require_u
             title = re.sub(r'["\'\n]', "", title)[:16]
         except Exception:  # noqa: BLE001
             title = body.message[:12]
-        for d in docs.list("coach"):
+        for d in docs.list("coach", portfolio_id=portfolio_id):
             if d["name"] == f"{name}-{seq}":
                 docs.set_meta(d["id"], {"title": title or body.message[:12], "system": name})
                 break
 
-    return {"reply": reply, "turn": len(history) // 2, "title": title}
+    return {"id": seq, "reply": reply, "turn": len(history) // 2, "title": title}
 
 
 @router.post("/{run_id}/chat")

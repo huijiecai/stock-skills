@@ -10,12 +10,12 @@ import { stageIcon, stageLabel, systemDisplayName, orderedStages } from '../lib/
 import LaunchModal from '../components/LaunchModal'
 import SystemSwitcher from '../components/SystemSwitcher'
 
-/** 阶段今日状态:single 看场名前缀,loop 实时看今日实盘场。 */
+/** 阶段今日状态:single 看场名前缀，loop 看今日实时时钟场。 */
 function stageTodayStatus(system: string, stage: string, def: any, runs: any[], today: string): 'done' | 'running' | null {
   if (def?.kind === 'single')
     return (runs ?? []).some(r => (r.slug ?? '').startsWith(`${system}-${stage}-${today}`)) ? 'done' : null
-  if (def?.kind === 'loop' && (def?.interval == null || !stage.includes('replay'))) {
-    const live = (runs ?? []).find(r => r.kind === 'live' && r.trade_date === today)
+  if (def?.kind === 'loop') {
+    const live = (runs ?? []).find(r => r.clock === 'real' && r.stage === stage && r.trade_date === today)
     if (!live) return null
     return live.status === 'running' ? 'running' : 'done'
   }
@@ -39,7 +39,11 @@ export default function SystemWorkspace() {
     },
   })
   const promptsList = useQuery({ queryKey: ['prompts', system], queryFn: () => get(`/systems/${encodeURIComponent(system)}/prompts`) })
-  const watchlists = useQuery({ queryKey: ['watchlists'], queryFn: () => get('/watchlists'), staleTime: 60000 })
+  const watchlists = useQuery({
+    queryKey: ['watchlists', system],
+    queryFn: () => get(`/watchlists?system=${encodeURIComponent(system)}`),
+    staleTime: 60000,
+  })
 
   const [launchOpen, setLaunchOpen] = useState(false)
   const [presetStage, setPresetStage] = useState('')
@@ -62,6 +66,9 @@ export default function SystemWorkspace() {
   for (const p of (promptsList.data ?? []) as any[]) promptVer[p.prompt] = p.latest_version
   const watchCount = (watchlists.data as any[] | undefined)?.length
   const runningRun = (runs.data ?? []).find((r: any) => r.status === 'running' || r.status === 'stopping')
+  const coachUrl = activePrompt
+    ? `${base}/coach?prompt=${encodeURIComponent(activePrompt)}`
+    : `${base}/coach`
 
   async function stopRunning() {
     if (!runningRun) return
@@ -92,7 +99,7 @@ export default function SystemWorkspace() {
           <span className="on">🔧 工作台</span>
         </div>
         <div className="ws-btnrow">
-          <button className="ws-btn" onClick={() => nav(`${base}/coach`)}>💬 教练</button>
+          <button className="ws-btn" onClick={() => nav(coachUrl)}>💬 教练</button>
           <button className="ws-btn" onClick={() => nav(`${base}/settings`)}>⚙ 设置</button>
           <button className="ws-btn primary" onClick={() => { setPresetStage(firstStage); setLaunchOpen(true) }}
                   disabled={!firstStage}>▶ 运行</button>
@@ -142,7 +149,7 @@ export default function SystemWorkspace() {
 
           {/* 设置/教练 落在树底部 */}
           <div className="ws-tg">·</div>
-          <div className={`ws-f${onCoach ? ' sel' : ''}`} onClick={() => nav(`${base}/coach`)}>
+          <div className={`ws-f${onCoach ? ' sel' : ''}`} onClick={() => nav(coachUrl)}>
             <span>💬</span><span>教练对话</span>
           </div>
           <div className={`ws-f${onSettings ? ' sel' : ''}`} onClick={() => nav(`${base}/settings`)}>

@@ -14,19 +14,9 @@ uv run python -m trader.runner close 20260817       # ③ 盘后:预期更新→
 uv run python -m trader.runner replay 20260812 --interval 20  # 模拟看盘(回放,自动重置账户+清旧轮日志)
 uv run python -m trader.runner replay 20260812 --resume       # 接续上次回放(不清不重置,从最大轮号继续)
 uv run python -m trader.runner research "光纤涨价"            # 预期研究(新建/更新自动判断)
-uv run python -m trader.viewer                               # 只读查看器(localhost:8500,审决策链路用)
 ```
 
-## viewer(只读查看器)
-
-`uv run python -m trader.viewer [--port 8500] [--reload]` → 浏览器打开 http://127.0.0.1:8500
-
-- **日视图** `/day/{date}`:账户/当日交易/token 消耗 + 轮次时间线(r1-rN)+ 预期面板
-- **轮详情** `/round/{date}/{n}`:轮日志四小节 + **完整思考流**(📋轮指令 → 🔧工具调用 → ←返回数据 → 💬推理,逐条折叠)+ 该轮 token
-- **交易留痕** `/trades/{date}`:每笔 execute 的决策理由全文
-- **预期库** `/expectations`:阶段/池成员(leader 金色)/失效标志
-- 数据源:live/replay 每轮自动落 `transcript_live/replay` 思考流(documents 表);早于该机制的轮次显示"无思考流"
-- 只读红线:全部 SELECT,不 import 交易代码路径,删掉 viewer/ 目录系统照跑
+场次、轮次思考流、交易留痕、文档和 Prompt 版本统一在 Web 工作台查看。
 
 ## 断点接续(8/17 起)
 
@@ -70,11 +60,12 @@ trader/
 │   │   └── registry.py      ← 能力注册表(工具名 → 实现)
 │   ├── runner.py            ← CLI 薄壳:五命令=expectation 别名;通用 run <system> <stage>
 │   └── tools/               ← 通用工具实现(account/trading/docs;market/watch 为垫片)
-├── prompts/                 ← 方法论(临时编辑面,sync 入 PG;运行时读 PG)
 ├── tests/                   ← 54 passed + 10 盘中专用自动跳过
 ├── scripts/migrate_to_platform.py  ← 老预期库→文档+自选组 一次性迁移(已执行)
 └── .env                     ← 配置(LLM_API_KEY / LLM_MODEL / LLM_BASE_URL)
 ```
+
+交易系统的原始方法论保存在仓库根目录 `skills/trading-system/`；平台中的 Prompt 由 Web 编辑并在 PG 中版本化。
 
 **核心约定**:预期=文档(doc_type='expectation',meta 存 stage/status),池=自选组(fields.role 分级);
 一切管理在 PG(单库行级多租户:实盘=portfolio 0,一场实验=一个实验组合)。

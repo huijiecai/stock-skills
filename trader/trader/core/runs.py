@@ -34,7 +34,7 @@ class Runs:
                prompt_versions: dict, system_id: int = 1,
                user_id: int = 0, stage: str = "",
                clock: str = "real", clock_date: str = "",
-               portfolio_id: int = 0) -> dict:
+               portfolio_id: int = 0, stage_contract: dict | None = None) -> dict:
         """建档(同名已存在→ValueError)。kind 由 derive_kind 推导后传入;
         portfolio_id 建档即绑(实盘=系统实盘组合,实验=新开组合)。"""
         now = _dt.now().isoformat(timespec="seconds")
@@ -43,11 +43,12 @@ class Runs:
                 r = conn.execute(
                     "INSERT INTO runs(user_id, slug, kind, trade_date, status,"
                     " prompt_versions, system_id, stage, clock, clock_date,"
-                    " portfolio_id, created_at)"
-                    " VALUES(%s,%s,%s,%s,'running',%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+                    " portfolio_id,stage_contract,created_at,heartbeat_at)"
+                    " VALUES(%s,%s,%s,%s,'running',%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
                     (user_id, slug, kind, trade_date,
                      json.dumps(prompt_versions, ensure_ascii=False), system_id, stage,
-                     clock, clock_date or None, portfolio_id, now),
+                     clock, clock_date or None, portfolio_id,
+                     json.dumps(stage_contract or {}, ensure_ascii=False), now, now),
                 ).fetchone()
             except psycopg.errors.UniqueViolation as e:
                 raise ValueError(f"场次已存在:{slug}(换个名字,或 replay-rm 删除旧场)") from e
@@ -67,9 +68,32 @@ class Runs:
         with _connect(self.schema) as conn:
             conn.execute("UPDATE runs SET status=%s WHERE id=%s", (status, run_id))
 
+    def poll(self, run_id: int) -> str | None:
+        """引擎轮询:刷心跳并读状态(一次往返;停止判定与存活心跳共用)。"""
+        now = _dt.now().isoformat(timespec="seconds")
+        with _connect(self.schema) as conn:
+            r = conn.execute(
+                "UPDATE runs SET heartbeat_at=%s WHERE id=%s RETURNING status",
+                (now, run_id)).fetchone()
+        return r["status"] if r else None
+
+    def touch(self, run_id: int) -> None:
+        """刷心跳(每轮开跑前调,长轮次/单次阶段也不误报僵死)。"""
+        now = _dt.now().isoformat(timespec="seconds")
+        with _connect(self.schema) as conn:
+            conn.execute("UPDATE runs SET heartbeat_at=%s WHERE id=%s", (now, run_id))
+
     def set_fingerprint(self, run_id: int, fingerprint: str) -> None:
         with _connect(self.schema) as conn:
             conn.execute("UPDATE runs SET fingerprint=%s WHERE id=%s", (fingerprint, run_id))
+
+    def set_stage_contract_if_empty(self, run_id: int, contract: dict) -> None:
+        """老场接续时补一次契约;已经冻结过的场次永不覆盖。"""
+        with _connect(self.schema) as conn:
+            conn.execute(
+                "UPDATE runs SET stage_contract=%s WHERE id=%s AND stage_contract='{}'::jsonb",
+                (json.dumps(contract, ensure_ascii=False), run_id),
+            )
 
     def seal(self, run_id: int, metrics: dict | None = None) -> None:
         """封场;metrics(指标)一并落库。"""
@@ -113,8 +137,9 @@ class Runs:
             where.append("r.trade_date=%s")
             params.append(trade_date)
         sql = ("SELECT r.id, r.user_id, r.slug, r.kind, r.trade_date, r.portfolio_id,"
-               " r.status, s.slug AS system, r.stage, r.clock, r.clock_date,"
-               " r.prompt_versions, r.fingerprint, r.metrics, r.created_at, r.sealed_at"
+               " r.status, r.system_id, s.slug AS system, r.stage, r.clock, r.clock_date,"
+               " r.prompt_versions, r.fingerprint, r.metrics, r.created_at, r.sealed_at,"
+               " r.heartbeat_at, r.stage_contract"
                " FROM runs r LEFT JOIN systems s ON s.id=r.system_id")
         if where:
             sql += " WHERE " + " AND ".join(where)
@@ -144,6 +169,8 @@ class Runs:
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS clock TEXT NOT NULL DEFAULT 'real'")
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS clock_date TEXT")
+            conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS heartbeat_at TEXT")
+            conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS stage_contract JSONB NOT NULL DEFAULT '{}'")
             conn.execute("ALTER TABLE runs DROP CONSTRAINT IF EXISTS runs_name_key")
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS runs_user_slug ON runs(user_id, slug)")
 

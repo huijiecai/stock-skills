@@ -15,6 +15,7 @@ const STARTER_MANIFEST = {
     'get_top_amount', 'get_market_summary', 'get_positions', 'get_account',
     'scan_market', 'save_doc', 'get_doc', 'list_docs'],
   web_search: true,
+  doc_classes: { library: ['note', 'research'], ephemeral: ['report'] },
 }
 
 /** 自绘侧栏行:图标列定宽对齐 + 名称 ellipsis + 悬停才出 ⋯。 */
@@ -48,7 +49,7 @@ export default function Layout() {
       <Modal title="新建交易系统" open={creating} onCancel={() => setCreating(false)}
              onOk={handleCreate} okText="创建" width={420}
              okButtonProps={{ disabled: !newName.trim() }}>
-        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+        <Space orientation="vertical" style={{ width: '100%' }} size={10}>
           <Input placeholder="系统名(中文,如:预期管理)" value={newLabel}
                  onChange={(e) => setNewLabel(e.target.value)}
                  onPressEnter={handleCreate} />
@@ -116,7 +117,8 @@ export default function Layout() {
 
   // 系统页 = 全屏工作区(资产/工作台自带顶栏),应用侧栏退场(原型形态)
   const onSystemPage = loc.pathname.startsWith('/systems/')
-  if (onSystemPage)
+  const onEvidencePage = loc.pathname.startsWith('/runs/') || loc.pathname.startsWith('/compare')
+  if (onSystemPage || onEvidencePage)
     return (
       <AntLayout style={{ minHeight: '100vh' }}>
         <Content style={{ width: '100%' }}>

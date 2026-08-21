@@ -20,6 +20,17 @@ _MARKET_TOOLS = (
     "get_us_market",
 )
 
+# 工具分组(目录展示用;与 tools/__main__.py CLI 分组语义一致)
+TOOL_GROUPS: dict[str, list[str]] = {
+    "market": list(_MARKET_TOOLS),
+    "scan": ["scan_market"],
+    "account": ["get_positions", "get_account", "get_trades"],
+    "trading": ["execute"],
+    "docs": ["save_doc", "get_doc", "list_docs", "set_doc_meta"],
+    "watchlist": ["save_watchlist", "get_watchlist", "get_watchlist_quotes",
+                  "remove_watchlist_member"],
+}
+
 TOOLS: dict = {n: getattr(_market, n) for n in _MARKET_TOOLS}
 TOOLS.update({
     "get_positions": get_positions,

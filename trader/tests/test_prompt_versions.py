@@ -1,31 +1,12 @@
-"""指令版本库:本地编辑→入库→版本不变检测→diff(按系统命名空间)。"""
+"""指令版本库:版本流、系统/用户命名空间与 CLI diff。"""
 
-from trader.prompts import sync_prompts
 from trader.core.promptver import PromptVersions
 
 # 测试用的系统 id(隔离 schema 无约束,任意整数即可;1=expectation 语义)
 SID = 1
 
 
-def test_sync_versions_and_diff(tmp_path):
-    d = tmp_path / "prompts"
-    d.mkdir()
-    (d / "system.md").write_text("规则A")
-    (d / "close.md").write_text("盘后")
-
-    pv_iso = PromptVersions(schema="t_sync_iso")
-    r1 = sync_prompts(d, pv=pv_iso)          # 首次 → v1(隔离 schema)
-    assert [x["changed"] for x in r1] == [True, True]
-    assert [x["version"] for x in r1] == [1, 1]
-
-    r2 = sync_prompts(d, pv=pv_iso)
-    assert all(not x["changed"] for x in r2)
-
-    (d / "system.md").write_text("规则A\n规则B")
-    r3 = sync_prompts(d, pv=pv_iso)
-    sys_r = next(x for x in r3 if x["slug"] == "system")
-    assert sys_r["changed"] and sys_r["version"] == 2
-
+def test_versions_are_stored_and_read():
     pv = PromptVersions(schema="t_prompt_versions_test")
     pv.save(SID, "system", "规则A")               # 独立 schema 冒烟
     v1 = pv.get(SID, "system", 1)

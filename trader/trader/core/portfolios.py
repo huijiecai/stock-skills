@@ -73,7 +73,21 @@ class Portfolios:
         row = self.main_of(user_id, system_id)
         if row:
             return row["id"]
-        return self.create(user_id, "main", system_id, name="主组合")
+        portfolio_id = self.create(user_id, "main", system_id, name="主组合")
+        Wallet(self.schema).open_wallet(INITIAL_CASH, INITIAL_CASH, portfolio_id)
+        return portfolio_id
+
+    def ensure_paper(self, user_id: int, system_id: int) -> int:
+        """系统的默认模拟组合；允许另建多个，但统一启动器复用最早一个。"""
+        with _connect(self.schema) as conn:
+            row = conn.execute(
+                "SELECT id FROM portfolios WHERE owner_user=%s AND system_id=%s"
+                " AND type='paper' ORDER BY id LIMIT 1", (user_id, system_id)).fetchone()
+        if row:
+            return row["id"]
+        portfolio_id = self.create(user_id, "paper", system_id, name="模拟组合")
+        Wallet(self.schema).open_wallet(INITIAL_CASH, INITIAL_CASH, portfolio_id)
+        return portfolio_id
 
     def default_for(self, user_id: int) -> int:
         """用户默认组合:第一个实盘组合;没有则 0(兼容旧 default_bag 语义)。"""
@@ -115,7 +129,7 @@ class Portfolios:
 # ── 开局(执行前绑定组合)──────────────────────────────
 
 def open_live(run_id: int, portfolio_id: int, user_id: int) -> None:
-    """实盘场:上下文切到该系统的实盘组合。"""
+    """实时时钟场:上下文切到发起时绑定的主组合或模拟组合。"""
     set_context(portfolio_id, run_id, user_id)
 
 

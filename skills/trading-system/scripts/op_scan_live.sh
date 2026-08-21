@@ -2,14 +2,14 @@
 # op_scan_live.sh — 一键4步快扫（真实看盘）
 # 合并指数、持仓、无方向异动候选、板块强度为1次Bash调用
 #
-# 用法: op_scan_live.sh <holdings_codes>
+# 用法: op_scan_live.sh <holdings_codes>；空仓传 -
 # 示例: op_scan_live.sh 002185
 #        op_scan_live.sh 002185,002156
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CODES="${1:?用法: op_scan_live.sh <holdings_codes>}"
+CODES="${1:?用法: op_scan_live.sh <holdings_codes>；空仓传 ->}"
 
 echo "========== 快扫 $(date +%H:%M:%S) =========="
 echo ""

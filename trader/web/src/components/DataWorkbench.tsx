@@ -2,14 +2,20 @@
 import { Table, Spin, Tag } from 'antd'
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { get } from '../api/client'
 
 export default function DataWorkbench() {
+  const { name: system = '' } = useParams()
   const [sel, setSel] = useState<string | null>(null)
-  const lists = useQuery({ queryKey: ['watchlists'], queryFn: () => get('/watchlists'), staleTime: 30000 })
+  const lists = useQuery({
+    queryKey: ['watchlists', system],
+    queryFn: () => get(`/watchlists?system=${encodeURIComponent(system)}`),
+    staleTime: 30000,
+  })
   const members = useQuery({
-    queryKey: ['watchlist', sel],
-    queryFn: () => get(`/watchlists/${encodeURIComponent(sel ?? '')}`),
+    queryKey: ['watchlist', system, sel],
+    queryFn: () => get(`/watchlists/${encodeURIComponent(sel ?? '')}?system=${encodeURIComponent(system)}`),
     enabled: !!sel,
   })
 
@@ -24,8 +30,8 @@ export default function DataWorkbench() {
           唯一结构化原语:成员/角色分级/行情快览;scan_market 每轮读取
         </span>
       </div>
-      <div style={{ display: 'flex', gap: 14 }}>
-        <div style={{ width: 340, flexShrink: 0 }}>
+      <div className="data-workbench-grid">
+        <div className="data-list-pane">
           <Table rowKey="name" size="small" pagination={false}
                  onRow={(r: any) => ({ onClick: () => setSel(r.name), style: { cursor: 'pointer' } })}
                  rowClassName={(r: any) => (r.name === sel ? 'ant-table-row-selected' : '')}

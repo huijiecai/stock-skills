@@ -11,59 +11,110 @@ import SystemSwitcher from '../components/SystemSwitcher'
 import { stageLabel, systemDisplayName, orderedStages } from '../lib/system'
 import { pnlColor } from '../lib/ui'
 
-function EquityCurve({ points, initial, height = 230 }: {
-  points: any[], initial: number | null, height?: number }) {
-  if (!initial || points.length < 2)
+function EquityCurve({ daily, points, initial, liveDays, height = 270, onOpenRun }: {
+  daily?: any[], points: any[], initial: number | null,
+  liveDays?: Record<string, any>, height?: number, onOpenRun?: (id: number) => void }) {
+  /** 上半=日频净值线,下半=每日盈亏柱(红涨绿跌);有值守的日子日期高亮、
+   * 零盈亏也画基线刻点(否则看不出"跑了但没交易"和"没跑"的区别)。
+   * 悬停带全高度、<title> 放 <g> 第一个子元素(Safari 才显示 tooltip)。 */
+  const series: any[] = (daily?.length ?? 0) >= 2 ? (daily ?? []) : points.slice(1)
+  if (!initial || series.length < 1)
     return <div style={{ padding: 44, textAlign: 'center', color: 'var(--text-3)', fontSize: 13 }}>
       实盘组合还没有成交——跑起来,履历从这里开始生长</div>
-  const W = 860, H = height, L = 52, B = 24
-  const eqs = points.map((p: any) => p.equity)
+  const W = 860, H = height, L = 52, R = 14
+  const lineTop = 14, lineBot = H - 66          // 净值线区
+  const stripTop = H - 54, stripH = 34           // 每日盈亏柱区
+  const stripMid = stripTop + stripH / 2         // 盈亏零轴
+  const eqs = series.map((p: any) => p.equity)
   const min = Math.min(initial, ...eqs), max = Math.max(initial, ...eqs)
   const span = (max - min) || 1
-  const x = (i: number) => L + (i / (points.length - 1)) * (W - L - 14)
-  const y = (v: number) => 14 + (1 - (v - min) / span) * (H - 14 - B)
+  const n = series.length
+  const x = (i: number) => L + (n === 1 ? (W - L - R) / 2 : (i / (n - 1)) * (W - L - R))
+  const y = (v: number) => lineTop + (1 - (v - min) / span) * (lineBot - lineTop)
+  // 逐日距前高回撤(悬停可见;图上不再压文字,只圈出最深回撤点)
   let peak = -Infinity, ddPoint = -1, ddMax = 0
-  points.forEach((p: any, i: number) => {
+  const dds = series.map((p: any, i: number) => {
     peak = Math.max(peak, p.equity)
     const dd = peak > 0 ? (peak - p.equity) / peak : 0
     if (dd > ddMax) { ddMax = dd; ddPoint = i }
+    return dd
   })
-  const path = points.map((p: any, i: number) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ')
+  const path = series.map((p: any, i: number) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(p.equity).toFixed(1)}`).join(' ')
   const last = eqs[eqs.length - 1]
   const color = last >= initial ? 'var(--up)' : 'var(--down)'
+  const dayOf = (p: any) => (p.date || p.ts || '')
+  const runOf = (p: any) => p.run_id ?? liveDays?.[dayOf(p)?.slice(0, 10)]?.id
+  const tip = (p: any, i: number) => {
+    const d = dayOf(p).slice(5, 16)
+    const pnl = p.pnl != null
+      ? ` · 当日 ${p.pnl > 0 ? '+' : ''}¥${(p.pnl / 100).toFixed(0)}(${p.pnl > 0 ? '+' : ''}${p.pct ?? 0}%)`
+      : ''
+    const dd = dds[i] > 0.0005 ? ` · 距前高 -${(dds[i] * 100).toFixed(1)}%` : ''
+    const rid = runOf(p)
+    const live = liveDays?.[dayOf(p)?.slice(0, 10)] ? ' · 🛡 值守日' : ''
+    return `${d}${live}${pnl}${dd} · 资产 ¥${(p.equity / 100).toFixed(0)}${rid ? ` · 场次 #${rid}(点击查看)` : ''}`
+  }
+  const bandW = n > 1 ? (W - L - R) / (n - 1) : W - L - R
+  const ticks = Array.from({ length: Math.min(n, 6) }, (_, k) =>
+    Math.round(k * (n - 1) / Math.max(Math.min(n, 6) - 1, 1)))
+  const maxPnl = Math.max(1, ...series.map((p: any) => Math.abs(p.pnl ?? 0)))
+  const barW = Math.min(bandW * 0.55, 14)
   return (
     <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block' }}>
+      {/* 净值线区网格 + 轴 */}
       {[0, 0.25, 0.5, 0.75, 1].map(f => (
         <g key={f}>
-          <line x1={L} x2={W - 14} y1={14 + f * (H - 14 - B)} y2={14 + f * (H - 14 - B)} stroke="#eef1f5" />
-          <text x={L - 8} y={18 + f * (H - 14 - B)} fontSize={10} fill="#98a2b3" textAnchor="end">
+          <line x1={L} x2={W - R} y1={lineTop + f * (lineBot - lineTop)} y2={lineTop + f * (lineBot - lineTop)} stroke="#eef1f5" />
+          <text x={L - 8} y={lineTop + 4 + f * (lineBot - lineTop)} fontSize={10} fill="#98a2b3" textAnchor="end">
             {(((1 - f) * span + min) / 100).toFixed(0)}
           </text>
         </g>
       ))}
-      <line x1={L} x2={W - 14} y1={y(initial)} y2={y(initial)} stroke="#d0d5dd" strokeDasharray="4,4" />
-      <path d={`${path} L${x(points.length - 1)},${H - B} L${L},${H - B} Z`}
+      {ticks.map(i => {
+        const live = !!liveDays?.[dayOf(series[i])?.slice(0, 10)]
+        return (
+          <text key={i} x={x(i)} y={H - 6} fontSize={10}
+                fill={live ? 'var(--accent)' : '#98a2b3'} fontWeight={live ? 700 : 400}
+                textAnchor="middle">{dayOf(series[i]).slice(5, 10)}</text>
+        )
+      })}
+      {/* 盈亏柱区零轴 */}
+      <line x1={L} x2={W - R} y1={stripMid} y2={stripMid} stroke="#eef1f5" />
+      <text x={L - 8} y={stripTop + 4} fontSize={9} fill="#b6bfcc" textAnchor="end">盈</text>
+      <text x={L - 8} y={stripTop + stripH} fontSize={9} fill="#b6bfcc" textAnchor="end">亏</text>
+      <line x1={L} x2={W - R} y1={y(initial)} y2={y(initial)} stroke="#d0d5dd" strokeDasharray="4,4" />
+      <path d={`${path} L${x(n - 1)},${lineBot} L${L},${lineBot} Z`}
             fill={last >= initial ? 'rgba(217,45,32,.05)' : 'rgba(2,122,72,.05)'} />
       <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
-      {points.map((p: any, i: number) => {
-        if (i === 0) return null
+      {series.map((p: any, i: number) => {
         const isDD = i === ddPoint && ddMax > 0.005
+        const rid = runOf(p)
+        const pnl = p.pnl ?? 0
+        const live = !!liveDays?.[dayOf(p)?.slice(0, 10)]
+        const barH = pnl !== 0 ? Math.max(2, Math.abs(pnl) / maxPnl * (stripH / 2 - 2)) : 0
         return (
-          <g key={i} style={{ cursor: p.run_id ? 'pointer' : 'default' }}
-             onClick={() => p.run_id && (location.href = `/runs/${p.run_id}`)}>
-            <circle cx={x(i)} cy={y(p.equity)} r={isDD ? 5 : 3.5}
-                    fill={isDD ? 'var(--down)' : '#fff'} stroke={isDD ? 'var(--down)' : color} strokeWidth={2} />
-            <title>{(p.ts || '开局').slice(0, 16) + ' · ¥' + (p.equity / 100).toFixed(0) + (p.run_id ? ' · 场次 #' + p.run_id : '')}</title>
+          <g key={i} style={{ cursor: rid ? 'pointer' : 'default' }}
+             onClick={() => rid && onOpenRun?.(rid)}>
+            <title>{tip(p, i)}</title>
+            <rect x={x(i) - bandW / 2} y={lineTop} width={bandW} height={H - lineTop - 14}
+                  fill="transparent" />
+            {/* 每日盈亏柱;值守日零盈亏画基线刻点(区分"跑了没赚"与"没跑") */}
+            {pnl !== 0 ? (
+              <rect x={x(i) - barW / 2} width={barW} rx={1.5}
+                    y={pnl > 0 ? stripMid - barH : stripMid}
+                    height={barH} fill={pnl > 0 ? 'var(--up)' : 'var(--down)'} opacity={0.85} />
+            ) : live ? (
+              <circle cx={x(i)} cy={stripMid} r={2.5} fill="var(--accent)" opacity={0.6} />
+            ) : null}
+            <circle cx={x(i)} cy={y(p.equity)} r={isDD ? 5 : (rid ? 4 : 2.5)}
+                    fill={isDD ? 'var(--down)' : '#fff'}
+                    stroke={isDD ? 'var(--down)' : color} strokeWidth={2} />
           </g>
         )
       })}
-      <text x={W - 16} y={y(last) - 8} fontSize={11.5} fill={color} fontWeight={700} textAnchor="end">
+      <text x={W - R - 2} y={y(last) - 8} fontSize={11.5} fill={color} fontWeight={700} textAnchor="end">
         ¥{(last / 100).toFixed(0)}
       </text>
-      {ddPoint > 0 && (
-        <text x={x(ddPoint)} y={Math.min(H - 4, y(points[ddPoint].equity) + 16)} fontSize={10.5}
-              fill="var(--down)" textAnchor="middle">↓ 回撤 {(ddMax * 100).toFixed(1)}%</text>
-      )}
     </svg>
   )
 }
@@ -94,13 +145,26 @@ export default function SystemAsset() {
   const running = allRuns.find(r => r.status === 'running' || r.status === 'stopping')
   const myPorts: any[] = (portfolios.data ?? []).filter((p: any) => p.system_id === row?.id)
   const mainPort = myPorts.find(p => p.type === 'main')
+  const paperPort = myPorts.find(p => p.type === 'paper')
   const labs = myPorts.filter(p => p.type !== 'main')
   const curve = useQuery({
     queryKey: ['curve', mainPort?.id],
     queryFn: () => get(`/portfolios/${mainPort.id}/curve`),
     enabled: !!mainPort,
   })
+  const paperCurve = useQuery({
+    queryKey: ['curve', paperPort?.id],
+    queryFn: () => get(`/portfolios/${paperPort.id}/curve`),
+    enabled: !!paperPort,
+  })
   const todayRuns = allRuns.filter(r => r.trade_date === today)
+  // 值守日映射(date → 场次):live/paper 跑过的日子,零盈亏也标出(区分"跑了没赚"与"没跑")
+  const liveDays: Record<string, any> = {}
+  allRuns.forEach((r: any) => {
+    if (r.kind !== 'live' && r.kind !== 'paper') return
+    const d = String(r.trade_date || '').replace(/^(\d{4})(\d{2})(\d{2})$/, '$1-$2-$3')
+    if (d && (!liveDays[d] || r.kind === 'live')) liveDays[d] = r
+  })
 
   async function stopRunning() {
     if (!running) return
@@ -111,8 +175,13 @@ export default function SystemAsset() {
   if (detail.isLoading) return <Spin size="large" style={{ display: 'block', margin: '80px auto' }} />
   if (detail.error) return <div>{(detail.error as any).message}</div>
 
-  const initial = curve.data?.initial
-  const eqs: number[] = (curve.data?.points ?? []).map((p: any) => p.equity)
+  const usePaper = (curve.data?.points?.length ?? 0) < 2 && (paperCurve.data?.points?.length ?? 0) >= 2
+  const activePort = usePaper ? paperPort : mainPort
+  const activeCurve = usePaper ? paperCurve : curve
+  const initial = activeCurve.data?.initial
+  const dailyArr: any[] = activeCurve.data?.daily ?? []
+  const seriesSrc: any[] = dailyArr.length ? dailyArr : (activeCurve.data?.points ?? [])
+  const eqs: number[] = seriesSrc.map((p: any) => p.equity)
   const lastEq = eqs.length ? eqs[eqs.length - 1] : null
   const totalRet = initial && lastEq != null ? ((lastEq - initial) / initial) * 100 : null
   let peak = -Infinity, ddMax = 0
@@ -147,7 +216,7 @@ export default function SystemAsset() {
       <div className="ws-statusband">
         {running ? (
           <>
-            <span className="live">● {running.kind === 'live' ? '实盘值守中' : running.kind === 'replay' ? '重演执行中' : '执行中'}</span>
+            <span className="live">● {running.kind === 'live' ? '实盘值守中' : running.kind === 'paper' ? '模拟盘值守中' : running.kind === 'replay' ? '重演执行中' : '执行中'}</span>
             <span>#{running.id}{running.stage ? ` · ${stageLabel(running.stage, stages[running.stage])}` : ''}
               {running.status === 'stopping' ? ' · 停止中(本轮收尾)' : ''}</span>
             <span className="next"><a onClick={() => nav(`/runs/${running.id}`)}>看实时执行 ↗</a></span>
@@ -171,7 +240,7 @@ export default function SystemAsset() {
             <div className="l">最大回撤</div>
             <div className="v" style={{ color: ddMax > 0 ? 'var(--down)' : 'var(--text-3)' }}>
               {ddMax > 0 ? `-${(ddMax * 100).toFixed(1)}%` : '—'}</div>
-            <div className="s">按成交时点权益</div>
+            <div className="s">按日频收盘净值</div>
           </div>
           <div className="ws-mc">
             <div className="l">盈利天数</div>
@@ -193,11 +262,11 @@ export default function SystemAsset() {
         {/* 净值曲线 */}
         <div className="ws-chartcard">
           <div className="ws-charthead">
-            净值曲线 · 实盘组合{mainPort ? ` #${mainPort.id}` : ''}
+            净值曲线 · {usePaper ? '模拟组合(冷启动)' : '实盘组合'}{activePort ? ` #${activePort.id}` : ''}
             <span className="r">点击曲线上的点 → 归因到场次</span>
           </div>
-          {mainPort
-            ? (curve.isLoading ? <Spin /> : <EquityCurve points={curve.data?.points ?? []} initial={curve.data?.initial} />)
+          {activePort
+            ? (activeCurve.isLoading ? <Spin /> : <EquityCurve daily={dailyArr} liveDays={liveDays} points={activeCurve.data?.points ?? []} initial={activeCurve.data?.initial} onOpenRun={(id) => nav(`/runs/${id}`)} />)
             : <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-3)' }}>
                 还没有实盘组合——先用模拟组合验证亦可</div>}
         </div>
@@ -236,6 +305,7 @@ export default function SystemAsset() {
 }
 
 function LabCard({ port, runs }: { port: any, runs: any[] }) {
+  const nav = useNavigate()
   const mine = runs.filter(r => r.portfolio_id === port.id)
   const labCurve = useQuery({
     queryKey: ['labCurve', port.id],
@@ -249,7 +319,7 @@ function LabCard({ port, runs }: { port: any, runs: any[] }) {
   const d = pts.map((v, i) => `${i ? 'L' : 'M'}${(i / Math.max(pts.length - 1, 1) * W).toFixed(1)},${(H - (v - mn) / ((mx - mn) || 1) * H).toFixed(1)}`).join(' ')
   return (
     <div className="ws-expcard" style={{ cursor: mine.length ? 'pointer' : 'default' }}
-         onClick={() => mine[0] && (location.href = `/runs/${mine[0].id}`)}>
+         onClick={() => mine[0] && nav(`/runs/${mine[0].id}`)}>
       <div className="eh">🔬 {port.name || `实验 #${port.id}`}
         <span className="ver">{port.type === 'paper' ? '模拟' : '实验'}</span>
         {ret != null && <b style={{ marginLeft: 'auto', color: pnlColor(ret) }}>

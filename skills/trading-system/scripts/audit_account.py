@@ -66,6 +66,8 @@ def load_state_close_prices(filepath=STATE_FILE):
     )
     prices = {code: float(price) for code, price in pattern.findall(content)}
     if not prices:
+        if re.search(r"^\|\s*[—-]\s*\|\s*当前空仓\s*\|", content, re.MULTILINE):
+            return {}
         raise SystemExit(f"state file has no current holding prices: {filepath}")
     return prices
 

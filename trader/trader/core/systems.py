@@ -13,14 +13,52 @@ EXPECTATION_MANIFEST = {
     "system_prompt": "system",
     "stages": {
         "premarket": {"kind": "single", "prompt": "premarket", "request_limit": 200,
-                      "vars": ["date", "prev", "weekday", "gap"]},
+                      "vars": ["date", "prev", "weekday", "gap"],
+                      "outputs": {
+                          "plan": {"kind": "document", "doc_type": "premarket",
+                                   "trade_date": "{date}", "label": "当日交易计划"},
+                      }},
         "live": {"kind": "loop", "prompt": "round_live", "request_limit": 50,
-                 "window": "09:35-15:05", "skip_lunch": True, "log_type": "watch_live"},
+                 "window": "09:35-15:05", "skip_lunch": True,
+                 "inputs": {
+                     "opening_plan": {"from": "premarket.plan", "selector": "latest",
+                                      "required": False, "label": "当日盘前计划"},
+                     "recent_decisions": {"from": "live.decision", "selector": "previous",
+                                          "limit": 3, "required": False,
+                                          "label": "最近盘中判断"},
+                 },
+                 "outputs": {
+                     "decision": {"kind": "document", "doc_type": "watch_live",
+                                  "name": "r{rounds}", "trade_date": "{date}",
+                                  "label": "本轮判断"},
+                 }},
         "replay": {"kind": "loop", "prompt": "round_replay", "request_limit": 50,
                    "interval": 5, "window": "09:35-15:00", "skip_lunch": True,
-                   "log_type": "watch_replay"},
+                   "inputs": {
+                       "opening_plan": {"from": "premarket.plan", "selector": "latest",
+                                        "required": False, "label": "当日盘前计划"},
+                       "recent_decisions": {"from": "replay.decision", "selector": "previous",
+                                            "limit": 3, "required": False,
+                                            "label": "最近模拟判断"},
+                   },
+                   "outputs": {
+                       "decision": {"kind": "document", "doc_type": "watch_replay",
+                                    "name": "r{rounds}", "trade_date": "{date}",
+                                    "label": "本轮判断"},
+                   }},
         "close": {"kind": "single", "prompt": "close", "request_limit": 200,
-                  "vars": ["date"]},
+                  "vars": ["date"],
+                  "inputs": {
+                      "opening_plan": {"from": "premarket.plan", "selector": "latest",
+                                       "required": False, "label": "当日盘前计划"},
+                      "intraday_decisions": {"from": "live.decision", "selector": "all",
+                                             "required": False, "max_chars": 50000,
+                                             "label": "当日盘中判断"},
+                  },
+                  "outputs": {
+                      "review": {"kind": "document", "doc_type": "close",
+                                 "trade_date": "{date}", "label": "盘后复盘"},
+                  }},
         "research": {"kind": "single", "prompt": "research", "request_limit": 200,
                      "vars": ["topic"]},
     },
@@ -137,6 +175,35 @@ class Systems:
             conn.execute("ALTER TABLE systems ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
             conn.execute("ALTER TABLE systems DROP CONSTRAINT IF EXISTS systems_name_key")
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS systems_user_slug ON systems(user_id, slug)")
+            self._migrate_expectation_stage_contracts(conn)
+
+    @staticmethod
+    def _migrate_expectation_stage_contracts(conn) -> None:
+        """给存量内置预期系统补 Stage I/O,不覆盖用户已经编辑的契约。
+
+        这里是一次性兼容迁移;运行引擎本身只认 manifest,不知道 premarket/live。
+        """
+        rows = conn.execute(
+            "SELECT id,manifest FROM systems WHERE slug='expectation'"
+        ).fetchall()
+        for row in rows:
+            manifest = dict(row["manifest"] or {})
+            stages = dict(manifest.get("stages") or {})
+            changed = False
+            for stage_name, default_stage in EXPECTATION_MANIFEST["stages"].items():
+                current = stages.get(stage_name)
+                if not current or current.get("prompt") != default_stage.get("prompt"):
+                    continue
+                current = dict(current)
+                for key in ("inputs", "outputs"):
+                    if key in default_stage and key not in current:
+                        current[key] = default_stage[key]
+                        changed = True
+                stages[stage_name] = current
+            if changed:
+                manifest["stages"] = stages
+                conn.execute("UPDATE systems SET manifest=%s WHERE id=%s",
+                             (json.dumps(manifest, ensure_ascii=False), row["id"]))
 
 
 _systems: Systems | None = None

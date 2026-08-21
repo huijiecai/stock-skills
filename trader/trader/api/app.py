@@ -15,12 +15,16 @@ from trader.api.envelope import EnvelopeMiddleware
 from trader.api.resources import (docs_router, router as portfolios_router,
                                   runs_router, trading_router, watch_router)
 from trader.api.systems import router as systems_router
+from trader.api.tools import router as tools_router
 
 _WEB_DIST = Path(__file__).resolve().parent.parent.parent / "web" / "dist"
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="trader platform api", version="0.1")
+    # /docs 是交易文档 API，Swagger 避让到 /api-docs。
+    app = FastAPI(title="trader platform api", version="0.1",
+                  docs_url="/api-docs", redoc_url="/api-redoc",
+                  openapi_url="/api-openapi.json")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # vite dev
@@ -29,6 +33,7 @@ def create_app() -> FastAPI:
     app.add_middleware(EnvelopeMiddleware)  # 标准响应包(信封):内层 CORS 先执行
     app.include_router(auth_router)
     app.include_router(systems_router)
+    app.include_router(tools_router)
     app.include_router(portfolios_router)
     app.include_router(runs_router)
     app.include_router(chat_router)

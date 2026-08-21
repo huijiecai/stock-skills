@@ -10,6 +10,14 @@ from trader.core.systems import default_systems
 router = APIRouter(prefix="/systems", tags=["systems"])
 
 
+def _validate_manifest(manifest: dict) -> None:
+    from trader.core.stageio import validate_stage_contracts
+
+    errors = validate_stage_contracts(manifest)
+    if errors:
+        raise HTTPException(400, "阶段配置无效:" + "；".join(errors[:8]))
+
+
 def _own_system(slug: str, who: dict) -> dict:
     row = default_systems().get(slug, user_id=who["user"]["id"])
     if row is None:
@@ -24,23 +32,51 @@ class SystemIn(BaseModel):
     status: str = "active"
 
 
+def _ensure_manifest_prompts(row: dict, user_id: int) -> None:
+    """系统创建即具备可运行的 v1，不依赖用户先进入设置页保存一次。"""
+    manifest = row["manifest"]
+    pv = default_prompt_versions()
+    for stage_name, sdef in manifest.get("stages", {}).items():
+        prompt = sdef.get("prompt")
+        if prompt and pv.latest(row["id"], prompt, user_id=user_id) is None:
+            pv.save(row["id"], prompt,
+                    f"# {row['slug']} · {stage_name}\n\n(在此编写此阶段的 prompt...)\n",
+                    user_id=user_id, display_name=sdef.get("label") or stage_name)
+    system_prompt = manifest.get("system_prompt")
+    if system_prompt and pv.latest(row["id"], system_prompt, user_id=user_id) is None:
+        pv.save(row["id"], system_prompt,
+                f"你是 {row['slug']} 的 AI agent。\n(在此编写系统级角色设定...)\n",
+                user_id=user_id, display_name="系统设定")
+
+
 @router.get("")
 def list_systems(who: dict = Depends(require_user)):
-    return default_systems().list(user_id=who["user"]["id"])
+    rows = default_systems().list(user_id=who["user"]["id"])
+    from trader.core.portfolios import default_portfolios
+    for row in rows:
+        default_portfolios().ensure_main(who["user"]["id"], row["id"])
+    return rows
 
 
 @router.post("")
 def upsert_system(body: SystemIn, who: dict = Depends(require_user)):
+    _validate_manifest(body.manifest)
     row = default_systems().upsert(body.slug, body.manifest, body.status,
                                    user_id=who["user"]["id"],
                                    display_name=body.display_name)
+    _ensure_manifest_prompts(row, who["user"]["id"])
+    from trader.core.portfolios import default_portfolios
+    default_portfolios().ensure_main(who["user"]["id"], row["id"])
     return {"slug": row["slug"], "display_name": row["display_name"],
             "status": row["status"]}
 
 
 @router.get("/{slug}")
 def get_system(slug: str, who: dict = Depends(require_user)):
-    return _own_system(slug, who)
+    row = _own_system(slug, who)
+    from trader.core.portfolios import default_portfolios
+    default_portfolios().ensure_main(who["user"]["id"], row["id"])
+    return row
 
 
 class ManifestIn(BaseModel):
@@ -56,6 +92,7 @@ def update_manifest(slug: str, body: ManifestIn, who: dict = Depends(require_use
     system_id = row["id"]
 
     m = body.manifest
+    _validate_manifest(m)
     pv = default_prompt_versions()
     for stage_name, sdef in m.get("stages", {}).items():
         p = sdef.get("prompt")
@@ -67,12 +104,30 @@ def update_manifest(slug: str, body: ManifestIn, who: dict = Depends(require_use
         pv.save(system_id, sp, f"你是 {slug} 的 AI agent。\n(在此编写系统级角色设定...)\n",
                 user_id=uid)
 
-    updated = default_systems().upsert(slug, m, row.get("status", "active"), user_id=uid)
+    updated = default_systems().upsert(slug, m, row.get("status", "active"), user_id=uid,
+                                       display_name=row.get("display_name") or slug)
     return {"slug": updated["slug"], "stages": list(m.get("stages", {}).keys()),
             "tools": len(m.get("tools", []))}
 
 
 # ── 指令在线编辑(命名空间=系统;md 编辑面在此退役)──────
+
+@router.get("/{slug}/stages/{stage}/context")
+def stage_context(slug: str, stage: str, date: str = "",
+                  who: dict = Depends(require_user)):
+    """阶段变量契约:该阶段 prompt 可用的占位符(编辑器变量面板/占位符 lint/
+    替换预览共用,与引擎运行时同源)。date 给出时派生变量算真值。
+    stage=(system) 表示系统设定——不做变量替换。"""
+    row = _own_system(slug, who)
+    if stage == "(system)":
+        return {"kind": "system", "vars": [],
+                "note": "系统设定不做变量替换,任何 {xxx} 都按字面文本发给模型"}
+    sdef = (row["manifest"].get("stages") or {}).get(stage)
+    if sdef is None:
+        raise HTTPException(404, f"阶段不存在:{stage}")
+    from trader.core.engine import stage_var_schema
+    return stage_var_schema(sdef, date=date or None)
+
 
 @router.get("/{slug}/prompts")
 def list_prompts(slug: str, who: dict = Depends(require_user)):
@@ -155,6 +210,9 @@ class RunIn(BaseModel):
     clock: str = "real"      # 发起时绑定:real(实盘值守) | simulated(重演某日)
     interval: int = 5        # simulated:模拟时钟步进(分钟/轮)
     sleep_seconds: int = 0   # real loop:每轮完成后休息秒数(0=连续看盘)
+    prompt_version: int | None = None  # 钉住阶段指令版本；空=最新
+    opening: str = "fresh"   # simulated 实验组合开局
+    portfolio_type: str = "main"  # real 时 main | paper；simulated 强制 experiment
 
 
 @router.post("/{slug}/run")
@@ -175,6 +233,18 @@ def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
 
     sdef = stages[stage]
     kind = sdef.get("kind", "single")
+    if body.clock not in ("real", "simulated"):
+        raise HTTPException(400, "clock 只允许 real 或 simulated")
+    if body.opening not in ("fresh", "fork", "fork-as-of"):
+        raise HTTPException(400, "opening 只允许 fresh、fork、fork-as-of")
+    if body.portfolio_type not in ("main", "paper"):
+        raise HTTPException(400, "portfolio_type 只允许 main 或 paper")
+    if body.prompt_version is not None:
+        prompt = sdef.get("prompt", "")
+        content = default_prompt_versions().get(row["id"], prompt, body.prompt_version,
+                                                user_id=uid)
+        if content is None:
+            raise HTTPException(400, f"指令 {prompt} v{body.prompt_version} 不存在")
 
     # ── 重复触发硬拦(防双进程并发写轮次/撞名静默失败)──
     from trader.core.runs import default_runs
@@ -182,7 +252,8 @@ def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
     mine = default_runs().list(system=slug, user_id=uid)
     if kind == "loop" and body.clock == "real":
         today = _dt.now().strftime("%Y%m%d")
-        alive = [r for r in mine if r["kind"] == "live" and r["trade_date"] == today
+        alive = [r for r in mine if r["clock"] == "real" and r["trade_date"] == today
+                 and r.get("stage") == stage
                  and r["status"] in ("running", "stopping")]
         if alive:
             r = alive[0]
@@ -198,15 +269,19 @@ def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
 
     if kind == "single":
         code = (f"from trader.core.engine import run_single; "
-                f"run_single('{slug}', '{stage}', user_id={uid}, date='{body.date}')")
+                f"run_single({slug!r}, {stage!r}, user_id={uid}, date={body.date!r}, "
+                f"clock={body.clock!r}, prompt_version={body.prompt_version!r}, "
+                f"opening={body.opening!r}, portfolio_type={body.portfolio_type!r})")
     elif body.clock == "real":
         code = (f"from trader.core.engine import run_live; "
-                f"run_live('{slug}', stage_name='{stage}', user_id={uid}, "
-                f"sleep_seconds={body.sleep_seconds})")
+                f"run_live({slug!r}, stage_name={stage!r}, user_id={uid}, "
+                f"sleep_seconds={body.sleep_seconds}, prompt_version={body.prompt_version!r}, "
+                f"portfolio_type={body.portfolio_type!r})")
     else:  # loop + simulated(重演某日)
         code = (f"from trader.core.engine import run_replay; "
-                f"run_replay('{slug}', '{body.date}', stage_name='{stage}', "
-                f"interval={body.interval}, tag='web-{slug}', user_id={uid})")
+                f"run_replay({slug!r}, {body.date!r}, stage_name={stage!r}, "
+                f"interval={body.interval}, tag={'web-' + slug!r}, user_id={uid}, "
+                f"opening={body.opening!r}, prompt_version={body.prompt_version!r})")
 
     cmd = ["uv", "run", "python", "-c", code]
     log = Path("logs/api_runs.log")

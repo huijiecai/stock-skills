@@ -7,7 +7,7 @@
 """
 from datetime import datetime as _dt
 
-from trader.core.context import current_portfolio, current_user
+from trader.core.context import current_portfolio, current_run, current_user
 from trader.core.db import _connect
 
 
@@ -53,6 +53,7 @@ class Documents:
             _log_version(conn, "document", doc_id, "save",
                          {"doc_type": doc_type, "name": name, "trade_date": trade_date,
                           "content": content, "meta": meta or {}}, portfolio=b)
+        self._link_run(doc_id, "output")
         return doc_id
 
     def set_meta(self, doc_id: int, meta: dict) -> None:
@@ -73,17 +74,111 @@ class Documents:
                           _dt.now().isoformat(timespec="seconds"), doc_id))
             _log_version(conn, "document", doc_id, "meta", {"meta": merged},
                          portfolio=row["portfolio_id"], user=row["user_id"])
+        self._link_run(doc_id, "output")
 
     def get(self, doc_type: str, name: str = "", trade_date: str = "",
             portfolio_id: int | None = None) -> str | None:
         """取文档全文;无则 None(多条时取最新)。"""
+        row = self.resolve(doc_type, name, trade_date, portfolio_id)
+        if row:
+            self._link_run(row["id"], "input")
+        return row["content"] if row else None
+
+    def resolve(self, doc_type: str, name: str = "", trade_date: str = "",
+                portfolio_id: int | None = None) -> dict | None:
+        """按业务键取完整文档,不自动记输入边;阶段解析器会补充语义化槽位。"""
         with _connect(self.schema) as conn:
-            row = conn.execute(
-                "SELECT content FROM documents WHERE doc_type=%s AND name=%s"
-                " AND COALESCE(trade_date,'')=%s AND portfolio_id=%s ORDER BY updated_at DESC LIMIT 1",
+            return conn.execute(
+                "SELECT * FROM documents WHERE doc_type=%s AND name=%s"
+                " AND COALESCE(trade_date,'')=%s AND portfolio_id=%s"
+                " ORDER BY updated_at DESC LIMIT 1",
                 (doc_type, name, trade_date or "", _eff(portfolio_id)),
             ).fetchone()
-        return row["content"] if row else None
+
+    def resolve_id(self, doc_id: int, portfolio_id: int | None = None) -> dict | None:
+        """按稳定 id 取完整文档,仍限制在当前/指定组合。"""
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT * FROM documents WHERE id=%s AND portfolio_id=%s",
+                (doc_id, _eff(portfolio_id)),
+            ).fetchone()
+
+    def for_run(self, run_id: int) -> list[dict]:
+        """场次明确读写过的文档，供证据链 UI 展示。"""
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT d.id,d.doc_type,d.name,d.trade_date,"
+                " COALESCE(rd.meta_snapshot,d.meta) AS meta,d.created_at,"
+                " COALESCE(rd.document_updated_at,d.updated_at) AS updated_at,"
+                " rd.relation,rd.round,rd.stage,rd.slot,rd.source_stage,rd.source_output,"
+                " rd.created_at AS linked_at,"
+                " LENGTH(COALESCE(rd.content_snapshot,d.content)) AS size"
+                " FROM run_documents rd JOIN documents d ON d.id=rd.document_id"
+                " WHERE rd.run_id=%s ORDER BY rd.relation,rd.round,rd.id",
+                (run_id,),
+            ).fetchall()
+
+    def get_for_run(self, run_id: int, document_id: int) -> dict | None:
+        """Read one document through its run evidence edge, never by ambient portfolio."""
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT d.id,d.doc_type,d.name,d.trade_date,"
+                " COALESCE(rd.meta_snapshot,d.meta) AS meta,"
+                " COALESCE(rd.content_snapshot,d.content) AS content,"
+                " rd.relation,rd.round,rd.stage,rd.slot,rd.source_stage,rd.source_output,"
+                " rd.created_at AS linked_at,"
+                " COALESCE(rd.document_updated_at,d.updated_at) AS document_updated_at"
+                " FROM run_documents rd JOIN documents d ON d.id=rd.document_id"
+                " WHERE rd.run_id=%s AND rd.document_id=%s"
+                " ORDER BY CASE rd.relation WHEN 'output' THEN 0 ELSE 1 END LIMIT 1",
+                (run_id, document_id),
+            ).fetchone()
+
+    def link_run(self, doc_id: int, relation: str, stage: str = "", slot: str = "",
+                 source_stage: str = "", source_output: str = "") -> None:
+        """公开的证据边接口;阶段引擎可补充槽位,普通工具调用保持空槽位。"""
+        self._link_run(doc_id, relation, stage, slot, source_stage, source_output)
+
+    def linked_in_current_round(self, doc_id: int, relation: str) -> bool:
+        """兼容旧 Prompt:判断它是否已经在本轮自行写过/读过目标文档。"""
+        run_id = current_run()
+        if not run_id:
+            return False
+        from trader.core.events import current_round
+        with _connect(self.schema) as conn:
+            row = conn.execute(
+                "SELECT 1 FROM run_documents WHERE run_id=%s AND document_id=%s"
+                " AND relation=%s AND round=%s",
+                (run_id, doc_id, relation, current_round()),
+            ).fetchone()
+        return row is not None
+
+    def _link_run(self, doc_id: int, relation: str, stage: str = "", slot: str = "",
+                  source_stage: str = "", source_output: str = "") -> None:
+        """尽力记录当前场次的文档读写；观测失败不能影响业务调用。"""
+        run_id = current_run()
+        if not run_id:
+            return
+        try:
+            from trader.core.events import current_round
+            with _connect(self.schema) as conn:
+                conn.execute(
+                    "INSERT INTO run_documents(run_id,document_id,relation,round,stage,slot,"
+                    " source_stage,source_output,content_snapshot,meta_snapshot,"
+                    " document_updated_at,created_at)"
+                    " SELECT %s,d.id,%s,%s,%s,%s,%s,%s,d.content,d.meta,d.updated_at,%s"
+                    " FROM documents d WHERE d.id=%s"
+                    " ON CONFLICT(run_id,document_id,relation) DO UPDATE SET"
+                    " round=GREATEST(run_documents.round,excluded.round),"
+                    " stage=CASE WHEN excluded.stage<>'' THEN excluded.stage ELSE run_documents.stage END,"
+                    " slot=CASE WHEN excluded.slot<>'' THEN excluded.slot ELSE run_documents.slot END,"
+                    " source_stage=CASE WHEN excluded.source_stage<>'' THEN excluded.source_stage ELSE run_documents.source_stage END,"
+                    " source_output=CASE WHEN excluded.source_output<>'' THEN excluded.source_output ELSE run_documents.source_output END",
+                    (run_id, relation, current_round(), stage, slot,
+                     source_stage, source_output, _dt.now().isoformat(timespec="seconds"), doc_id),
+                )
+        except Exception:  # noqa: BLE001 -- 证据观测失败不能杀执行
+            pass
 
     def list(self, doc_type: str | None = None, trade_date: str | None = None,
              portfolio_id: int | None = None) -> list[dict]:
@@ -137,6 +232,26 @@ class Documents:
             conn.execute("CREATE INDEX IF NOT EXISTS documents_portfolio ON documents(portfolio_id)")
             conn.execute("ALTER TABLE documents ADD COLUMN IF NOT EXISTS user_id INTEGER NOT NULL DEFAULT 0")
             conn.execute("CREATE INDEX IF NOT EXISTS documents_user ON documents(user_id)")
+            conn.execute(
+                """CREATE TABLE IF NOT EXISTS run_documents (
+                    id INTEGER GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
+                    run_id INTEGER NOT NULL,
+                    document_id INTEGER NOT NULL,
+                    relation TEXT NOT NULL CHECK (relation IN ('input','output')),
+                    round INTEGER NOT NULL DEFAULT 0,
+                    created_at TEXT NOT NULL,
+                    UNIQUE (run_id, document_id, relation)
+                )"""
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS run_documents_run ON run_documents(run_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS run_documents_document ON run_documents(document_id)")
+            conn.execute("ALTER TABLE run_documents ADD COLUMN IF NOT EXISTS stage TEXT NOT NULL DEFAULT ''")
+            conn.execute("ALTER TABLE run_documents ADD COLUMN IF NOT EXISTS slot TEXT NOT NULL DEFAULT ''")
+            conn.execute("ALTER TABLE run_documents ADD COLUMN IF NOT EXISTS source_stage TEXT NOT NULL DEFAULT ''")
+            conn.execute("ALTER TABLE run_documents ADD COLUMN IF NOT EXISTS source_output TEXT NOT NULL DEFAULT ''")
+            conn.execute("ALTER TABLE run_documents ADD COLUMN IF NOT EXISTS content_snapshot TEXT")
+            conn.execute("ALTER TABLE run_documents ADD COLUMN IF NOT EXISTS meta_snapshot JSONB")
+            conn.execute("ALTER TABLE run_documents ADD COLUMN IF NOT EXISTS document_updated_at TEXT")
             _init_versions(conn)
 
 
