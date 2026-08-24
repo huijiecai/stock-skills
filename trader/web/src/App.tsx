@@ -13,10 +13,7 @@ import SystemAsset from './pages/SystemAsset'
 import PromptWorkbench from './components/PromptWorkbench'
 import DataWorkbench from './components/DataWorkbench'
 import DocsBrowser from './components/DocsBrowser'
-import StageWorkspace from './pages/StageWorkspace'
 import Coach from './pages/Coach'
-import SystemRuns from './components/SystemRuns'
-import SystemPrompts from './components/SystemPrompts'
 import SystemSettings from './components/SystemSettings'
 
 function Guard({ children }: { children: React.ReactNode }) {
@@ -60,10 +57,20 @@ function WorkbenchRedirect() {
   return <Navigate to={first ? `prompt/${encodeURIComponent(first)}` : '../settings'} replace />
 }
 
-/** /stage/:stage → 系统设定进 prompts,普通阶段进 runs。 */
-function StageIndex() {
-  const { stage = '' } = useParams()
-  return <Navigate to={stage === '_system' ? 'prompts' : 'runs'} replace />
+/** 旧阶段 URL 只做兼容跳转；阶段页已被类型化工作台取代。 */
+function LegacyStageRedirect() {
+  const { name = '', stage = '' } = useParams()
+  const detail = useQuery({
+    queryKey: ['systemDetail', name],
+    queryFn: () => get(`/systems/${encodeURIComponent(name)}`),
+  })
+  if (detail.isLoading) return <Spin style={{ display: 'block', margin: '60px auto' }} />
+  const prompt = stage === '_system'
+    ? detail.data?.manifest?.system_prompt
+    : detail.data?.manifest?.stages?.[stage]?.prompt
+  return <Navigate to={prompt
+    ? `/systems/${encodeURIComponent(name)}/workbench/prompt/${encodeURIComponent(prompt)}`
+    : `/systems/${encodeURIComponent(name)}/workbench`} replace />
 }
 
 export default function App() {
@@ -86,11 +93,7 @@ export default function App() {
             <Route path="settings" element={<SystemSettings />} />
             <Route path="coach" element={<Coach />} />
             <Route path="coach/conversations" element={<Coach />} />
-            <Route path="stage/:stage" element={<StageWorkspace />}>
-              <Route index element={<StageIndex />} />
-              <Route path="runs" element={<SystemRuns />} />
-              <Route path="prompts" element={<SystemPrompts />} />
-            </Route>
+            <Route path="stage/:stage/*" element={<LegacyStageRedirect />} />
           </Route>
         </Route>
       </Route>

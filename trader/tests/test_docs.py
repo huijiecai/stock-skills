@@ -61,3 +61,51 @@ def test_research_doc_with_ref(request):
     _show("列表", rows)
     assert rows[0]["ref_id"] == 2
     assert "归因四行" in d.get("research", name="光纤")
+
+
+def test_run_document_evidence(request):
+    """证据关联:场次内保存记 output，随后读取同文档记 input。"""
+    from trader.core.context import set_context
+    d = _docs(request)
+    set_context(77, 9001, 3)
+    doc_id = d.save("research", "证据正文", name="存储")
+    assert d.get("research", name="存储") == "证据正文"
+    rows = d.for_run(9001)
+    assert [(r["document_id"] if "document_id" in r else r["id"], r["relation"])
+            for r in rows] == [(doc_id, "input"), (doc_id, "output")]
+    linked = d.get_for_run(9001, doc_id)
+    assert linked["content"] == "证据正文"
+    assert d.get_for_run(9002, doc_id) is None
+
+
+def test_run_document_stage_slots(request):
+    """阶段槽位:自动工具边可被引擎补充为明确的输入来源和输出身份。"""
+    from trader.core.context import set_context
+    d = _docs(request)
+    set_context(88, 9010, 3)
+    doc_id = d.save("custom_plan", "计划正文", trade_date="20260821")
+    d.link_run(doc_id, "output", stage="prepare", slot="plan")
+    d.link_run(doc_id, "input", stage="observe", slot="opening_plan",
+               source_stage="prepare", source_output="plan")
+    rows = d.for_run(9010)
+    output = next(r for r in rows if r["relation"] == "output")
+    input_ = next(r for r in rows if r["relation"] == "input")
+    assert (output["stage"], output["slot"]) == ("prepare", "plan")
+    assert (input_["stage"], input_["slot"]) == ("observe", "opening_plan")
+    assert (input_["source_stage"], input_["source_output"]) == ("prepare", "plan")
+
+
+def test_run_document_keeps_content_snapshot(request):
+    """场次证据快照:来源文档日后更新,旧场仍展示当时真正读到的正文。"""
+    from trader.core.context import set_context
+    d = _docs(request)
+    set_context(91, 2001, 9)
+    doc_id = d.save("plan", "第一版计划", trade_date="20260821")
+    d.link_run(doc_id, "input", stage="observer", slot="plan",
+               source_stage="morning", source_output="daily_plan")
+
+    set_context(91, 2002, 9)
+    d.save("plan", "第二版计划", trade_date="20260821")
+
+    assert d.get_for_run(2001, doc_id)["content"] == "第一版计划"
+    assert d.get_for_run(2002, doc_id)["content"] == "第二版计划"

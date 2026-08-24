@@ -368,6 +368,30 @@
       "code": "600487",
       "action": "清仓300股@59.10",
       "consumed_at": "2026-08-10 09:44"
+    },
+    {
+      "id": "出口B-20260821-01",
+      "direction": "CRO/医药外包",
+      "kind": "出口B",
+      "date": "20260821",
+      "fingerprint": "cro-0925to0933-0of5-zhaoyan-rebound-51.45-failed-back-below-auction-near-low",
+      "fingerprint_hash": "54d3a09863",
+      "status": "consumed",
+      "code": "603127",
+      "action": "sell-all-100-at-50.42",
+      "consumed_at": "2026-08-21 09:34:00"
+    },
+    {
+      "id": "出口B-20260821-02",
+      "direction": "存储芯片-超级周期",
+      "kind": "出口B",
+      "date": "20260821",
+      "fingerprint": "storage-0931to0938-breadth-max4of8-taiji-21.95-roundtrip-21.21-rebound-failed-to20.90",
+      "fingerprint_hash": "b4f117c268",
+      "status": "consumed",
+      "code": "600667",
+      "action": "sell-all-400-at-20.94",
+      "consumed_at": "2026-08-21 09:40:09"
     }
   ]
 }

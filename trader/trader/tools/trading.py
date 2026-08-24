@@ -14,6 +14,8 @@ T+1 / 现金不足由 store.Wallet 校验,拒绝时给出明确原因。
 
 from pydantic_ai import RunContext
 
+from trader.core.context import (current_execution_mode, current_runtime_clock,
+                                 current_runtime_date)
 from trader.core.ledger import WalletError, default_wallet
 from trader.core.market import _fetch_quotes, _tool_error_text
 
@@ -52,8 +54,23 @@ def execute(ctx: RunContext[None], action: str, code: str, quantity: int, reason
         return f"拒绝:数量必须是整手(100 的倍数),收到 {quantity}"
     if not code.startswith(MAINBOARD):
         return f"拒绝:{code} 不是主板(只允许 000/001/002/003/600/601/603/605)"
+    run_mode = current_execution_mode()
+    if run_mode == "replay":
+        bound_date = current_runtime_date()
+        bound_clock = current_runtime_clock()
+        if date and bound_date and date != bound_date:
+            return f"拒绝:回放日期已由平台绑定为 {bound_date}"
+        if time and bound_clock and time != bound_clock:
+            return f"拒绝:回放时刻已由平台绑定为 {bound_clock}"
+        mode = "replay"
+        date = date or bound_date
+        time = time or bound_clock
+    elif run_mode in {"real", "paper"}:
+        if mode == "replay":
+            return f"拒绝:{run_mode} 运行不能调用 replay 行情"
+        mode = "live"
     if mode == "replay" and not date:
-        return "拒绝:replay 模式必须传 date(如 20260814)"
+        return "拒绝:replay 模式缺少平台绑定的交易日期"
 
     # 按模式取成交价(live=实时,replay=回放时点)
     quotes = _fetch_quotes(mode, [code], date, time or None)

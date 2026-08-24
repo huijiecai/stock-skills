@@ -1,7 +1,7 @@
 """文档工具(AI 调用):save_doc / get_doc / list_docs。
 
 通用 md 内容存储:盘前报告(premarket)/研究过程(research,ref_id 挂预期)/盘后总结(close)/笔记(note)。
-prompt 不走这里(用 prompts/ 文件,稳定后再迁)。
+prompt 不走这里(正本在 PG 版本库,web 指令编辑器管理)。
 """
 
 from pydantic_ai import RunContext

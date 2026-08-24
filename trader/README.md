@@ -14,19 +14,41 @@ uv run python -m trader.runner close 20260817       # ③ 盘后:预期更新→
 uv run python -m trader.runner replay 20260812 --interval 20  # 模拟看盘(回放,自动重置账户+清旧轮日志)
 uv run python -m trader.runner replay 20260812 --resume       # 接续上次回放(不清不重置,从最大轮号继续)
 uv run python -m trader.runner research "光纤涨价"            # 预期研究(新建/更新自动判断)
-uv run python -m trader.viewer                               # 只读查看器(localhost:8500,审决策链路用)
 ```
 
-## viewer(只读查看器)
+场次、轮次思考流、交易留痕、文档和 Prompt 版本统一在 Web 工作台查看。
 
-`uv run python -m trader.viewer [--port 8500] [--reload]` → 浏览器打开 http://127.0.0.1:8500
+## Stage Runtime Contract v2
 
-- **日视图** `/day/{date}`:账户/当日交易/token 消耗 + 轮次时间线(r1-rN)+ 预期面板
-- **轮详情** `/round/{date}/{n}`:轮日志四小节 + **完整思考流**(📋轮指令 → 🔧工具调用 → ←返回数据 → 💬推理,逐条折叠)+ 该轮 token
-- **交易留痕** `/trades/{date}`:每笔 execute 的决策理由全文
-- **预期库** `/expectations`:阶段/池成员(leader 金色)/失效标志
-- 数据源:live/replay 每轮自动落 `transcript_live/replay` 思考流(documents 表);早于该机制的轮次显示"无思考流"
-- 只读红线:全部 SELECT,不 import 交易代码路径,删掉 viewer/ 目录系统照跑
+要理解代码如何落地，包括模块职责、运行时序、数据库表结构和数据隔离，请先阅读
+[系统架构与数据模型](docs/系统架构与数据模型.md)。README 只保留启动、命令和快速使用说明。
+
+平台把一次 Stage 运行拆成五个明确边界：
+
+```text
+Prompt       = 用户的交易方法和判断逻辑
+Stage        = Prompt、阶段产物输入输出、单次/循环和运行窗口
+Run Input    = 用户发起这一次运行时填写的具体任务或分析对象
+Engine       = 注入最小运行信封，按系统策略提供工具，控制权限与时钟
+Run          = Prompt 版本、实际输入、工具事件、输出和交易的证据
+```
+
+Stage 的输入只引用上游阶段产物。行情、指数、组合、成交、自选组和网络搜索不配置在 Stage
+里，而是由 Prompt 按需调用领域工具；工具的具体实现和平台存储工具不进入用户的系统配置。
+“分析沪电股份（002463）今天走势的原因”或“分析 PCB 板块未来一周强弱”这类每次都会变化的
+目标，在点击运行时填写为 Run Input，不写入 Stage，也不需要为它修改 Prompt。
+系统设置只保留联网、修改自选组、模拟交易和实盘交易等高风险策略。阶段产物由平台自动命名、
+归档、发布并建立血缘，Prompt 不需要保存文档。运行信封只向模型提供模式、日期、时钟和轮次，
+用户身份、组合身份和 run_id 仅写入运行证据。
+
+工具面板仍可执行试运行，用于确认某个行情/组合工具返回的真实文本；它是调试台，不是权限配置器。
+
+Run 结束后有两个不同入口：**继续讨论**恢复该 Run 的冻结 Prompt、原始 transcript 和 Stage
+身份，用于澄清本场结论，不读取运行后新数据，也不修改原产物；**教练复盘**属于 System，
+用于跨场次审查执行并给出 Prompt 优化建议。两类对话不会互相冒充。
+
+完整的边界、字段和迁移说明见
+[docs/运行上下文与Stage Contract重设计.md](docs/运行上下文与Stage%20Contract重设计.md)。
 
 ## 断点接续(8/17 起)
 
@@ -70,11 +92,12 @@ trader/
 │   │   └── registry.py      ← 能力注册表(工具名 → 实现)
 │   ├── runner.py            ← CLI 薄壳:五命令=expectation 别名;通用 run <system> <stage>
 │   └── tools/               ← 通用工具实现(account/trading/docs;market/watch 为垫片)
-├── prompts/                 ← 方法论(临时编辑面,sync 入 PG;运行时读 PG)
 ├── tests/                   ← 54 passed + 10 盘中专用自动跳过
 ├── scripts/migrate_to_platform.py  ← 老预期库→文档+自选组 一次性迁移(已执行)
 └── .env                     ← 配置(LLM_API_KEY / LLM_MODEL / LLM_BASE_URL)
 ```
+
+交易系统的原始方法论保存在仓库根目录 `skills/trading-system/`；平台中的 Prompt 由 Web 编辑并在 PG 中版本化。
 
 **核心约定**:预期=文档(doc_type='expectation',meta 存 stage/status),池=自选组(fields.role 分级);
 一切管理在 PG(单库行级多租户:实盘=portfolio 0,一场实验=一个实验组合)。

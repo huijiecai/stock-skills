@@ -10,11 +10,10 @@ import { systemDisplayName } from '../lib/system'
 const { Sider, Header, Content } = AntLayout
 
 const STARTER_MANIFEST = {
-  stages: { run: { kind: 'single', prompt: 'PLACEHOLDER-run', request_limit: 100, vars: ['date'] } },
-  tools: ['get_quotes', 'get_indices', 'get_kline', 'get_limit_up',
-    'get_top_amount', 'get_market_summary', 'get_positions', 'get_account',
-    'scan_market', 'save_doc', 'get_doc', 'list_docs'],
-  web_search: true,
+  stages: { run: { kind: 'single', prompt: 'PLACEHOLDER-run', request_limit: 100 } },
+  policy: { web_search: false, resource_write: false,
+            simulation_trading: true, live_trading: false },
+  doc_classes: { library: ['note', 'research'], ephemeral: ['report'] },
 }
 
 /** 自绘侧栏行:图标列定宽对齐 + 名称 ellipsis + 悬停才出 ⋯。 */
@@ -48,7 +47,7 @@ export default function Layout() {
       <Modal title="新建交易系统" open={creating} onCancel={() => setCreating(false)}
              onOk={handleCreate} okText="创建" width={420}
              okButtonProps={{ disabled: !newName.trim() }}>
-        <Space direction="vertical" style={{ width: '100%' }} size={10}>
+        <Space orientation="vertical" style={{ width: '100%' }} size={10}>
           <Input placeholder="系统名(中文,如:预期管理)" value={newLabel}
                  onChange={(e) => setNewLabel(e.target.value)}
                  onPressEnter={handleCreate} />
@@ -56,7 +55,7 @@ export default function Layout() {
                  onChange={(e) => setNewName(e.target.value)}
                  onPressEnter={handleCreate} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            创建后进入设置——添加阶段(盘前/盘中/盘后…)、勾选工具,然后写提示词。
+            创建后进入设置添加阶段，然后专注编写交易逻辑 Prompt；行情和组合数据按需调用工具。
           </Typography.Text>
         </Space>
       </Modal>
@@ -116,7 +115,8 @@ export default function Layout() {
 
   // 系统页 = 全屏工作区(资产/工作台自带顶栏),应用侧栏退场(原型形态)
   const onSystemPage = loc.pathname.startsWith('/systems/')
-  if (onSystemPage)
+  const onEvidencePage = loc.pathname.startsWith('/runs/') || loc.pathname.startsWith('/compare')
+  if (onSystemPage || onEvidencePage)
     return (
       <AntLayout style={{ minHeight: '100vh' }}>
         <Content style={{ width: '100%' }}>

@@ -3,7 +3,7 @@
 # 只输出价格/涨跌幅/>2%标记，不输出五档盘口
 # 设计目的：判断"涨跌幅>2%？是否触发§4.1评估？"，不是盯价格
 #
-# 用法: op_holdings_live.sh <code1>[,code2,...]
+# 用法: op_holdings_live.sh <code1>[,code2,...] | -
 # 示例: op_holdings_live.sh 002185
 #        op_holdings_live.sh 002185,002156
 
@@ -17,10 +17,18 @@ if [ -z "$ASTOCK" ]; then
     ASTOCK="$PROJECT_ROOT/astock/astock"
 fi
 
-CODES="${1:?用法: op_holdings_live.sh <code1>[,code2,...>}"
+CODES="${1:?用法: op_holdings_live.sh <code1>[,code2,...] | ->}"
 
 NOW=$(date "+%H:%M:%S")
 printf "=== %s 持仓快照（实时·①判断） ===\n" "$NOW"
+
+if [ "$CODES" = "-" ]; then
+    echo "当前空仓"
+    echo ""
+    echo "→ ①判断：无持仓，无需执行§4.1评估"
+    exit 0
+fi
+
 printf "%-8s %10s %8s %6s\n" "代码" "现价" "涨跌%" ">2%?"
 
 # 逗号分隔的代码拆分成数组

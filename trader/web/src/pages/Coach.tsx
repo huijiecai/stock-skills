@@ -1,8 +1,8 @@
 /** 教练工作台:多对话隔离 + @引用随时注入场次/prompt + 建议应用到 prompt。
  * 形态对标 ZCode:对话是工作单元,聊天中途 @#26 / @prompt:xxx 随时加上下文。 */
-import { Button, Empty, Input, Modal, Radio, Select, Spin, Typography, message } from 'antd'
+import { Button, Input, Modal, Radio, Segmented, Select, Spin, Typography, message } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import Markdown from 'react-markdown'
@@ -81,13 +81,15 @@ export default function Coach() {
   const [applyTarget, setApplyTarget] = useState<string | null>(null)
   const [applyPrompt, setApplyPrompt] = useState('')
   const [applyMode, setApplyMode] = useState<'replace' | 'append'>('append')
+  const [showArchived, setShowArchived] = useState(false)
+  const [draft, setDraft] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
   const taRef = useRef<any>(null)
   const candidates = useRefCandidates(system)
 
   const convs = useQuery({
-    queryKey: ['coachConvs', system],
-    queryFn: () => get(`/systems/${encodeURIComponent(system)}/coach/conversations`),
+    queryKey: ['coachConvs', system, showArchived],
+    queryFn: () => get(`/systems/${encodeURIComponent(system)}/coach/conversations?archived=${showArchived}`),
   })
   const conv = useQuery({
     queryKey: ['coachConv', system, convId],
@@ -95,20 +97,37 @@ export default function Coach() {
     enabled: convId != null,
   })
 
-  // URL ?new=1 → 新开对话;?runs=26 → 新开并预填引用
+  const startDraft = useCallback((preset = '') => {
+    setShowArchived(false)
+    setConvId(null)
+    setDraft(true)
+    setMessages([])
+    setInput(preset)
+    setMention(null)
+    requestAnimationFrame(() => taRef.current?.focus())
+  }, [])
+
+  // 空白编辑器只是本地草稿；用户发出首条消息后才创建持久化对话。
+  const paramKey = params.toString()
+  const runPreset = params.get('runs')
+  const promptPreset = params.get('prompt')
+  const requestNew = params.has('new')
   useEffect(() => {
-    if (convId != null || !convs.isSuccess) return
-    const preset = params.get('runs')
-    if (params.get('new') || preset) {
-      post(`/systems/${encodeURIComponent(system)}/coach/conversations`).then(r => {
-        setConvId(r.id)
-        if (preset) setInput(preset.split(',').map(id => `@#${id} `).join(''))
-        setParams({})
-      })
-    } else if ((convs.data ?? []).length) {
-      setConvId(convs.data[0].id)
+    const preset = [
+      ...(runPreset ? runPreset.split(',').map(id => `@#${id}`) : []),
+      ...(promptPreset ? [`@prompt:${promptPreset}`] : []),
+    ].join(' ') + ((runPreset || promptPreset) ? ' ' : '')
+    if (requestNew || preset) {
+      startDraft(preset)
+      if (paramKey) setParams({}, { replace: true })
+      return
     }
-  }, [convs.isSuccess, convs.data, convId])
+    if (draft || convId != null || !convs.isSuccess) return
+    const rows = convs.data ?? []
+    if (rows.length) setConvId(rows[0].id)
+    else if (!showArchived) startDraft()
+  }, [convs.isSuccess, convs.data, convId, draft, paramKey, promptPreset,
+      requestNew, runPreset, setParams, showArchived, startDraft])
 
   useEffect(() => {
     if (conv.data?.messages) setMessages(conv.data.messages)
@@ -153,19 +172,26 @@ export default function Coach() {
 
   async function send() {
     const text = input.trim()
-    if (!text || sending || convId == null) return
+    if (!text || sending || selectedArchived || (convId == null && !draft)) return
+    const wasDraft = draft || convId == null
+    const targetId = wasDraft ? 0 : convId
     setInput('')
     setMention(null)
     setSending(true)
     setMessages(prev => [...prev, { role: 'user', content: text }])
     try {
-      const r = await post<{ reply: string, title?: string }>(
-        `/systems/${encodeURIComponent(system)}/coach/conversations/${convId}`, { message: text })
+      const r = await post<{ id: number, reply: string, title?: string }>(
+        `/systems/${encodeURIComponent(system)}/coach/conversations/${targetId}`, { message: text })
+      if (wasDraft) {
+        setConvId(r.id)
+        setDraft(false)
+      }
       setMessages(prev => [...prev, { role: 'assistant', content: r.reply }])
-      if (r.title) qc.invalidateQueries({ queryKey: ['coachConvs', system] })
+      if (wasDraft || r.title) qc.invalidateQueries({ queryKey: ['coachConvs', system] })
     } catch (e: any) {
       message.error(e.message)
       setMessages(prev => prev.slice(0, -1))
+      setInput(text)
     } finally {
       setSending(false)
     }
@@ -199,46 +225,101 @@ export default function Coach() {
     enabled: !!applyTarget && !!applyPrompt,
   })
 
+  const promptCandidates = candidates.filter(c => c.insert.startsWith('@prompt:'))
+  const runCandidates = candidates.filter(c => c.insert.startsWith('@#'))
+  const addReference = (insert: string) => {
+    setInput(v => `${v}${v && !v.endsWith(' ') ? ' ' : ''}${insert}`)
+    requestAnimationFrame(() => taRef.current?.focus())
+  }
+  const selectedArchived = !draft && !!conv.data?.archived
+
+  async function setArchived(id: number, archived: boolean) {
+    try {
+      await post(`/systems/${encodeURIComponent(system)}/coach/conversations/${id}/archive`, { archived })
+      qc.setQueryData(['coachConv', system, id], (current: any) =>
+        current ? { ...current, archived } : current)
+      message.success(archived ? '对话已归档' : '对话已恢复')
+      await qc.invalidateQueries({ queryKey: ['coachConvs', system] })
+      if (id === convId) {
+        setDraft(false)
+        setShowArchived(archived)
+        setConvId(id)
+      }
+    } catch (e: any) { message.error(e.message) }
+  }
+
   return (
     <div className="coach-layout">
-      {/* 左栏:对话列表 + @引用说明 */}
+      {/* 左栏:对话列表 + 可点击上下文。 */}
       <aside className="coach-side">
-        <Button type="primary" block onClick={async () => {
-          const r = await post(`/systems/${encodeURIComponent(system)}/coach/conversations`)
-          setConvId(r.id); setMessages([])
-          qc.invalidateQueries({ queryKey: ['coachConvs', system] })
-        }}>＋ 新开对话</Button>
+        <Button type="primary" block onClick={() => startDraft()}>＋ 新开对话</Button>
         <div className="stg-group" style={{ marginTop: 10 }}>对话 · {sysLabel(system)}</div>
+        <Segmented block size="small" value={showArchived ? 'archived' : 'active'}
+          onChange={(value) => {
+            setShowArchived(value === 'archived'); setConvId(null); setDraft(false); setMessages([])
+          }}
+          options={[{ label: '进行中', value: 'active' }, { label: '已归档', value: 'archived' }]} />
         <div className="coach-conv-list">
           {(convs.data ?? []).map((c: any) => (
             <div key={c.id}
                  className={`stg-item${c.id === convId ? ' active' : ''}`}
-                 onClick={() => { setConvId(c.id); setMessages([]) }}>
+                 onClick={() => { setDraft(false); setConvId(c.id); setMessages([]) }}>
               <span className="stg-icon">💬</span>
               <span className="stg-label" title={c.title}>{c.title}</span>
+              <button className="coach-archive-action"
+                      title={c.archived ? '恢复对话' : '归档对话'}
+                      aria-label={`${c.archived ? '恢复' : '归档'} ${c.title}`}
+                      onClick={e => { e.stopPropagation(); setArchived(c.id, !c.archived) }}>
+                <span className="coach-archive-glyph" aria-hidden="true">
+                  {c.archived ? '↑' : '↓'}
+                </span>
+              </button>
             </div>
           ))}
           {convs.isSuccess && !(convs.data ?? []).length && (
             <Typography.Text type="secondary" style={{ fontSize: 12, padding: 8, display: 'block' }}>
-              还没有对话——新开一个,输入 @ 引用场次或 prompt 开始讨论
+              {showArchived ? '没有已归档的对话' : '还没有对话'}
             </Typography.Text>)}
         </div>
-        <div className="stg-group">引用语法</div>
-        <div style={{ fontSize: 12, color: 'var(--text-3)', padding: '0 10px', lineHeight: 1.8 }}>
-          聊天中随时输入 <b>@</b> 弹出候选:<br />
-          <code>@#26</code> 注入场次档案<br />
-          <code>@prompt:round_live</code> 注入 prompt 全文<br />
-          多场对比就 @ 两场一起
+        <div className="stg-group">当前上下文</div>
+        <div className="coach-context-list">
+          {promptCandidates.slice(0, 5).map(c => (
+            <button key={c.insert} className="coach-context-item" onClick={() => addReference(c.insert)}>
+              <span>{c.label}</span><small>{c.hint}</small>
+            </button>
+          ))}
+          {runCandidates.slice(0, 5).map(c => (
+            <button key={c.insert} className="coach-context-item" onClick={() => addReference(c.insert)}>
+              <span>{c.label}</span><small>{c.hint}</small>
+            </button>
+          ))}
+          {!candidates.length && <Typography.Text type="secondary" style={{ fontSize: 12 }}>暂无可引用内容</Typography.Text>}
         </div>
       </aside>
 
       {/* 右侧:当前对话 */}
       <div className="coach-main">
-        {convId == null ? (
-          <Empty style={{ marginTop: 80 }} description="新开一个对话开始进化讨论" />
+        {convId == null && !draft ? (
+          <div className="coach-loading"><Typography.Text type="secondary">选择一段对话</Typography.Text></div>
         ) : (
           <>
+            <div className="coach-chat-head">
+              <div><b>教练</b><span>系统进化讨论</span></div>
+              <span className="st-badge st-neutral">
+                {draft ? '新对话' : `${selectedArchived ? '已归档 · ' : ''}对话 #${convId}`}
+              </span>
+            </div>
             <div className="coach-msgs">
+              {!messages.length && !sending && (
+                <div className="coach-starters">
+                  <button onClick={() => setInput(runCandidates[0]
+                    ? `${runCandidates[0].insert} 复盘这场执行，区分指令问题和执行问题。`
+                    : '检查当前系统的指令结构，指出最值得先验证的一处。')}>复盘最近场次</button>
+                  <button onClick={() => setInput(promptCandidates[0]
+                    ? `${promptCandidates[0].insert} 审查这条指令，给出可验证的改进建议。`
+                    : '从风险约束和证据闭环两方面检查当前系统。')}>审查当前指令</button>
+                </div>
+              )}
               {messages.map((msg, i) => {
                 const sugg = msg.role === 'assistant' ? extractSuggestions(msg.content) : []
                 return (
@@ -284,11 +365,12 @@ export default function Coach() {
                 onKeyDown={(e) => {
                   if (e.key === 'Enter' && !e.shiftKey && !mention) { e.preventDefault(); send() }
                 }}
-                placeholder="讨论…(输入 @ 引用场次/prompt,Enter 发送,Shift+Enter 换行)"
-                disabled={sending} />
+                placeholder="输入问题，@ 可引用场次或指令"
+                disabled={sending || selectedArchived} />
               <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Button onClick={() => nav(`/systems/${encodeURIComponent(system)}/stage/live/runs`)}>📊 去看场次</Button>
-                <Button type="primary" onClick={send} loading={sending} disabled={!input.trim()}>发送</Button>
+                <Button onClick={() => nav(`/systems/${encodeURIComponent(system)}`)}>📊 去看履历</Button>
+                <Button type="primary" onClick={send} loading={sending}
+                        disabled={!input.trim() || selectedArchived}>发送</Button>
               </div>
             </div>
           </>

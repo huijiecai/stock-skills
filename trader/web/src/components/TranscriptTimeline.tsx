@@ -38,7 +38,7 @@ export default function TranscriptTimeline({ loading, steps, logMd, usage }: {
   items.push({
     key: 'ts',
     label: `🧠 思考流(${steps.length} 步${usage?.requests ? ` · ${usage.requests} 请求 · 输入${(usage.input_tokens ?? 0).toLocaleString()} / 输出${(usage.output_tokens ?? 0).toLocaleString()} tokens` : ''})`,
-    children: (
+    children: steps.length ? (
       <div>
         {steps.map((s, i) => {
           const m = KIND_META[s.kind]
@@ -56,7 +56,7 @@ export default function TranscriptTimeline({ loading, steps, logMd, usage }: {
           )
         })}
       </div>
-    ),
+    ) : <div style={{ color: 'var(--text-3)', padding: 12 }}>这一轮没有保存思考流或工具调用。</div>,
   })
 
   return (

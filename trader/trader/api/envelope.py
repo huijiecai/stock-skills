@@ -15,7 +15,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
 # 这些路径不走信封(静态文件/健康检查/Swagger)
-_SKIP_PREFIXES = ("/healthz", "/docs", "/openapi.json", "/redoc", "/web")
+_SKIP_PREFIXES = ("/healthz", "/api-docs", "/api-openapi.json", "/api-redoc", "/web")
 
 
 class EnvelopeMiddleware(BaseHTTPMiddleware):
