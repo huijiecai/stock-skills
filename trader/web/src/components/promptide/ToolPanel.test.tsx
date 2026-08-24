@@ -1,4 +1,4 @@
-/** ToolPanel:工具目录面板——分组渲染、白名单置灰(Q6)、试运行调 call 端点展示真实返回。 */
+/** ToolPanel:工具目录面板——分组渲染、领域工具过滤、试运行调 call 端点。 */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -48,14 +48,13 @@ describe('ToolPanel(工具面板)', () => {
     expect(screen.getByText('写')).toBeTruthy()
   })
 
-  it('白名单外的工具置灰(未启用标记 + 试运行禁用)', async () => {
+  it('不再按系统白名单置灰，领域工具均可试运行', async () => {
     mount(<ToolPanel enabled={['get_quotes']} onInsert={vi.fn()} />)
     await expandGroup(/行情/)
     await expandGroup(/交易/)
-    expect(screen.getByText('未启用')).toBeTruthy()
     const btns = screen.getAllByText('▶ 试运行')
-    expect(btns[0].closest('button')?.disabled).toBe(false)   // get_quotes 在白名单
-    expect(btns[1].closest('button')?.disabled).toBe(true)    // execute 未启用
+    expect(btns[0].closest('button')?.disabled).toBe(false)   // 行情工具可试运行
+    expect(btns[1].closest('button')?.disabled).toBe(false)   // execute 由系统策略控制
   })
 
   it('试运行:提交表单参数 → 展示返回(即 LLM 看到的内容)', async () => {

@@ -15,15 +15,15 @@ from pydantic_ai.settings import ModelSettings
 from pydantic_ai.usage import UsageLimits
 
 from trader.core.portfolios import default_portfolios, open_experiment, open_live
-from trader.core.context import set_context
+from trader.core.context import (ContextAssembler, RuntimeEnvelope, set_context,
+                                 set_execution_mode)
 from trader.core.events import emit, instrument, set_current_round
 from trader.core.ledger import default_wallet
 from trader.core.llm import build_model
-from trader.core.registry import TOOLS, WRITE_TOOLS
+from trader.core.registry import TOOLS, WRITE_TOOLS, capability_enabled, capability_tools
 from trader.core.runs import default_runs
 from trader.core.stageio import (
     inject_stage_context,
-    load_stage_inputs,
     loop_output_type,
     publish_stage_outputs,
     stage_contract,
@@ -41,16 +41,18 @@ CLOSE = time(15, 0)
 
 # ── agent 装配 ──────────────────────────────────────────
 
-def build_agent(system_name: str, user_id: int = 0) -> tuple[Agent, dict, int]:
-    """按 systems 行装配 agent(工具白名单 + system prompt + 联网开关,按用户命名空间)。
-    返回 (agent, manifest, system_id);白名单里不存在的工具名跳过并告警。"""
+def build_agent(system_name: str, user_id: int = 0,
+                stage_name: str | None = None,
+                execution_mode: str | None = None) -> tuple[Agent, dict, int]:
+    """按系统策略和运行时钟装配 agent，返回 agent、manifest、system id。"""
     from trader.core.systems import default_systems
 
     row = default_systems().get(system_name, user_id)
     if row is None:
         raise RuntimeError(f"系统 {system_name} 未注册(systems 表无此行)")
     manifest = row["manifest"]
-    caps = [NativeTool(WebSearchTool(max_uses=3))] if manifest.get("web_search") else None
+    caps = [NativeTool(WebSearchTool(max_uses=3))] \
+        if capability_enabled(manifest, stage_name, "research.web_search") else None
     agent = Agent(
         build_model(),
         capabilities=caps,
@@ -58,7 +60,7 @@ def build_agent(system_name: str, user_id: int = 0) -> tuple[Agent, dict, int]:
         model_settings=ModelSettings({"anthropic_thinking": {"type": "disabled"}},
                                      max_tokens=4000),
     )
-    for name in manifest["tools"]:
+    for name in capability_tools(manifest, stage_name, execution_mode):
         fn = TOOLS.get(name)
         if fn is None:
             print(f"  ⚠ 工具 {name} 不在注册表,已跳过(manifest 与代码不一致)")
@@ -99,11 +101,13 @@ def _derive_date_vars(date: str, prev: str = "") -> tuple[str, str, int]:
 
 
 def _stage_vars(stage: dict, **cli: str) -> dict:
-    """按 manifest 声明的 vars 组装变量;date/now/rounds/clock 由调用方/循环注入。"""
+    """按调用参数组装变量;date/now/rounds/clock 由调用方/循环注入。
+    派生三件套(prev/weekday/gap)只要有 date 就推算,不看 manifest 声明——
+    契约编辑丢掉 vars 字段不再导致 prompt 加载失败(8/24 盘前事故),
+    多余变量对 format 无害。"""
     out = {k: v for k, v in cli.items() if v}
     date = cli.get("date", "")
-    need = stage.get("vars", [])
-    if date and any(v in need for v in ("prev", "weekday", "gap")):
+    if date:
         prev, wd, gap = _derive_date_vars(date, cli.get("prev", ""))
         out.update({"prev": prev, "weekday": wd, "gap": gap})
     return out
@@ -121,19 +125,18 @@ def stage_var_schema(stage: dict, date: str = "") -> dict:
 
     declared = stage.get("vars", [])
     if stage.get("kind") != "loop":                     # single(单次阶段)
-        vars_ = []
-        if "date" in declared:
-            vars_.append(v("date", "目标交易日 YYYYMMDD", "20260824", "caller"))
+        # 派生三件套随 date 自动可用(与 _stage_vars 同规则,不依赖声明);
+        # date 本身与调用方变量(research 的 topic 等)由发起时传入
+        vars_ = [
+            v("date", "目标交易日 YYYYMMDD(发起时填,填了才有派生三件套)", "20260824", "caller"),
+            v("prev", "上一交易日(自动推算,跳过节假日)", "20260821", "auto"),
+            v("weekday", "星期几(中文,由 date 推)", "周一", "auto"),
+            v("gap", "距上一交易日的自然日天数", "3", "auto"),
+        ]
         for extra in declared:
             if extra in ("date", "prev", "weekday", "gap"):
                 continue
             vars_.append(v(extra, "调用发起时传入", "", "caller"))
-        if any(x in declared for x in ("prev", "weekday", "gap")):
-            vars_ += [
-                v("prev", "上一交易日(自动推算,跳过节假日)", "20260821", "auto"),
-                v("weekday", "星期几(中文,由 date 推)", "周一", "auto"),
-                v("gap", "距上一交易日的自然日天数", "3", "auto"),
-            ]
         if date:
             prev, wd, gap = _derive_date_vars(date)
             for item in vars_:
@@ -168,6 +171,48 @@ def _run_round(agent: Agent, prompt: str, history: list[ModelMessage],
             print(f"  ⚠ 本轮第 {attempt}/{retries} 次失败:{type(e).__name__}: {str(e)[:120]}")
             time_mod.sleep(2)
     raise RuntimeError(f"连续 {retries} 次失败,停止看盘:{last_err}")
+
+
+def _assemble_context(manifest: dict, system_name: str, stage_name: str,
+                      run_id: int | None, user_id: int, portfolio_id: int,
+                      mode: str, variables: dict, docs=None,
+                      run_inputs: dict | None = None) -> str:
+    """Build the platform-owned context envelope and declared stage inputs."""
+    envelope = RuntimeEnvelope(
+        system=system_name,
+        stage=stage_name,
+        run_id=run_id,
+        user_id=user_id,
+        portfolio_id=portfolio_id,
+        mode=mode,
+        date=str(variables.get("date", "")),
+        clock=str(variables.get("clock", variables.get("now", ""))),
+        round_no=int(variables.get("rounds", 0) or 0),
+        variables=dict(variables),
+    )
+    set_execution_mode(mode, envelope.date, envelope.clock)
+    assembled = ContextAssembler().assemble(
+        manifest, stage_name, variables, envelope, docs=docs,
+        run_inputs=run_inputs,
+    )
+    # Context assembly is part of the run evidence.  Keep event payloads
+    # bounded; documents and snapshots remain available through their normal
+    # stores and document/run links.
+    evidence = assembled.evidence()
+    for item in evidence["inputs"]:
+        if isinstance(item.get("content"), str) and len(item["content"]) > 1000:
+            item["content"] = item["content"][:1000] + "...(truncated)"
+    emit("context", body=json.dumps(evidence, ensure_ascii=False, default=str)[:8000])
+    return assembled.render()
+
+
+def _resume_run_inputs(runs, run: dict, requested_inputs: dict) -> dict:
+    """Keep a resumed Run bound to the request frozen when it was created."""
+    frozen_inputs = run.get("run_inputs") or {}
+    if requested_inputs and frozen_inputs and requested_inputs != frozen_inputs:
+        raise RuntimeError("接续场次的本次任务与原场次不一致，请新建场次")
+    runs.set_run_inputs_if_empty(run["id"], requested_inputs)
+    return frozen_inputs or requested_inputs
 
 
 def _trim_rounds(messages: list[ModelMessage], keep: int = KEEP_ROUNDS) -> list[ModelMessage]:
@@ -214,15 +259,23 @@ def _last_round(doc_type: str, trade_date: str) -> int:
 
 def run_single(system_name: str, stage_name: str, user_id: int = 0,
                clock: str = "real", prompt_version: int | None = None,
-               opening: str = "fresh", portfolio_type: str = "main", **cli: str) -> None:
+               opening: str = "fresh", portfolio_type: str = "main",
+               instruction: str = "", **cli: str) -> None:
     """单次阶段:建 run 登记 → 装配 → 跑一次 → 思考流落库 → 封场。
     产物写用户的 live 账本袋;场次页可见。"""
-    agent, manifest, system_id = build_agent(system_name, user_id)
+    execution_mode = (
+        "replay" if clock == "simulated"
+        else "paper" if portfolio_type == "paper" else "real"
+    )
+    agent, manifest, system_id = build_agent(
+        system_name, user_id, stage_name, execution_mode
+    )
     stage = manifest["stages"][stage_name]
     main = default_portfolios().main_of(user_id, system_id)
     if main is None:
         raise RuntimeError(f"用户 {user_id} 在系统 {system_name} 没有实盘组合(先在 web 创建)")
     vars_ = _stage_vars(stage, **cli)
+    run_inputs = ({"instruction": instruction.strip()} if instruction.strip() else {})
     date = cli.get("date", "")
     if clock == "simulated":
         portfolio_id = default_portfolios().create(user_id, "experiment", system_id,
@@ -243,9 +296,11 @@ def run_single(system_name: str, stage_name: str, user_id: int = 0,
                           system_id=system_id, user_id=user_id, stage=stage_name,
                           portfolio_id=portfolio_id, clock=clock,
                           clock_date=date if clock == "simulated" else None,
-                          stage_contract=stage_contract(stage_name, stage))
+                          stage_contract=stage_contract(stage_name, stage),
+                          run_inputs=run_inputs)
     except ValueError:
         run = runs.get(slug, user_id)  # 同名重跑 → 接续
+        run_inputs = _resume_run_inputs(runs, run, run_inputs)
     from trader.core.context import set_context as _sc
     if clock == "simulated":
         fingerprint = open_experiment(portfolio_id, date, opening, user_id=user_id,
@@ -259,7 +314,11 @@ def run_single(system_name: str, stage_name: str, user_id: int = 0,
     emit("round_start", body=f"单次分析 {date or vars_.get('topic', '')}")
     try:
         runs.touch(run["id"])   # 单次阶段可能跑很久,开跑先刷心跳
-        context = load_stage_inputs(manifest, stage_name, vars_)
+        set_execution_mode(execution_mode)
+        context = _assemble_context(
+            manifest, system_name, stage_name, run["id"], user_id,
+            portfolio_id, execution_mode, vars_, run_inputs=run_inputs
+        )
         prompt = load(stage["prompt"], system_id=system_id, user_id=user_id,
                       prompt_version=prompt_version, **vars_)
         result = _run_round(agent, inject_stage_context(prompt, context), [],
@@ -268,10 +327,15 @@ def run_single(system_name: str, stage_name: str, user_id: int = 0,
         _save_transcript(stage_name, date, 0, datetime.now().strftime("%H:%M"),
                          result.all_messages(), result.usage)
         print(result.output)
-    finally:
         emit("round_end", body="完成")
         runs.seal(run["id"])
         print(f"📦 已封存:{slug}")
+    except Exception as e:  # noqa: BLE001 —— 失败不伪装成完成:留错误事件+指标,页面上看得见
+        emit("round_end", body=f"✗ 失败:{type(e).__name__}: {str(e)[:300]}")
+        runs.seal(run["id"], metrics={"error": f"{type(e).__name__}: {str(e)[:500]}",
+                                      "status": "failed"})
+        print(f"✗ {slug} 失败:{type(e).__name__}: {e}")
+        raise
 
 
 # ── loop 阶段(live/replay)────────────────────────────
@@ -302,9 +366,12 @@ def _interruptible_sleep(seconds: int, run_id: int, chunk: int = 10) -> bool:
 def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
              max_rounds: int | None = None, user_id: int = 0,
              prompt_version: int | None = None,
-             portfolio_type: str = "main") -> None:
+             portfolio_type: str = "main", instruction: str = "") -> None:
     """实盘循环:写该系统的实盘组合。跨重启按当日轮日志接续;午休跳过;15:05 收工。"""
-    agent, manifest, system_id = build_agent(system_name, user_id)
+    execution_mode = "paper" if portfolio_type == "paper" else "real"
+    agent, manifest, system_id = build_agent(
+        system_name, user_id, stage_name, execution_mode
+    )
     stage = manifest["stages"][stage_name]
     log_type = loop_output_type(stage, "watch_live")
     today = datetime.now().strftime("%Y%m%d")
@@ -318,15 +385,18 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
         portfolio_id = prow["id"]
     run_kind = "paper" if portfolio_type == "paper" else "live"
     run_slug = f"{system_name}-{stage_name}-{portfolio_type}-{today}"
+    requested_inputs = ({"instruction": instruction.strip()} if instruction.strip() else {})
     run = runs.get(run_slug, user_id)
     if run is None:
         run = runs.create(run_slug, run_kind, today,
                           _prompt_cover(manifest, system_id, user_id, stage_name, prompt_version),
                           system_id=system_id, user_id=user_id, stage=stage_name,
                           portfolio_id=portfolio_id,
-                          stage_contract=stage_contract(stage_name, stage))
+                          stage_contract=stage_contract(stage_name, stage),
+                          run_inputs=requested_inputs)
         print(f"📦 场次已建:{run_slug}(组合 {portfolio_id}=实盘,#run_{run['id']})")
     else:
+        requested_inputs = _resume_run_inputs(runs, run, requested_inputs)
         print(f"📦 接续场次:{run_slug}(status={run['status']})")
         if run["status"] != "running":
             runs.set_status(run["id"], "running")   # 停止/封存后再续:复活状态
@@ -340,10 +410,9 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
         print(f"↺ 接续今日看盘:已有 {rounds} 轮日志,从第 {rounds + 1} 轮继续")
     history: list[ModelMessage] = []
     set_current_round(0)
-    session_context = load_stage_inputs(manifest, stage_name, {"date": today})
-    context_pending = True
     limits = UsageLimits(request_limit=stage.get("request_limit", 50))
     try:
+        set_execution_mode(execution_mode)
         while True:
             if _stop_requested(run["id"]):
                 print("\n⏹ 收到停止请求,完成收尾后退出(轮次与留痕完整,重新运行可接续)")
@@ -369,16 +438,21 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
                 prompt = load(stage["prompt"], system_id=system_id, user_id=user_id,
                               prompt_version=prompt_version,
                               rounds=rounds, now=now, date=today)
+                round_context = _assemble_context(
+                    manifest, system_name, stage_name, run["id"], user_id,
+                    portfolio_id, execution_mode,
+                    {"rounds": rounds, "now": now, "date": today},
+                    run_inputs=requested_inputs,
+                )
                 result = _run_round(
                     agent,
-                    inject_stage_context(prompt, session_context if context_pending else ""),
+                    inject_stage_context(prompt, round_context),
                     history,
                     limits,
                 )
                 publish_stage_outputs(stage_name, stage,
                                       {"rounds": rounds, "now": now, "date": today},
                                       result.output)
-                context_pending = False
                 history = _trim_rounds(result.all_messages())
                 _save_transcript(stage_name, today, rounds, now,
                                  result.all_messages(), result.usage)
@@ -415,18 +489,23 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
                interval: int = 5, max_rounds: int | None = None, resume: bool = False,
                tag: str = "", opening: str = "fresh", custom_file: str = "",
                as_of: str = "", user_id: int = 0,
-               prompt_version: int | None = None) -> None:
+               prompt_version: int | None = None, instruction: str = "") -> None:
     """重演循环:一场一个实验组合(发号登记),开局三模式,源=用户默认组合。"""
-    agent, manifest, system_id = build_agent(system_name, user_id)
+    execution_mode = "replay"
+    agent, manifest, system_id = build_agent(
+        system_name, user_id, stage_name, execution_mode
+    )
     stage = manifest["stages"][stage_name]
     log_type = loop_output_type(stage, "watch_replay")
     runs = default_runs()
     interval = interval or stage.get("interval", 5)
+    requested_inputs = ({"instruction": instruction.strip()} if instruction.strip() else {})
     if resume:
         cands = runs.list(kind="replay", trade_date=date, user_id=user_id)
         if not cands:
             print(f"⚠ {date} 没有可接续的回放场,按全新实验开始")
         run = cands[0]
+        requested_inputs = _resume_run_inputs(runs, run, requested_inputs)
         from trader.core.context import set_context as _sc
         if run["status"] != "running":
             runs.set_status(run["id"], "running")   # 停止后再续:复活状态
@@ -444,7 +523,8 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
                           _prompt_cover(manifest, system_id, user_id, stage_name, prompt_version),
                           system_id=system_id, user_id=user_id, stage=stage_name,
                           clock="simulated", clock_date=date, portfolio_id=portfolio_id,
-                          stage_contract=stage_contract(stage_name, stage))
+                          stage_contract=stage_contract(stage_name, stage),
+                          run_inputs=requested_inputs)
         custom = _load_custom(custom_file)
         main = default_portfolios().main_of(user_id, system_id)
         if main is None:
@@ -459,10 +539,9 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
         rounds, hhmm = 0, MORNING_START
     history: list[ModelMessage] = []
     set_current_round(0)
-    session_context = load_stage_inputs(manifest, stage_name, {"date": date})
-    context_pending = True
     limits = UsageLimits(request_limit=stage.get("request_limit", 50))
     try:
+        set_execution_mode(execution_mode)
         while hhmm <= CLOSE:
             if _stop_requested(run["id"]):
                 print("\n⏹ 收到停止请求,完成收尾后退出(重新运行 --resume 可接续)")
@@ -479,16 +558,21 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
                 prompt = load(stage["prompt"], system_id=system_id, user_id=user_id,
                               prompt_version=prompt_version,
                               rounds=rounds, date=date, clock=clock)
+                round_context = _assemble_context(
+                    manifest, system_name, stage_name, run["id"], user_id,
+                    portfolio_id, execution_mode,
+                    {"rounds": rounds, "date": date, "clock": clock},
+                    run_inputs=requested_inputs,
+                )
                 result = _run_round(
                     agent,
-                    inject_stage_context(prompt, session_context if context_pending else ""),
+                    inject_stage_context(prompt, round_context),
                     history,
                     limits,
                 )
                 publish_stage_outputs(stage_name, stage,
                                       {"rounds": rounds, "date": date, "clock": clock},
                                       result.output)
-                context_pending = False
                 history = _trim_rounds(result.all_messages())
                 _save_transcript(stage_name, date, rounds, clock,
                                  result.all_messages(), result.usage)

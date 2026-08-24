@@ -9,6 +9,7 @@ import re
 from string import Formatter
 
 from trader.core.documents import Documents, default_documents
+from trader.core.contracts import StageSpec, stage_spec, validate_stage_spec
 
 
 def validate_stage_contracts(manifest: dict) -> list[str]:
@@ -23,10 +24,12 @@ def validate_stage_contracts(manifest: dict) -> list[str]:
         if not isinstance(stage, dict):
             errors.append(f"{stage_name}:阶段定义必须是对象")
             continue
-        if not str(stage.get("prompt") or "").strip():
-            errors.append(f"{stage_name}:必须指定 Prompt")
-        if stage.get("kind", "single") not in ("single", "loop"):
-            errors.append(f"{stage_name}:执行方式必须是 single 或 loop")
+        try:
+            spec = stage_spec(stage_name, stage)
+            errors.extend(validate_stage_spec(spec, manifest))
+        except (TypeError, ValueError) as e:
+            errors.append(f"{stage_name}:{e}")
+            continue
         outputs = stage.get("outputs") or {}
         if not isinstance(outputs, dict):
             errors.append(f"{stage_name}:outputs 必须是对象")
@@ -37,9 +40,12 @@ def validate_stage_contracts(manifest: dict) -> list[str]:
             if not isinstance(spec, dict):
                 errors.append(f"{stage_name}.{output_id}:输出定义必须是对象")
                 continue
-            if spec.get("kind", "document") != "document":
-                errors.append(f"{stage_name}.{output_id}:目前只支持文档输出")
-            if not str(spec.get("doc_type") or "").strip():
+            kind = str(spec.get("kind", "artifact"))
+            if kind not in ("document", "artifact", "resource", "action", "metric"):
+                errors.append(f"{stage_name}.{output_id}:未知输出类型 {kind}")
+            # Legacy document outputs are persisted through Documents and need
+            # a storage type.  New typed outputs may use a platform schema.
+            if kind == "document" and not str(spec.get("doc_type") or "").strip():
                 errors.append(f"{stage_name}.{output_id}:必须填写 doc_type")
         inputs = stage.get("inputs") or {}
         if not isinstance(inputs, dict):
@@ -51,10 +57,13 @@ def validate_stage_contracts(manifest: dict) -> list[str]:
             if not isinstance(spec, dict):
                 errors.append(f"{stage_name}.{input_id}:输入定义必须是对象")
                 continue
-            try:
-                _source_output(manifest, input_id, spec)
-            except RuntimeError as e:
-                errors.append(f"{stage_name}.{input_id}:{e}")
+            # Only artifact inputs reference another stage's persisted output;
+            # runtime observations and settings belong in the Prompt/tool path.
+            if str(spec.get("kind", "artifact")) == "artifact":
+                try:
+                    _source_output(manifest, input_id, spec)
+                except RuntimeError as e:
+                    errors.append(f"{stage_name}.{input_id}:{e}")
             selector = spec.get("selector", "latest")
             if selector not in ("latest", "previous", "recent", "all"):
                 errors.append(f"{stage_name}.{input_id}:未知选择器 {selector}")
@@ -73,18 +82,15 @@ def validate_stage_contracts(manifest: dict) -> list[str]:
 
 
 def stage_contract(stage_name: str, stage: dict) -> dict:
-    """生成可冻结到 Run 封面的最小契约快照。"""
-    return {
-        "stage": stage_name,
-        "inputs": dict(stage.get("inputs") or {}),
-        "outputs": dict(stage.get("outputs") or {}),
-    }
+    """生成可冻结到 Run 封面的契约快照。"""
+    return StageSpec.from_dict(stage_name, stage).contract()
 
 
 def primary_output(stage: dict) -> tuple[str, dict] | None:
     """返回第一个自动捕获最终回答的文档输出。"""
     for output_id, spec in (stage.get("outputs") or {}).items():
-        if spec.get("kind", "document") == "document" and spec.get("capture", "final") == "final":
+        if spec.get("kind", "document") in ("document", "artifact") \
+                and spec.get("capture", "final") == "final":
             return output_id, spec
     return None
 
@@ -105,8 +111,12 @@ def load_stage_inputs(manifest: dict, stage_name: str, variables: dict,
     stage = (manifest.get("stages") or {}).get(stage_name) or {}
     blocks: list[str] = []
     for input_id, spec in (stage.get("inputs") or {}).items():
+        # Non-artifact inputs are assembled by ContextAssembler.  Keeping this
+        # resolver document-only makes the old helper useful during migration.
+        if str(spec.get("kind", "artifact")) != "artifact":
+            continue
         source_stage, output_id, output = _source_output(manifest, input_id, spec)
-        entries = _select_entries(docs, output, spec, variables)
+        entries = _select_entries(docs, output, spec, variables, source_stage, output_id)
         if not entries:
             if spec.get("required", False):
                 raise RuntimeError(
@@ -135,15 +145,60 @@ def load_stage_inputs(manifest: dict, stage_name: str, variables: dict,
     return "## 平台提供的阶段上下文\n\n" + "\n\n".join(blocks)
 
 
+def resolve_artifact_input(manifest: dict, stage_name: str, input_id: str,
+                           variables: dict, docs: Documents | None = None) -> tuple[str, list[dict]]:
+    """Resolve one document/artifact input for ContextAssembler.
+
+    Returns rendered content and a small immutable-ish evidence list.  The
+    existing ``load_stage_inputs`` helper delegates to the same selection
+    semantics, so migration does not create two document resolution rules.
+    """
+    docs = docs or default_documents()
+    stage = (manifest.get("stages") or {}).get(stage_name) or {}
+    raw = (stage.get("inputs") or {}).get(input_id)
+    if raw is None:
+        raise RuntimeError(f"阶段 {stage_name} 不存在输入 {input_id}")
+    spec = raw
+    source_stage, output_id, output = _source_output(manifest, input_id, spec)
+    entries = _select_entries(docs, output, spec, variables, source_stage, output_id)
+    if not entries:
+        if spec.get("required", False):
+            raise RuntimeError(
+                f"阶段 {stage_name} 缺少必需输入 {input_id}"
+                f"(来源 {source_stage}.{output_id})"
+            )
+        return "(未找到可用内容)", []
+    parts = []
+    evidence = []
+    for entry in entries:
+        docs.link_run(entry["id"], "input", stage=stage_name, slot=input_id,
+                      source_stage=source_stage, source_output=output_id)
+        tag = entry.get("name") or entry.get("trade_date") or f"文档 {entry['id']}"
+        parts.append(f"#### {tag}\n{entry['content']}")
+        evidence.append({
+            "document_id": entry["id"],
+            "updated_at": entry.get("updated_at"),
+            "trade_date": entry.get("trade_date"),
+            "source_stage": source_stage,
+            "source_output": output_id,
+        })
+    content = "\n\n".join(parts)
+    max_chars = int(spec.get("max_chars", 24000))
+    if len(content) > max_chars:
+        content = content[:max_chars] + "\n\n(内容超过阶段输入上限,已截断)"
+    return content, evidence
+
+
 def publish_stage_outputs(stage_name: str, stage: dict, variables: dict, content: str,
                           docs: Documents | None = None) -> list[dict]:
     """把模型最终回答发布到声明的文档输出,并记录 Stage/Output 血缘。"""
     docs = docs or default_documents()
     published = []
     for output_id, spec in (stage.get("outputs") or {}).items():
-        if spec.get("kind", "document") != "document" or spec.get("capture", "final") != "final":
+        if spec.get("kind", "document") not in ("document", "artifact") \
+                or spec.get("capture", "final") != "final":
             continue
-        doc_type = _required_render(spec, "doc_type", variables, output_id)
+        doc_type = _doc_type_for_output(stage_name, output_id, spec, variables)
         name = _render(spec.get("name", ""), variables)
         trade_date = _render(spec.get("trade_date", ""), variables) or None
         existing = docs.resolve(doc_type, name=name, trade_date=trade_date or "")
@@ -173,7 +228,7 @@ def inject_stage_context(prompt: str, context: str) -> str:
 
 
 def _source_output(manifest: dict, input_id: str, spec: dict) -> tuple[str, str, dict]:
-    source = spec.get("from") or {}
+    source = spec.get("source", spec.get("from")) or {}
     if isinstance(source, str):
         if "." not in source:
             raise RuntimeError(f"输入 {input_id} 的 from 必须是 stage.output")
@@ -184,14 +239,14 @@ def _source_output(manifest: dict, input_id: str, spec: dict) -> tuple[str, str,
     output = ((stages.get(source_stage) or {}).get("outputs") or {}).get(output_id)
     if not source_stage or not output_id or output is None:
         raise RuntimeError(f"输入 {input_id} 引用了不存在的阶段输出 {source_stage}.{output_id}")
-    if output.get("kind", "document") != "document":
+    if output.get("kind", "document") not in ("document", "artifact"):
         raise RuntimeError(f"输入 {input_id} 暂不支持非文档输出 {source_stage}.{output_id}")
     return source_stage, output_id, output
 
 
 def _select_entries(docs: Documents, output: dict, input_spec: dict,
-                    variables: dict) -> list[dict]:
-    doc_type = _required_render(output, "doc_type", variables, "source")
+                    variables: dict, source_stage: str = "", output_id: str = "source") -> list[dict]:
+    doc_type = _doc_type_for_output(source_stage, output_id, output, variables)
     trade_date = _render(input_spec.get("trade_date", output.get("trade_date", "")), variables)
     name_template = output.get("name", "")
     rows = docs.list(doc_type, trade_date or None)
@@ -246,6 +301,17 @@ def _required_render(spec: dict, key: str, variables: dict, output_id: str) -> s
     if not value:
         raise RuntimeError(f"阶段输出 {output_id} 缺少 {key}")
     return value
+
+
+def _doc_type_for_output(stage_name: str, output_id: str, spec: dict,
+                         variables: dict) -> str:
+    """Resolve persistence identity without exposing storage to prompt authors."""
+    explicit = _render(spec.get("doc_type", ""), variables)
+    if explicit:
+        return explicit
+    if str(spec.get("kind", "artifact")) in ("document", "artifact"):
+        return f"artifact.{stage_name}.{output_id}"
+    raise RuntimeError(f"阶段输出 {output_id} 不是可持久化产物")
 
 
 def _render(value, variables: dict) -> str:

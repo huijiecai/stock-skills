@@ -1,5 +1,5 @@
 /** 指令台(原型画面八):打开一条指令 ≠ 打开文件——
- * 版本时间线 + 双栏(内容编辑/预览/对比 | 右栏 Tab:执行史/变量/工具) + 引用关系。
+ * 版本时间线 + 双栏(内容编辑/预览/对比 | 右栏 Tab:执行史/工具) + 引用关系。
  * IDE 化(设计:docs/Prompt编辑器IDE化设计讨论.md):占位符 lint、@/{ 触发补全、
  * 工具试运行(测试账号)、替换预览(派生变量服务端算真值)。
  * 路由:/systems/:slug/workbench/prompt/:prompt(_system=系统设定)。 */
@@ -15,7 +15,6 @@ import { pnlColor } from '../lib/ui'
 import { extractPlaceholders, substitute, unknownPlaceholders } from '../lib/promptLint'
 import { detectAutocomplete, navAutocomplete } from '../lib/promptInsert'
 import PromptDiff from './PromptDiff'
-import VarsPanel from './promptide/VarsPanel'
 import ToolPanel from './promptide/ToolPanel'
 import AutocompleteList, { type AcItem } from './promptide/AutocompleteList'
 
@@ -70,7 +69,7 @@ export default function PromptWorkbench() {
     enabled: view === 'diff' && !!diffA,
   })
 
-  // ── 变量契约(变量面板/lint/替换预览共用;带 date 时派生变量是真值) ──
+  // 占位符仅用于用户业务参数；日期/轮次等平台运行信息自动注入。
   const ctx = useQuery({
     queryKey: ['stageContext', system, stageOf, subPreview ? subDate : ''],
     queryFn: () => get(`/systems/${encodeURIComponent(system)}/stages/${encodeURIComponent(stageOf)}/context`
@@ -79,6 +78,7 @@ export default function PromptWorkbench() {
     staleTime: 60_000,
   })
   const ctxVars: any[] = ctx.data?.vars ?? []
+  const userVars = ctxVars.filter(v => v.source === 'caller')
   const knownVars = ctxVars.map(v => v.name)
   // lint:系统设定出现任何占位符都警告(它不做替换);阶段 prompt 查未知占位符
   const lintUnknown = stageOf === '(system)'
@@ -88,17 +88,17 @@ export default function PromptWorkbench() {
   // ── 工具目录(工具面板与 @ 补全共用同一 react-query 缓存) ──
   const catalog = useQuery({ queryKey: ['toolsCatalog'], queryFn: () => get('/tools'), staleTime: 60_000 })
 
-  // ── 触发式补全状态(@ 工具 / { 变量) ──
+  // ── 触发式补全状态(@ 工具 / { 业务参数) ──
   const [ac, setAc] = useState<{ trigger: '@' | '{'; query: string; start: number } | null>(null)
   const [acIndex, setAcIndex] = useState(0)
   const acItems: AcItem[] = (() => {
     if (!ac) return []
     if (ac.trigger === '{')
-      return ctxVars
+      return userVars
         .filter(v => !ac.query || v.name.startsWith(ac.query))
         .map(v => ({ label: `{${v.name}}`, title: `{${v.name}}`, desc: v.desc,
                      tag: v.source === 'auto' ? '自动注入' : '发起时传' }))
-    return ((catalog.data?.tools ?? []) as any[])
+    return ((catalog.data?.tools ?? []) as any[]).filter((t: any) => t.group !== 'docs')
       .filter((t: any) => !ac.query || t.name.startsWith(ac.query.replace(/_.*/, '')) || t.name.includes(ac.query))
       .map((t: any) => ({
         label: `- ${t.name}(${t.params.map((p: any) => p.name).join(', ')}): ${t.desc}`,
@@ -232,7 +232,7 @@ export default function PromptWorkbench() {
         {!versions.length && <span style={{ color: 'var(--text-3)', fontSize: 12 }}>还没有版本(编辑后保存生成 v1)</span>}
       </div>
 
-      {/* 双栏:内容 | 右栏(执行史/变量/工具) */}
+      {/* 双栏:内容 | 右栏(执行史/工具) */}
       <div className="prompt-workbench-grid">
         <div style={{ flex: 1.45, minWidth: 0, position: 'relative' }}>
           {/* 占位符 lint:只警告不阻断(设计 Q3) */}
@@ -243,7 +243,7 @@ export default function PromptWorkbench() {
                 ? <>系统设定不做变量替换,以下将按字面文本发给模型:
                    {lintUnknown.map(n => <Tag key={n} color="warning" style={{ marginInlineStart: 4 }}>{`{${n}}`}</Tag>)}</>
                 : <>未知占位符({lintUnknown.length} 个,运行时会报错):{lintUnknown.map(n => <Tag key={n} color="warning" style={{ marginInlineStart: 4 }}>{`{${n}}`}</Tag>)}
-                   <Typography.Text type="secondary"> 可用变量见右侧「变量」面板</Typography.Text></>}
+                   <Typography.Text type="secondary"> 平台运行信息无需手工配置</Typography.Text></>}
             </div>
           )}
           <Tabs size="small" activeKey={view} onChange={(k) => setView(k as any)} items={[
@@ -253,7 +253,7 @@ export default function PromptWorkbench() {
                   <Space style={{ marginBottom: 8 }}>
                     <Switch size="small" checked={subPreview} onChange={setSubPreview} />
                     <Typography.Text type="secondary" style={{ fontSize: 12 }}>替换预览</Typography.Text>
-                    {subPreview && ctxVars.some(v => v.source === 'caller' && v.name === 'date') && (
+                    {subPreview && userVars.some(v => v.name === 'date') && (
                       <Input size="small" style={{ width: 120 }} placeholder="date 如 20260824"
                              value={subDate} onChange={e => setSubDate(e.target.value.trim())} />
                     )}
@@ -291,7 +291,7 @@ export default function PromptWorkbench() {
                     </div>
                   )}
                   <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-                    输入 <b>{'@'}</b> 补全工具 · 输入 <b>{'{'}</b> 补全变量</Typography.Text>
+                    输入 <b>{'@'}</b> 查看领域工具；平台运行信息会自动注入</Typography.Text>
                 </div>
               ) },
             { key: 'diff', label: '🔀 版本对比', forceRender: true,
@@ -309,16 +309,13 @@ export default function PromptWorkbench() {
           ]} />
         </div>
 
-        {/* 右栏:执行史 / 变量 / 工具 */}
+        {/* 右栏:执行史 / 工具 */}
         <div className="prompt-history-pane">
           <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10,
                        boxShadow: 'var(--shadow-card)', padding: '10px 12px' }}>
             <Tabs size="small" items={[
-              { key: 'vars', label: '{ } 变量',
-                children: <VarsPanel system={system} stage={stageOf} onInsert={s => applyInsert(s)} /> },
               { key: 'tools', label: '🔧 工具',
-                children: <ToolPanel enabled={detail.data?.manifest?.tools}
-                                     onInsert={s => applyInsert(s)} /> },
+                children: <ToolPanel onInsert={s => applyInsert(s)} /> },
               { key: 'history', label: '📖 执行史',
                 children: (
                   <div>

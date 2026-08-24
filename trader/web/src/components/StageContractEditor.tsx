@@ -95,7 +95,7 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
     const inputs = stage.inputs ?? {}
     const key = nextKey(inputs, 'input')
     patchStage({ inputs: { ...inputs, [key]: {
-      from: sourceOptions[0]?.value ?? '', selector: 'latest', required: false, label: '阶段输入',
+      kind: 'artifact', from: sourceOptions[0]?.value ?? '', selector: 'latest', required: false, label: '阶段输入',
     } } })
   }
 
@@ -103,7 +103,7 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
     const outputs = stage.outputs ?? {}
     const key = nextKey(outputs, 'output')
     patchStage({ outputs: { ...outputs, [key]: {
-      kind: 'document', capture: 'final', doc_type: `${selected}_${key}`,
+      kind: 'artifact', capture: 'final',
       trade_date: '{date}', label: '阶段结果',
     } } })
   }
@@ -165,9 +165,6 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
               onChange={e => patchStage({ prompt: e.target.value })} /></label>
             <label><span>最大模型请求数</span><InputNumber min={1} max={1000} style={{ width: '100%' }}
               value={stage.request_limit ?? 100} onChange={v => patchStage({ request_limit: v ?? 100 })} /></label>
-            {stage.kind === 'single' && <label><span>运行变量</span><Select mode="tags" value={stage.vars ?? []}
-              tokenSeparators={[',']} options={['date', 'topic', 'prev', 'weekday', 'gap'].map(value => ({ value }))}
-              onChange={vars => patchStage({ vars })} /></label>}
             {stage.kind === 'loop' && <>
               <label><span>运行窗口</span><div className="stage-window"><Input value={windowStart} placeholder="09:35"
                 onChange={e => patchStage({ window: `${e.target.value}-${windowEnd}` })} /><i>至</i>
@@ -184,7 +181,7 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
         <div className="stage-config-block">
           <div className="stage-config-block-head">
             <div><b>输入</b><span>运行前由平台读取，并作为明确上下文交给模型</span></div>
-            <Button size="small" onClick={addInput} disabled={!sourceOptions.length}>＋ 添加输入</Button>
+            <Button size="small" onClick={addInput}>＋ 添加输入</Button>
           </div>
           {Object.entries(stage.inputs ?? {}).map(([slot, spec]: [string, any]) => (
             <div className="stage-contract-row" key={slot}>
@@ -197,7 +194,7 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
                   onChange={e => patchEntry('inputs', slot, { label: e.target.value })} /></label>
                 <label className="span-2"><span>来源阶段输出</span><Select showSearch value={sourceValue(spec.from) || undefined}
                   placeholder="选择 stage.output" options={sourceOptions}
-                  onChange={from => patchEntry('inputs', slot, { from })} /></label>
+                  onChange={from => patchEntry('inputs', slot, { kind: 'artifact', from })} /></label>
                 <label><span>选择策略</span><Select value={spec.selector ?? 'latest'} options={SELECTORS}
                   onChange={selector => patchEntry('inputs', slot, { selector })} /></label>
                 {['previous', 'recent'].includes(spec.selector) && <label><span>最近份数</span>
@@ -222,19 +219,16 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
           {Object.entries(stage.outputs ?? {}).map(([slot, spec]: [string, any]) => (
             <div className="stage-contract-row" key={slot}>
               <div className="stage-contract-row-head">
-                <Tag color="green">文档输出</Tag><KeyInput value={slot} onCommit={next => renameEntry('outputs', slot, next)} />
+                <Tag color="green">{spec.kind === 'artifact' || !spec.kind ? '阶段产物' : spec.kind}</Tag><KeyInput value={slot} onCommit={next => renameEntry('outputs', slot, next)} />
                 <span className="stage-contract-capture">最终回答</span>
                 <Tooltip title="移除输出"><Button type="text" danger onClick={() => removeEntry('outputs', slot)}>×</Button></Tooltip>
               </div>
               <div className="stage-contract-grid">
                 <label><span>显示名称</span><Input value={spec.label ?? ''}
                   onChange={e => patchEntry('outputs', slot, { label: e.target.value })} /></label>
-                <label><span>文档类型</span><Input className="mono" value={spec.doc_type ?? ''}
-                  onChange={e => patchEntry('outputs', slot, { doc_type: e.target.value })} /></label>
-                <label><span>名称模板</span><Input className="mono" value={spec.name ?? ''} placeholder="可空，如 r{rounds}"
-                  onChange={e => patchEntry('outputs', slot, { name: e.target.value })} /></label>
-                <label><span>交易日模板</span><Input className="mono" value={spec.trade_date ?? ''} placeholder="{date}"
-                  onChange={e => patchEntry('outputs', slot, { trade_date: e.target.value })} /></label>
+                <Typography.Text type="secondary" style={{ fontSize: 12, alignSelf: 'center' }}>
+                  存储类型、名称和归档由平台自动处理
+                </Typography.Text>
               </div>
             </div>
           ))}

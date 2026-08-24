@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from trader.api.deps import require_user
-from trader.core.context import set_context
+from trader.core.context import set_context, set_execution_mode
 from trader.core.db import _connect
 from trader.core.portfolios import default_portfolios
 from trader.core.registry import TOOLS, TOOL_GROUPS, WRITE_TOOLS
@@ -133,6 +133,9 @@ def tool_call(name: str, body: CallIn, who: dict = Depends(require_user)):
         (p["id"] for p in ports if p["has_positions"]),
         default_portfolios().default_for(uid))
     set_context(portfolio_id, None, uid)
+    # The test desk is always an isolated live-style call.  Do not inherit a
+    # replay mode left in a long-lived worker context from a previous run.
+    set_execution_mode("real")
 
     output = fn(ctx=None, **args)
     truncated = len(output) > _OUTPUT_CAP

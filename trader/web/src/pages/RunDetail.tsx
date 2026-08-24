@@ -8,6 +8,7 @@ import { useSystemLabel } from '../lib/useSystems'
 import { pnlColor, pnlArrow, KindBadge, runStalled, heartbeatAge } from '../lib/ui'
 import TranscriptTimeline from '../components/TranscriptTimeline'
 import LiveSteps from '../components/LiveSteps'
+import RunDiscussion from '../components/RunDiscussion'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
@@ -27,6 +28,7 @@ export default function RunDetail() {
   const [shown, setShown] = useState(PAGE)        // 列表显示最近 N 轮
   const [jumpVal, setJumpVal] = useState<number | undefined>(undefined)
   const [openedDoc, setOpenedDoc] = useState<any | null>(null)
+  const [discussionOpen, setDiscussionOpen] = useState(false)
   const isRunning = () => run.data?.status === 'running'
   const rounds = useQuery({
     queryKey: ['rounds', id],
@@ -69,6 +71,7 @@ export default function RunDetail() {
   const r = run.data
   const runStage = inferRunStage(r, r.system)
   const promptVersions = Object.entries(parsePromptVersions(r.prompt_versions))
+  const instruction = String(r.run_inputs?.instruction ?? '').trim()
   const inputDocs = (documents.data ?? []).filter((d: any) => d.relation === 'input')
   const inputDefs = Object.entries(r.stage_contract?.inputs ?? {}) as [string, any][]
   const outputDefs = Object.entries(r.stage_contract?.outputs ?? {}) as [string, any][]
@@ -109,12 +112,23 @@ export default function RunDetail() {
             {r.trade_date} · {runStage ? stageLabel(runStage) : ''} · #{r.id}
           </div>
         </div>
-        <Button type="primary" ghost onClick={() =>
-          nav(`/systems/${encodeURIComponent(r.system)}/coach?new=1&runs=${r.id}`)}>💬 讨论结果</Button>
+        <Space size={8} wrap>
+          <Button type="primary" onClick={() => setDiscussionOpen(true)}>💬 继续讨论</Button>
+          <Button onClick={() =>
+            nav(`/systems/${encodeURIComponent(r.system)}/coach?new=1&runs=${r.id}`)}>教练复盘</Button>
+        </Space>
       </div>
 
+      {/* 失败红条:单次阶段失败不再伪装成完成(引擎会把错误写进 metrics) */}
+      {r.metrics?.error && (
+        <div style={{ background: '#fff1f0', border: '1px solid #ffa39e', borderRadius: 10,
+                      padding: '10px 14px', marginBottom: 12, color: '#cf1322', fontSize: 13 }}>
+          ✗ 本场执行失败:{String(r.metrics.error)}
+        </div>
+      )}
+
       {/* 指标带:收益/资产是主角(大号),其余次级;红涨绿跌 */}
-      {r.metrics ? (
+      {r.metrics && !r.metrics.error ? (
         <div className="metric-row">
           <div className="metric-card grow">
             <div className="metric-label">收益</div>
@@ -154,6 +168,13 @@ export default function RunDetail() {
       {/* 📥 输入:本场执行用了什么(prompt 版本快照=指纹,可精确重放) */}
       <div className="run-section">
         <div className="run-section-head">📥 输入 · 本场用了什么</div>
+        {instruction && (
+          <div className="run-io-row">
+            <span className="k">🎯 本次任务</span>
+            <span className="d">{instruction}</span>
+            <span className="a"><span className="st-badge st-neutral">运行输入</span></span>
+          </div>
+        )}
         {promptVersions.map(([slug, ver]: any) => (
           <div className="run-io-row" key={slug} style={{ cursor: 'pointer' }}
                onClick={() => nav(`/systems/${encodeURIComponent(r.system)}/workbench/prompt/${encodeURIComponent(slug)}?v=${ver}&from=${r.id}`)}>
@@ -182,7 +203,7 @@ export default function RunDetail() {
         ))}
         {documents.isLoading && <Typography.Text type="secondary">正在读取文档证据…</Typography.Text>}
         {documents.error && <Typography.Text type="danger">文档证据读取失败：{(documents.error as Error).message}</Typography.Text>}
-        {!promptVersions.length && !inputDocs.length && documents.isSuccess && (
+        {!instruction && !promptVersions.length && !inputDocs.length && documents.isSuccess && (
           <Typography.Text type="secondary">本场没有记录到指令快照或输入文档。</Typography.Text>
         )}
         {r.clock === 'simulated' && (
@@ -338,6 +359,7 @@ export default function RunDetail() {
       </div>
 
       {openedDoc && <RunDocumentViewer runId={r.id} doc={openedDoc} onClose={() => setOpenedDoc(null)} />}
+      <RunDiscussion run={r} open={discussionOpen} onClose={() => setDiscussionOpen(false)} />
 
     </div>
   )

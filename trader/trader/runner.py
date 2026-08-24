@@ -16,6 +16,7 @@ def main() -> None:
     r.add_argument("stage", help="阶段名(如 premarket/live/replay/close/research)")
     r.add_argument("--date", default="", help="交易日 YYYYMMDD(loop/single 通用)")
     r.add_argument("--topic", default="", help="research 主题")
+    r.add_argument("--instruction", default="", help="本次运行要解决的具体问题")
     r.add_argument("--user", default="", help="用户邮箱或 id(默认 user 0=所有者)")
 
     p = sub.add_parser("replay", help="模拟看盘(一场一袋,开局三模式)")
@@ -29,6 +30,7 @@ def main() -> None:
                    default="fresh", help="开局模式(实现设计 §6,默认 fresh)")
     p.add_argument("--as-of", default="", help="fork-as-of 的截至日 YYYYMMDD")
     p.add_argument("--custom", default="", help="custom 开局的 JSON 文件路径")
+    p.add_argument("--instruction", default="", help="本次运行要持续关注的目标")
 
     p2 = sub.add_parser("replay-rm", help="删除某场回放(袋子整体销毁,显式操作)")
     p2.add_argument("name", help="场次名(replay-ls 查看)")
@@ -54,6 +56,7 @@ def main() -> None:
     p = sub.add_parser("live", help="实时看盘")
     p.add_argument("--sleep", type=int, default=0, help="轮间等待秒(默认 0)")
     p.add_argument("--max-rounds", type=int, default=None, help="最多轮数(调试)")
+    p.add_argument("--instruction", default="", help="本次运行要持续关注的目标")
 
     args = parser.parse_args()
     from trader.core import engine
@@ -63,16 +66,17 @@ def main() -> None:
     if args.cmd == "run":
         if args.stage in ("live", "replay"):
             (engine.run_live if args.stage == "live" else engine.run_replay)(
-                args.system, user_id=uid,
+                args.system, user_id=uid, instruction=args.instruction,
                 **({"date": args.date} if args.date else {}))  # type: ignore[arg-type]
         else:
             engine.run_single(args.system, args.stage, user_id=uid,
-                              date=args.date, topic=args.topic)
+                              date=args.date, topic=args.topic,
+                              instruction=args.instruction or args.topic)
     elif args.cmd == "replay":
         engine.run_replay("expectation", args.date, interval=args.interval,
                           max_rounds=args.max_rounds, resume=args.resume, tag=args.tag,
                           opening=args.opening, custom_file=args.custom, as_of=args.as_of,
-                          user_id=uid)
+                          user_id=uid, instruction=args.instruction)
     elif args.cmd == "replay-rm":
         from trader.core.runs import default_runs
         n = default_runs().delete(args.name, user_id=uid)
@@ -92,10 +96,12 @@ def main() -> None:
     elif args.cmd == "close":
         engine.run_single("expectation", "close", user_id=uid, date=args.date)
     elif args.cmd == "research":
-        engine.run_single("expectation", "research", user_id=uid, topic=args.topic)
+        engine.run_single("expectation", "research", user_id=uid, topic=args.topic,
+                          instruction=args.topic)
     else:
         engine.run_live("expectation", sleep_seconds=args.sleep,
-                        max_rounds=args.max_rounds, user_id=uid)
+                        max_rounds=args.max_rounds, user_id=uid,
+                        instruction=args.instruction)
 
 
 if __name__ == "__main__":

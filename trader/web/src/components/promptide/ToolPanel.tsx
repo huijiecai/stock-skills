@@ -1,4 +1,4 @@
-/** 指令台·工具面板:目录(签名/说明/写标记/白名单状态)+ 试运行(挂测试账号,§5.3)。
+/** 指令台·工具面板:领域工具目录(签名/说明/写标记)+ 试运行(挂测试账号,§5.3)。
  * 试运行返回的 output 就是 LLM 会看到的字符串——写 prompt 的依据。 */
 import { Button, Collapse, Input, message, Select, Spin, Tag, Typography } from 'antd'
 import { useQuery } from '@tanstack/react-query'
@@ -15,12 +15,14 @@ type Tool = {
   params: { name: string; type: string; required: boolean; default: any }[]
 }
 
-export default function ToolPanel({ enabled, onInsert }: {
-  enabled?: string[]            // 系统白名单;未启用的工具置灰(Q6)
+export default function ToolPanel({ enabled: _enabled, onInsert }: {
+  enabled?: string[]
   onInsert: (snippet: string) => void }) {
   const [kw, setKw] = useState('')
   const cat = useQuery({ queryKey: ['toolsCatalog'], queryFn: () => get('/tools'), staleTime: 60_000 })
-  const tools: Tool[] = cat.data?.tools ?? []
+  // Storage/document helpers remain available to the backend and advanced
+  // test desk, but are not part of the prompt author's business vocabulary.
+  const tools: Tool[] = (cat.data?.tools ?? []).filter((t: Tool) => t.group !== 'docs')
   const portfolios: any[] = cat.data?.portfolios ?? []
   const groups = useMemo(() => {
     const filtered = tools.filter(t =>
@@ -37,14 +39,13 @@ export default function ToolPanel({ enabled, onInsert }: {
     <div>
       <Input size="small" allowClear placeholder="搜索工具…" value={kw}
              onChange={e => setKw(e.target.value)} style={{ marginBottom: 8 }} />
-      {enabled && <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>
-        置灰 = 未加入本系统白名单(设置 → AI 能力 开启后才可被调用)</Typography.Text>}
+      <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginBottom: 6 }}>
+        工具由 Prompt 按需调用；试运行只用于查看模型实际会收到的结果。</Typography.Text>
       <Collapse size="small" items={groups.map(([g, items]) => ({
         key: g,
         label: <span>{GROUP_LABEL[g] ?? g} <Tag style={{ marginInlineEnd: 0 }}>{items.length}</Tag></span>,
-        children: items.map(t => (
+          children: items.map(t => (
           <ToolCard key={t.name} tool={t} portfolios={portfolios}
-                    disabled={enabled != null && !enabled.includes(t.name)}
                     onInsert={onInsert} />
         )),
       }))} />

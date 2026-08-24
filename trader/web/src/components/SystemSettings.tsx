@@ -1,36 +1,38 @@
-/** 系统工作台·设置 Tab:阶段契约 / 工具白名单 / 联网开关 / 归档恢复。 */
+/** 系统工作台·设置 Tab:阶段契约 / 系统策略 / 归档恢复。 */
 import { Button, Card, Input, InputNumber, message, Modal, Select, Space, Switch, Tag, Typography, Popconfirm } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { get, put, post, del } from '../api/client'
 import StageContractEditor from './StageContractEditor'
-import { validateStageContracts } from '../lib/stageContract'
+import { nextStageId, validateStageContracts } from '../lib/stageContract'
 
 export default function SystemSettings() {
   const { name = '' } = useParams()
   const system = name
   const qc = useQueryClient()
   const detail = useQuery({ queryKey: ['systemDetail', system], queryFn: () => get(`/systems/${encodeURIComponent(system)}`) })
-  // 工具白名单选项:实时目录(签名/写标记来自注册表自省,与指令台工具面板同源)
-  const toolsCat = useQuery({ queryKey: ['toolsCatalog'], queryFn: () => get('/tools'), staleTime: 60_000 })
-
   const [stages, setStages] = useState<Record<string, any>>({})
-  const [tools, setTools] = useState<string[]>([])
   const [webSearch, setWebSearch] = useState(false)
+  const [resourceWrite, setResourceWrite] = useState(false)
+  const [simulationTrading, setSimulationTrading] = useState(true)
+  const [liveTrading, setLiveTrading] = useState(false)
   const [displayName, setDisplayName] = useState('')
   const [dirty, setDirty] = useState(false)
   const [saving, setSaving] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
-  const [newStage, setNewStage] = useState({ name: '', type: 'single', interval: 5 })
+  const [newStage, setNewStage] = useState({ label: '', type: 'single', interval: 5 })
   const [selectedStage, setSelectedStage] = useState('')
 
   const manifest = detail.data?.manifest
   useEffect(() => {
     if (manifest) {
       setStages(manifest.stages ?? {})
-      setTools(manifest.tools ?? [])
-      setWebSearch(manifest.web_search ?? false)
+      const policy = manifest.policy ?? {}
+      setWebSearch(policy.web_search ?? manifest.web_search ?? false)
+      setResourceWrite(policy.resource_write ?? false)
+      setSimulationTrading(policy.simulation_trading ?? true)
+      setLiveTrading(policy.live_trading ?? false)
       setDisplayName(detail.data?.display_name ?? '')
       const names = Object.keys(manifest.stages ?? {})
       setSelectedStage(current => names.includes(current) ? current : (names[0] ?? ''))
@@ -49,7 +51,9 @@ export default function SystemSettings() {
     const m = {
       ...manifest,
       system_prompt: manifest?.system_prompt ?? `${system}-system`,
-      stages, tools, web_search: webSearch,
+      stages,
+      policy: { web_search: webSearch, resource_write: resourceWrite,
+                simulation_trading: simulationTrading, live_trading: liveTrading },
     }
     setSaving(true)
     try {
@@ -70,25 +74,23 @@ export default function SystemSettings() {
   }
 
   function addStage() {
-    const { name, type } = newStage
-    if (!name.trim() || stages[name]) { if (stages[name]) message.warning('阶段已存在'); return }
-    if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(name)) {
-      message.error('阶段标识只能使用英文、数字、下划线和连字符，且不能以数字开头')
-      return
-    }
+    const label = newStage.label.trim()
+    const { type } = newStage
+    if (!label) return
+    const stageId = nextStageId(stages, label)
     const d: any = type === 'single'
-      ? { kind: 'single', prompt: `${system}-${name}`, request_limit: 100, vars: ['date'],
-          outputs: { result: { kind: 'document', doc_type: `${system}_${name}`,
-                               trade_date: '{date}', label: '阶段结果' } } }
-      : { kind: 'loop', prompt: `${system}-${name}`, request_limit: 50,
+      ? { label, kind: 'single', prompt: `${system}-${stageId}`, request_limit: 100,
+          outputs: { result: { kind: 'artifact',
+                               label: '阶段结果' } } }
+      : { label, kind: 'loop', prompt: `${system}-${stageId}`, request_limit: 50,
           window: '09:35-15:05', skip_lunch: true, interval: newStage.interval,
-          outputs: { decision: { kind: 'document', doc_type: `${system}_${name}`,
-                                 name: 'r{rounds}', trade_date: '{date}', label: '本轮判断' } } }
-    setStages(prev => ({ ...prev, [name]: d }))
-    setSelectedStage(name)
+          outputs: { decision: { kind: 'artifact',
+                                 label: '本轮判断' } } }
+    setStages(prev => ({ ...prev, [stageId]: d }))
+    setSelectedStage(stageId)
     setDirty(true)
     setAddOpen(false)
-    setNewStage({ name: '', type: 'single', interval: 5 })
+    setNewStage({ label: '', type: 'single', interval: 5 })
   }
 
   function removeStage(name: string) {
@@ -144,28 +146,30 @@ export default function SystemSettings() {
           onChange={next => { setStages(next); setDirty(true) }} />
       </Card>
 
-      {/* 工具与联网 */}
+      {/* 系统级安全策略 */}
       <Card size="small" title="AI 能力" style={{ marginTop: 16 }}>
-        <Typography.Text strong style={{ fontSize: 13 }}>🔧 工具白名单</Typography.Text>
-        <Select mode="multiple" style={{ width: '100%', marginTop: 8 }} value={tools}
-                onChange={(v) => { setTools(v); setDirty(true) }}
-                placeholder="勾选 AI 可调用的工具"
-                loading={toolsCat.isLoading}
-                options={toolsCat.data?.tools?.map((t: any) => ({
-                  value: t.name,
-                  label: <span>{t.name}
-                    {t.write && <Tag color="red" style={{ marginInlineStart: 6, marginInlineEnd: 0 }}>写</Tag>}
-                    <Typography.Text type="secondary" style={{ fontSize: 11, marginInlineStart: 6 }}>{t.desc}</Typography.Text>
-                  </span>,
-                })) ?? []}
-                optionFilterProp="value"
-                dropdownStyle={{ maxHeight: 420, overflow: 'auto' }} />
-        <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 4 }}>
-          按名称搜索;完整目录与试运行见指令台右侧「🔧 工具」面板</Typography.Text>
-        <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginBottom: 10 }}>
+          行情、组合、研究和交易工具由 Prompt 按需调用；这里仅配置有副作用或有成本的系统级策略。
+        </Typography.Text>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
           <Typography.Text strong style={{ fontSize: 13 }}>🌐 联网搜索</Typography.Text>
           <Switch checked={webSearch} onChange={(v) => { setWebSearch(v); setDirty(true) }} />
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>盘中每轮最多 3 次网页搜索</Typography.Text>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>允许模型主动检索外部信息</Typography.Text>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+          <Typography.Text strong style={{ fontSize: 13 }}>⭐ 修改自选组</Typography.Text>
+          <Switch checked={resourceWrite} onChange={(v) => { setResourceWrite(v); setDirty(true) }} />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>允许保存或移除标的集合成员</Typography.Text>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+          <Typography.Text strong style={{ fontSize: 13 }}>🧪 模拟交易</Typography.Text>
+          <Switch checked={simulationTrading} onChange={(v) => { setSimulationTrading(v); setDirty(true) }} />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>允许在模拟组合中执行交易</Typography.Text>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Typography.Text strong style={{ fontSize: 13 }}>⚠ 实盘交易</Typography.Text>
+          <Switch checked={liveTrading} onChange={(v) => { setLiveTrading(v); setDirty(true) }} />
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>仅在明确授权后开放真实下单</Typography.Text>
         </div>
       </Card>
 
@@ -186,15 +190,21 @@ export default function SystemSettings() {
 
       {/* 添加阶段 */}
       <Modal title="添加阶段" open={addOpen} onCancel={() => setAddOpen(false)}
-             onOk={addStage} okText="添加" width={420}>
+             onOk={addStage} okText="添加" width={420}
+             okButtonProps={{ disabled: !newStage.label.trim() }}>
         <Space orientation="vertical" style={{ width: '100%' }}>
-          <Input placeholder="阶段标识，如 prepare / observe" value={newStage.name}
-                 onChange={(e) => setNewStage({ ...newStage, name: e.target.value })} />
-          <Select value={newStage.type} style={{ width: '100%' }}
-                  onChange={(v) => setNewStage({ ...newStage, type: v })}
-                  options={[
-                    { value: 'single', label: '📄 单次分析' },
-                    { value: 'loop', label: '🔁 循环值守(时钟在运行时选择)' }]} />
+          <label><Typography.Text strong style={{ fontSize: 13 }}>阶段名称</Typography.Text>
+            <Input autoFocus placeholder="例如：盘前研究、盘中观察、盘后复盘" value={newStage.label}
+                   onPressEnter={addStage}
+                   onChange={(e) => setNewStage({ ...newStage, label: e.target.value })} />
+          </label>
+          <label><Typography.Text strong style={{ fontSize: 13 }}>执行方式</Typography.Text>
+            <Select value={newStage.type} style={{ width: '100%' }}
+                    onChange={(v) => setNewStage({ ...newStage, type: v })}
+                    options={[
+                      { value: 'single', label: '📄 单次分析' },
+                      { value: 'loop', label: '🔁 循环值守(时钟在运行时选择)' }]} />
+          </label>
           {newStage.type === 'loop' && <div>
             <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 5, fontSize: 12 }}>默认模拟步进（分钟）</Typography.Text>
             <InputNumber min={1} max={240} value={newStage.interval} style={{ width: '100%' }}

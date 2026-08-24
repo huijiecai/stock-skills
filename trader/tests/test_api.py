@@ -183,6 +183,116 @@ def test_coach_conversations_are_system_scoped_and_send(monkeypatch):
     ).status_code == 200
 
 
+def test_run_discussion_restores_stage_context_without_coach(monkeypatch):
+    """继续讨论:恢复原 transcript/冻结系统 Prompt，且不使用 Coach 人格。"""
+    import json
+    import random
+
+    from pydantic_ai.messages import (ModelMessagesTypeAdapter, ModelRequest,
+                                      ModelResponse, TextPart, UserPromptPart)
+    from trader.core.context import set_context
+    from trader.core.documents import default_documents
+    from trader.core.portfolios import default_portfolios
+    from trader.core.promptver import default_prompt_versions
+    from trader.core.runs import default_runs
+    from trader.core.systems import default_systems
+
+    h = _register_and_login()
+    uid = client.get("/auth/me", headers=h).json()["data"]["id"]
+    slug = f"discuss-{random.randint(10**6, 10**7)}"
+    system_prompt, stage_prompt = f"{slug}-system", f"{slug}-analyze"
+    manifest = {
+        "system_prompt": system_prompt,
+        "stages": {"analyze": {"kind": "single", "prompt": stage_prompt}},
+    }
+    assert client.post("/systems", headers=h,
+                       json={"slug": slug, "manifest": manifest}).status_code == 200
+    system = default_systems().get(slug, uid)
+    portfolio_id = default_portfolios().ensure_main(uid, system["id"])
+    pv = default_prompt_versions()
+    frozen_system = pv.save(system["id"], system_prompt, "你是冻结版行业分析 Agent。", uid)
+    frozen_stage = pv.save(system["id"], stage_prompt, "分析目标并给出证据。", uid)
+    run = default_runs().create(
+        f"{slug}-run", "single", "20260824",
+        {system_prompt: frozen_system["version"], stage_prompt: frozen_stage["version"]},
+        system_id=system["id"], user_id=uid, stage="analyze",
+        portfolio_id=portfolio_id,
+        stage_contract={"prompt": stage_prompt, "inputs": {}, "outputs": {}},
+        run_inputs={"instruction": "分析 PCB 板块"},
+    )
+    original_messages = [
+        ModelRequest(parts=[UserPromptPart(content="本次运行请求：分析 PCB 板块")]),
+        ModelResponse(parts=[TextPart(content="原结论：板块短期偏弱。")]),
+    ]
+    set_context(portfolio_id, run["id"], uid)
+    default_documents().save(
+        "transcript_analyze",
+        json.dumps({"messages": json.loads(ModelMessagesTypeAdapter.dump_json(original_messages))},
+                   ensure_ascii=False),
+        trade_date="20260824",
+    )
+    default_runs().seal(run["id"])
+    pv.save(system["id"], system_prompt, "这是运行结束后修改的最新版。", uid)
+
+    captured = []
+
+    class FakeResult:
+        output = "偏弱主要来自量能与板块扩散不足。"
+
+        def __init__(self, messages):
+            self._messages = messages
+
+        def all_messages(self):
+            return self._messages
+
+    class FakeAgent:
+        def __init__(self, *args, system_prompt="", **kwargs):
+            self.system_prompt = system_prompt
+
+        def run_sync(self, prompt, message_history=None):
+            history = list(message_history or [])
+            captured.append((self.system_prompt, prompt, history))
+            return FakeResult(history + [
+                ModelRequest(parts=[UserPromptPart(content=prompt)]),
+                ModelResponse(parts=[TextPart(content=FakeResult.output)]),
+            ])
+
+    monkeypatch.setattr("pydantic_ai.Agent", FakeAgent)
+    monkeypatch.setattr("trader.core.llm.build_model", lambda: object())
+    response = client.post(
+        f"/runs/{run['id']}/chat", headers=h,
+        json={"message": "为什么认为偏弱？"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["anchor"]["mode"] == "frozen"
+    system_text, question, restored = captured[0]
+    assert "冻结版行业分析 Agent" in system_text
+    assert "运行结束后修改的最新版" not in system_text
+    assert "本场继续讨论" in system_text and "复盘教练" not in system_text
+    assert "用户追问：为什么认为偏弱？" in question
+    assert "原结论：板块短期偏弱" in question
+    assert restored == []
+
+    followup = client.post(
+        f"/runs/{run['id']}/chat", headers=h,
+        json={"message": "哪条依据最弱？"},
+    )
+    assert followup.status_code == 200
+    assert captured[1][1] == "哪条依据最弱？"  # 冻结上下文已在 model history，不重复注入
+    restored_text = str(json.loads(ModelMessagesTypeAdapter.dump_json(captured[1][2])))
+    assert "用户追问：为什么认为偏弱？" in restored_text
+    assert "量能与板块扩散不足" in restored_text
+
+    saved = client.get(f"/runs/{run['id']}/chat", headers=h).json()["data"]
+    assert [m["role"] for m in saved["messages"]] == [
+        "user", "assistant", "user", "assistant",
+    ]
+    assert saved["messages"][0]["content"] == "为什么认为偏弱？"
+    # Discussion is attached to the Run by ref_id, not written into immutable run_documents.
+    assert all(d["doc_type"] != "chat" for d in default_documents().for_run(run["id"]))
+
+
 def test_cross_user_run_denied():
     """越权:读别人的场次 404(不泄露存在性)。"""
     h = _register_and_login()
@@ -261,6 +371,38 @@ def test_run_system_duplicate_guard():
     # 清理:live 今日场是用户命名空间下的 live-{today},名字带日期唯一,直接删
     default_runs().delete(f"live-{today}", uid)
     default_runs().delete(f"{date}-web-{sn}", uid)
+
+
+def test_run_instruction_is_forwarded_to_engine(monkeypatch):
+    """Web 发起的本次任务必须进入 Engine 子进程，而不是只停留在弹窗。"""
+    import random
+    import subprocess
+
+    h = _register_and_login()
+    sn = f"instruction-{random.randint(10**6, 10**7)}"
+    _make_system_with_stage(h, sn, {
+        "_n": "analyze", "kind": "single", "prompt": f"{sn}-analyze",
+        "outputs": {"result": {"kind": "artifact"}},
+    })
+    spawned: list[list[str]] = []
+
+    def fake_popen(cmd, **_kwargs):
+        spawned.append(cmd)
+        return object()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+    instruction = "分析沪电股份（002463）今天走势的原因"
+    response = client.post(
+        f"/systems/{sn}/run", headers=h,
+        json={"date": "20260824", "stage": "analyze", "instruction": instruction},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["run_inputs"] == {"instruction": instruction}
+    assert len(spawned) == 1
+    code = spawned[0][-1]
+    assert repr(instruction) in code
+    compile(code, "<run-instruction>", "exec")
 
 
 def test_portfolio_curve_marks_live_price(monkeypatch):
@@ -344,10 +486,11 @@ def test_tools_catalog_and_call(monkeypatch):
     assert cat["test_user"]["id"] == uid
     assert any(p["id"] == pid and p["has_positions"] for p in cat["portfolios"])
 
-    # 行情工具(与组合无关):真实返回字符串
+    # 行情工具(与组合无关):真实调用返回非空字符串(具体内容随交易时段变化
+    # ——盘前/收盘后行情源会拒绝,不断言具体标的,只断言调用管道通)
     r = client.post("/tools/get_quotes/call", headers=h,
                     json={"args": {"codes": ["000021"]}, "portfolio_id": pid})
-    assert r.status_code == 200 and "000021" in r.json()["data"]["output"]
+    assert r.status_code == 200 and len(r.json()["data"]["output"]) > 10
 
     # 账户工具:挂测试账号组合,查到刚才买的持仓
     r = client.post("/tools/get_positions/call", headers=h, json={"portfolio_id": pid})

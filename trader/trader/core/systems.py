@@ -7,13 +7,13 @@ manifest 只装纯数据声明;stage 级 data_mode/clock 已退役(时钟改为�
 import json
 
 from trader.core.db import _connect
+from trader.core.contracts import normalize_manifest
 
 # expectation 系统的初始 manifest
 EXPECTATION_MANIFEST = {
     "system_prompt": "system",
     "stages": {
         "premarket": {"kind": "single", "prompt": "premarket", "request_limit": 200,
-                      "vars": ["date", "prev", "weekday", "gap"],
                       "outputs": {
                           "plan": {"kind": "document", "doc_type": "premarket",
                                    "trade_date": "{date}", "label": "当日交易计划"},
@@ -47,7 +47,6 @@ EXPECTATION_MANIFEST = {
                                     "label": "本轮判断"},
                    }},
         "close": {"kind": "single", "prompt": "close", "request_limit": 200,
-                  "vars": ["date"],
                   "inputs": {
                       "opening_plan": {"from": "premarket.plan", "selector": "latest",
                                        "required": False, "label": "当日盘前计划"},
@@ -62,18 +61,16 @@ EXPECTATION_MANIFEST = {
         "research": {"kind": "single", "prompt": "research", "request_limit": 200,
                      "vars": ["topic"]},
     },
+    "policy": {"web_search": True, "resource_write": True,
+               "simulation_trading": True, "live_trading": True},
+    # Backend-generated catalog for legacy API consumers and the advanced test
+    # desk. It is not read by Stage authorization or shown in System Settings.
     "tools": [
-        # 行情 10
         "get_quotes", "get_indices", "get_kline", "get_block_rank", "get_block_members",
-        "get_candidates", "get_limit_up", "get_market_summary", "get_top_amount",
-        "get_us_market",
-        # 账户与交易
-        "get_positions", "get_account", "get_trades", "execute",
-        # 看盘组合
-        "scan_market",
-        # 文档与自选组(平台通用记忆;预期库=expectation 文档+自选组约定)
-        "save_doc", "get_doc", "list_docs", "set_doc_meta",
-        "save_watchlist", "get_watchlist", "get_watchlist_quotes", "remove_watchlist_member",
+        "get_candidates", "get_limit_up", "get_market_summary", "get_top_amount", "get_us_market",
+        "get_positions", "get_account", "get_trades", "execute", "scan_market",
+        "save_doc", "get_doc", "list_docs", "set_doc_meta", "save_watchlist",
+        "get_watchlist", "get_watchlist_quotes", "remove_watchlist_member",
     ],
     # 文档归类(工作台架构 §3):library=跨天知识资产(进工作台"按类型");
     # ephemeral=绑场次的执行产出(挂场次,"按日期"只是索引)
@@ -81,7 +78,6 @@ EXPECTATION_MANIFEST = {
         "library": ["expectation", "research", "note"],
         "ephemeral": ["premarket", "close"],
     },
-    "web_search": True,
 }
 
 
@@ -90,9 +86,15 @@ def clean_manifest(m: dict) -> dict:
     (display_name 已上提为 systems 列)。幂等,供迁移与 upsert 共用。"""
     out = dict(m)
     out.pop("display_name", None)
+    raw_stages = m.get("stages") or {}
+    if not isinstance(raw_stages, dict):
+        raise ValueError("stages 必须是对象")
     stages = {}
-    for name, sdef in (m.get("stages") or {}).items():
+    for name, sdef in raw_stages.items():
+        if not isinstance(sdef, dict):
+            raise ValueError(f"阶段 {name} 必须是对象")
         s = {k: v for k, v in sdef.items() if k not in ("data_mode", "clock")}
+        s.pop("capabilities", None)
         stages[name] = s
     out["stages"] = stages
     return out
@@ -112,6 +114,7 @@ class Systems:
         from datetime import datetime as _dt
 
         manifest = clean_manifest(manifest)
+        manifest = normalize_manifest(manifest)
         display_name = display_name or (manifest.get("display_name") or slug)
         now = _dt.now().isoformat(timespec="seconds")
         with _connect(self.schema) as conn:

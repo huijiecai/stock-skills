@@ -1,6 +1,6 @@
 /** 运行弹窗(工作台头部唯一 ▶ 运行):预选当前阶段 + 重复触发预确认
  *  + 启动检测(轮询发现新场次自动跳详情)。 */
-import { DatePicker, message, Modal, Select, Space, Typography } from 'antd'
+import { DatePicker, Input, message, Modal, Select, Space, Typography } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -27,6 +27,7 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
   const [promptVersion, setPromptVersion] = useState<number | 'latest'>('latest')
   const [opening, setOpening] = useState<'fresh' | 'fork' | 'fork-as-of'>('fresh')
   const [portfolioType, setPortfolioType] = useState<'main' | 'paper'>('main')
+  const [instruction, setInstruction] = useState('')
   const timer = useRef<number | null>(null)
   const promptSlug = stages[stage]?.prompt ?? ''
   const versions = useQuery({
@@ -46,6 +47,7 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
       setOpening('fresh')
       setPortfolioType('main')
       setSleepSec(0)
+      setInstruction('')
       setDate(dayjs())
     }
   }, [open, presetStage, stages])
@@ -89,8 +91,10 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
                  isReal
                    ? { date: d, stage, clock: 'real', sleep_seconds: sleepSec,
                        portfolio_type: portfolioType,
+                       instruction: instruction.trim(),
                        prompt_version: promptVersion === 'latest' ? null : promptVersion }
                    : { date: d, stage, clock: 'simulated', interval, opening,
+                       instruction: instruction.trim(),
                        prompt_version: promptVersion === 'latest' ? null : promptVersion })
       onClose()
       message.success('已发起')
@@ -133,7 +137,9 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
   return (
     <Modal title={`运行 · ${system}`} open={open} onCancel={onClose}
            onOk={launch} okText="开始运行" width={420}
-           okButtonProps={{ disabled: !stage || (versions.isSuccess && !(versions.data ?? []).length) }}>
+           okButtonProps={{ disabled: !stage
+             || ((stages[stage]?.vars ?? []).includes('topic') && !instruction.trim())
+             || (versions.isSuccess && !(versions.data ?? []).length) }}>
       <Space orientation="vertical" style={{ width: '100%' }} size={12}>
         <Select style={{ width: '100%' }} value={stage} onChange={(v) => {
           setStage(v); setIntervalMin(stages[v]?.interval ?? 5)
@@ -141,6 +147,16 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
         }} placeholder="选择要运行的阶段"
                 options={entries.map(([s, d]) => ({
                   value: s, label: `${stageIcon(s)} ${stageLabel(s, d)}(${kindLabel(s, d)})` }))} />
+        {!!stage && (
+          <div>
+            <Typography.Text strong style={{ display: 'block', fontSize: 13, marginBottom: 5 }}>
+              本次任务 / 分析对象{(stages[stage]?.vars ?? []).includes('topic') ? '' : '（可选）'}
+            </Typography.Text>
+            <Input.TextArea value={instruction} onChange={e => setInstruction(e.target.value)}
+              placeholder="例如：分析沪电股份（002463）今天走势的原因；或分析 PCB 板块未来一周强弱"
+              autoSize={{ minRows: 2, maxRows: 5 }} maxLength={4000} showCount />
+          </div>
+        )}
         {!!stage && (
           <Select style={{ width: '100%' }} value={clock} onChange={setClock}
                   options={[

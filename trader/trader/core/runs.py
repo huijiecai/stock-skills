@@ -34,7 +34,8 @@ class Runs:
                prompt_versions: dict, system_id: int = 1,
                user_id: int = 0, stage: str = "",
                clock: str = "real", clock_date: str = "",
-               portfolio_id: int = 0, stage_contract: dict | None = None) -> dict:
+               portfolio_id: int = 0, stage_contract: dict | None = None,
+               run_inputs: dict | None = None) -> dict:
         """建档(同名已存在→ValueError)。kind 由 derive_kind 推导后传入;
         portfolio_id 建档即绑(实盘=系统实盘组合,实验=新开组合)。"""
         now = _dt.now().isoformat(timespec="seconds")
@@ -43,12 +44,13 @@ class Runs:
                 r = conn.execute(
                     "INSERT INTO runs(user_id, slug, kind, trade_date, status,"
                     " prompt_versions, system_id, stage, clock, clock_date,"
-                    " portfolio_id,stage_contract,created_at,heartbeat_at)"
-                    " VALUES(%s,%s,%s,%s,'running',%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
+                    " portfolio_id,stage_contract,run_inputs,created_at,heartbeat_at)"
+                    " VALUES(%s,%s,%s,%s,'running',%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) RETURNING *",
                     (user_id, slug, kind, trade_date,
                      json.dumps(prompt_versions, ensure_ascii=False), system_id, stage,
                      clock, clock_date or None, portfolio_id,
-                     json.dumps(stage_contract or {}, ensure_ascii=False), now, now),
+                     json.dumps(stage_contract or {}, ensure_ascii=False),
+                     json.dumps(run_inputs or {}, ensure_ascii=False), now, now),
                 ).fetchone()
             except psycopg.errors.UniqueViolation as e:
                 raise ValueError(f"场次已存在:{slug}(换个名字,或 replay-rm 删除旧场)") from e
@@ -95,6 +97,16 @@ class Runs:
                 (json.dumps(contract, ensure_ascii=False), run_id),
             )
 
+    def set_run_inputs_if_empty(self, run_id: int, run_inputs: dict) -> None:
+        """接续旧场时补运行输入；已经冻结的输入永不覆盖。"""
+        if not run_inputs:
+            return
+        with _connect(self.schema) as conn:
+            conn.execute(
+                "UPDATE runs SET run_inputs=%s WHERE id=%s AND run_inputs='{}'::jsonb",
+                (json.dumps(run_inputs, ensure_ascii=False), run_id),
+            )
+
     def seal(self, run_id: int, metrics: dict | None = None) -> None:
         """封场;metrics(指标)一并落库。"""
         now = _dt.now().isoformat(timespec="seconds")
@@ -139,7 +151,7 @@ class Runs:
         sql = ("SELECT r.id, r.user_id, r.slug, r.kind, r.trade_date, r.portfolio_id,"
                " r.status, r.system_id, s.slug AS system, r.stage, r.clock, r.clock_date,"
                " r.prompt_versions, r.fingerprint, r.metrics, r.created_at, r.sealed_at,"
-               " r.heartbeat_at, r.stage_contract"
+               " r.heartbeat_at, r.stage_contract, r.run_inputs"
                " FROM runs r LEFT JOIN systems s ON s.id=r.system_id")
         if where:
             sql += " WHERE " + " AND ".join(where)
@@ -171,6 +183,7 @@ class Runs:
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS clock_date TEXT")
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS heartbeat_at TEXT")
             conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS stage_contract JSONB NOT NULL DEFAULT '{}'")
+            conn.execute("ALTER TABLE runs ADD COLUMN IF NOT EXISTS run_inputs JSONB NOT NULL DEFAULT '{}'")
             conn.execute("ALTER TABLE runs DROP CONSTRAINT IF EXISTS runs_name_key")
             conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS runs_user_slug ON runs(user_id, slug)")
 

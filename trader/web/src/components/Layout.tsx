@@ -10,11 +10,9 @@ import { systemDisplayName } from '../lib/system'
 const { Sider, Header, Content } = AntLayout
 
 const STARTER_MANIFEST = {
-  stages: { run: { kind: 'single', prompt: 'PLACEHOLDER-run', request_limit: 100, vars: ['date'] } },
-  tools: ['get_quotes', 'get_indices', 'get_kline', 'get_limit_up',
-    'get_top_amount', 'get_market_summary', 'get_positions', 'get_account',
-    'scan_market', 'save_doc', 'get_doc', 'list_docs'],
-  web_search: true,
+  stages: { run: { kind: 'single', prompt: 'PLACEHOLDER-run', request_limit: 100 } },
+  policy: { web_search: false, resource_write: false,
+            simulation_trading: true, live_trading: false },
   doc_classes: { library: ['note', 'research'], ephemeral: ['report'] },
 }
 
@@ -57,7 +55,7 @@ export default function Layout() {
                  onChange={(e) => setNewName(e.target.value)}
                  onPressEnter={handleCreate} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            创建后进入设置——添加阶段(盘前/盘中/盘后…)、勾选工具,然后写提示词。
+            创建后进入设置添加阶段，然后专注编写交易逻辑 Prompt；行情和组合数据按需调用工具。
           </Typography.Text>
         </Space>
       </Modal>

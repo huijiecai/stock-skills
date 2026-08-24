@@ -1,7 +1,7 @@
 """api·系统端点:manifest 读写 + 指令在线编辑(版本库,按系统命名空间)。"""
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from trader.api.deps import require_user
 from trader.core.promptver import default_prompt_versions
@@ -12,10 +12,15 @@ router = APIRouter(prefix="/systems", tags=["systems"])
 
 def _validate_manifest(manifest: dict) -> None:
     from trader.core.stageio import validate_stage_contracts
+    from trader.core.contracts import normalize_manifest
 
     errors = validate_stage_contracts(manifest)
     if errors:
         raise HTTPException(400, "阶段配置无效:" + "；".join(errors[:8]))
+    try:
+        normalize_manifest(manifest)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(400, f"系统策略无效:{exc}") from exc
 
 
 def _own_system(slug: str, who: dict) -> dict:
@@ -85,7 +90,7 @@ class ManifestIn(BaseModel):
 
 @router.put("/{slug}/manifest")
 def update_manifest(slug: str, body: ManifestIn, who: dict = Depends(require_user)):
-    """更新 manifest(阶段/工具/联网开关)——编辑器里动态改的一切走这里。
+    """更新 manifest(阶段/系统策略)——编辑器里动态改的一切走这里。
     新增阶段的指令如果不存在,自动创建空模板(挂在系统命名空间)。"""
     uid = who["user"]["id"]
     row = _own_system(slug, who)
@@ -107,7 +112,7 @@ def update_manifest(slug: str, body: ManifestIn, who: dict = Depends(require_use
     updated = default_systems().upsert(slug, m, row.get("status", "active"), user_id=uid,
                                        display_name=row.get("display_name") or slug)
     return {"slug": updated["slug"], "stages": list(m.get("stages", {}).keys()),
-            "tools": len(m.get("tools", []))}
+            "policy": updated["manifest"].get("policy", {})}
 
 
 # ── 指令在线编辑(命名空间=系统;md 编辑面在此退役)──────
@@ -213,6 +218,7 @@ class RunIn(BaseModel):
     prompt_version: int | None = None  # 钉住阶段指令版本；空=最新
     opening: str = "fresh"   # simulated 实验组合开局
     portfolio_type: str = "main"  # real 时 main | paper；simulated 强制 experiment
+    instruction: str = Field(default="", max_length=4000)  # 本次运行要解决的具体问题
 
 
 @router.post("/{slug}/run")
@@ -232,6 +238,7 @@ def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
         raise HTTPException(400, f"阶段不存在:{stage}(可用:{list(stages)})")
 
     sdef = stages[stage]
+    instruction = body.instruction.strip()
     kind = sdef.get("kind", "single")
     if body.clock not in ("real", "simulated"):
         raise HTTPException(400, "clock 只允许 real 或 simulated")
@@ -268,20 +275,25 @@ def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
                                      "换个日期,或先删除旧场再跑")
 
     if kind == "single":
+        # research 的 topic 是历史 Prompt 占位符；新运行统一从本次任务取得。
+        legacy_vars = ({"topic": instruction}
+                       if instruction and "topic" in (sdef.get("vars") or []) else {})
         code = (f"from trader.core.engine import run_single; "
                 f"run_single({slug!r}, {stage!r}, user_id={uid}, date={body.date!r}, "
                 f"clock={body.clock!r}, prompt_version={body.prompt_version!r}, "
-                f"opening={body.opening!r}, portfolio_type={body.portfolio_type!r})")
+                f"opening={body.opening!r}, portfolio_type={body.portfolio_type!r}, "
+                f"instruction={instruction!r}, **{legacy_vars!r})")
     elif body.clock == "real":
         code = (f"from trader.core.engine import run_live; "
                 f"run_live({slug!r}, stage_name={stage!r}, user_id={uid}, "
                 f"sleep_seconds={body.sleep_seconds}, prompt_version={body.prompt_version!r}, "
-                f"portfolio_type={body.portfolio_type!r})")
+                f"portfolio_type={body.portfolio_type!r}, instruction={instruction!r})")
     else:  # loop + simulated(重演某日)
         code = (f"from trader.core.engine import run_replay; "
                 f"run_replay({slug!r}, {body.date!r}, stage_name={stage!r}, "
                 f"interval={body.interval}, tag={'web-' + slug!r}, user_id={uid}, "
-                f"opening={body.opening!r}, prompt_version={body.prompt_version!r})")
+                f"opening={body.opening!r}, prompt_version={body.prompt_version!r}, "
+                f"instruction={instruction!r})")
 
     cmd = ["uv", "run", "python", "-c", code]
     log = Path("logs/api_runs.log")
@@ -291,4 +303,5 @@ def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
                          env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"})
     return {"started": True, "system": slug, "stage": stage, "date": body.date,
             "kind": kind, "clock": body.clock,
+            "run_inputs": {"instruction": instruction} if instruction else {},
             "note": "已发起,到「场次」页看进度和结果"}

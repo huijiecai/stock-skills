@@ -55,12 +55,14 @@ def test_poll_refreshes_heartbeat_and_reads_status(request):
     Systems(schema=schema)                     # list() join systems,先建表
     runs = Runs(schema=schema)
     run = runs.create("hb-run", "live", "20260821", {}, system_id=1, user_id=0,
-                      stage="live", portfolio_id=0)
+                      stage="live", portfolio_id=0,
+                      run_inputs={"instruction": "观察 PCB 板块"})
     assert run["heartbeat_at"] == run["created_at"]       # 建场即有心跳,不误报僵死
     assert runs.poll(run["id"]) == "running"              # 轮询返回状态
     assert runs.get_by_id(run["id"])["heartbeat_at"] >= run["created_at"]
     hb = runs.get_by_id(run["id"])["heartbeat_at"]
     assert runs.list(user_id=0)[0]["heartbeat_at"] == hb  # 列表也带出心跳(前端判僵死)
+    assert runs.list(user_id=0)[0]["run_inputs"] == {"instruction": "观察 PCB 板块"}
     runs.set_status(run["id"], "stopping")
     assert runs.poll(run["id"]) == "stopping"             # 优雅停止路径不变
 
@@ -118,3 +120,42 @@ def test_metrics_single_run_portfolio_unchanged(request, monkeypatch):
     assert m_run["initial"] == 100_000.0         # 单一场组合:期初=钱包初始资金
     assert m_run["pnl"] == 50.0                  # 100×(10.5-10) 浮盈
     assert m_run["return_pct"] == 0.05
+
+
+def test_stage_vars_derive_without_declaration():
+    """派生变量不依赖 manifest 声明:契约编辑丢掉 vars 字段,prompt 的
+    {prev}/{weekday}/{gap} 照常注入(8/24 盘前事故回归:声明丢失导致
+    premarket 加载失败,场次还伪装成'完成')。"""
+    stage = {"kind": "single"}                       # 无 vars 声明(新契约形态)
+    vars_ = eng._stage_vars(stage, date="20260824")
+    assert vars_["prev"] == "20260821"
+    assert vars_["weekday"] == "周一"
+    assert vars_["gap"] == 3
+    # 变量契约面板同规则:single 阶段恒有 date+三件套(声明只是补充调用方变量)
+    schema = eng.stage_var_schema(stage)
+    assert {"date", "prev", "weekday", "gap"} <= {v["name"] for v in schema["vars"]}
+    # 声明的调用方变量(research 的 topic)仍然列出
+    schema2 = eng.stage_var_schema({"kind": "single", "vars": ["topic"]})
+    assert {v["name"] for v in schema2["vars"]} >= {"date", "prev", "weekday", "gap", "topic"}
+
+
+def test_resume_run_keeps_frozen_instruction():
+    """循环接续不能悄悄换分析对象，否则同一 Run 的证据会自相矛盾。"""
+    class FakeRuns:
+        saved = None
+
+        def set_run_inputs_if_empty(self, run_id, run_inputs):
+            self.saved = (run_id, run_inputs)
+
+    runs = FakeRuns()
+    requested = {"instruction": "分析 PCB 板块"}
+    assert eng._resume_run_inputs(runs, {"id": 7, "run_inputs": {}}, requested) == requested
+    assert runs.saved == (7, requested)
+
+    import pytest
+    with pytest.raises(RuntimeError, match="本次任务与原场次不一致"):
+        eng._resume_run_inputs(
+            runs,
+            {"id": 7, "run_inputs": {"instruction": "分析沪电股份"}},
+            requested,
+        )
