@@ -298,6 +298,7 @@ def _format_market_summary(d: dict) -> str:
             f"(主板{_fmt_amount(d.get('main_board_amount', 0))} "
             f"创业板{_fmt_amount(d.get('growth_board_amount', 0))} "
             f"科创{_fmt_amount(d.get('star_board_amount', 0))})")
+    # 回放盘中时点的未来数据警示,勿删(ADR-0012)
     return "⚠ 该日收盘统计(全天)——回放盘中时点时这是未来数据,勿用于当时决策\n" + body
 
 
@@ -316,6 +317,7 @@ def _format_top_amount(data: list[dict]) -> str:
              f"{s.get('pct', 0):+.2f}%", _fmt_amount(s.get("amount", 0))] for s in data]
     table = tabulate(rows, headers=["代码", "名称", "收盘", "涨跌", "成交额"],
                      tablefmt="plain", floatfmt=".2f")
+    # 回放盘中时点的未来数据警示,勿删(ADR-0012)
     return "⚠ 该日收盘统计(全天累计)——回放盘中时点时这是未来数据,勿用于当时决策\n" + table
 
 

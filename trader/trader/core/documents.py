@@ -263,7 +263,7 @@ def _meta_json(meta: dict | None) -> str:
 def _init_versions(conn) -> None:
     """统一版本史:documents/watchlist 每次写操作各落一条(实现设计 §7)。
 
-    粒度=全量 payload(附录 4 已定);subject_type 当前为 document/watchlist,
+    粒度=全量 payload(见 ADR-0006);subject_type 当前为 document/watchlist,
     将来任何要留痕的对象都往这里追加。
     """
     conn.execute(

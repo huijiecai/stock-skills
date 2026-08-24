@@ -40,8 +40,8 @@ def test_interruptible_sleep_counts_down(monkeypatch):
 def test_interruptible_sleep_wakes_after_machine_sleep(monkeypatch):
     """机器睡眠后唤醒:墙上时钟已过 deadline 立即返回,不补睡剩余倒计时。
 
-    复现 2026-08-21 run 336 事故:午休 90 分钟倒计时,macOS 睡眠 2 小时,
-    旧实现(累计 waited)唤醒后继续数完剩余分钟,整场看盘被拖过收盘。"""
+    复现 run 336 事故:午休 90 分钟倒计时遇 macOS 睡眠 2 小时,唤醒后不得
+    补睡剩余分钟拖过收盘(倒计时按墙上时钟,决策见 ADR-0001)。"""
     clock = _Clock(jump_after=10.0, jump=7200.0)   # 第一个分片后系统睡 2 小时
     monkeypatch.setattr(eng, "time_mod", clock)
     eng._interruptible_sleep(5400, 999_999_999, chunk=10)
@@ -70,14 +70,11 @@ def test_poll_refreshes_heartbeat_and_reads_status(request):
 # ── 封场指标:场次归因 ───────────────────────────────────
 
 def _patch_metrics_env(monkeypatch, schema: str, quotes: dict[str, float]):
-    """把 compute_metrics 的三个外部依赖指到测试 schema/假行情。"""
-    import trader.core.db as db
+    """把 compute_metrics 的外部依赖指到测试 schema/假行情。
+    (实现已收拢到 core/valuation:钱包单例与行情都打在其命名空间上。)"""
     import trader.core.market as market
-    real_connect = db._connect
-    monkeypatch.setattr(eng, "default_wallet", lambda: Wallet(schema=schema))
-    monkeypatch.setattr(
-        db, "_connect",
-        lambda schema_=None: real_connect(schema if schema_ is None else schema_))
+    import trader.core.valuation as valuation
+    monkeypatch.setattr(valuation, "default_wallet", lambda: Wallet(schema=schema))
     monkeypatch.setattr(market, "_fetch_quotes",
                         lambda mode, codes, date="", time=None:
                         [{"code": c, "price": quotes[c]} for c in codes if c in quotes])
@@ -86,7 +83,7 @@ def _patch_metrics_env(monkeypatch, schema: str, quotes: dict[str, float]):
 def test_metrics_run_scoped_on_shared_portfolio(request, monkeypatch):
     """live 共享组合:封场指标只归因本场——历史盈亏不背锅,卖老底认组合成本。
 
-    复现 run 336 场景的抽象版:组合先亏 500(历史),本场卖继承持仓 +500、
+    复现 run 336 场景的抽象版(归因口径见 ADR-0002):组合先亏 500(历史),本场卖继承持仓 +500、
     买新票浮盈 +200 → 本场应 +700(+0.7%),而非整本的 -x%。"""
     schema = f"t_{request.node.name[:40]}"
     acct = Wallet(schema=schema)          # 建表即兜底预置组合0钱包(10万分)
@@ -123,9 +120,8 @@ def test_metrics_single_run_portfolio_unchanged(request, monkeypatch):
 
 
 def test_stage_vars_derive_without_declaration():
-    """派生变量不依赖 manifest 声明:契约编辑丢掉 vars 字段,prompt 的
-    {prev}/{weekday}/{gap} 照常注入(8/24 盘前事故回归:声明丢失导致
-    premarket 加载失败,场次还伪装成'完成')。"""
+    """派生变量不依赖 manifest 声明(见 ADR-0003):契约编辑丢掉 vars 字段,
+    prompt 的 {prev}/{weekday}/{gap} 照常注入,阶段不再因声明丢失加载失败。"""
     stage = {"kind": "single"}                       # 无 vars 声明(新契约形态)
     vars_ = eng._stage_vars(stage, date="20260824")
     assert vars_["prev"] == "20260821"

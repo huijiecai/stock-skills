@@ -28,6 +28,7 @@ from trader.core.stageio import (
     publish_stage_outputs,
     stage_contract,
 )
+from trader.core.valuation import compute_metrics
 from trader.prompts import load
 
 # 进程内存里只留最近 N 轮对话,防止全天看盘把上下文撑爆;
@@ -70,7 +71,7 @@ def build_agent(system_name: str, user_id: int = 0,
     return agent, manifest, row["id"]
 
 
-# ── 阶段变量提供器(附录 14 已定:engine 内置通用提供器)──
+# ── 阶段变量提供器(engine 内置通用提供器,见 docs/adr/0004)──
 
 def prev_trading_day(target: str) -> str:
     """上一交易日:目标日在最新数据之后→最新交易日;否则往前试探(节假日跳过)。"""
@@ -102,9 +103,8 @@ def _derive_date_vars(date: str, prev: str = "") -> tuple[str, str, int]:
 
 def _stage_vars(stage: dict, **cli: str) -> dict:
     """按调用参数组装变量;date/now/rounds/clock 由调用方/循环注入。
-    派生三件套(prev/weekday/gap)只要有 date 就推算,不看 manifest 声明——
-    契约编辑丢掉 vars 字段不再导致 prompt 加载失败(8/24 盘前事故),
-    多余变量对 format 无害。"""
+    派生三件套(prev/weekday/gap)只要有 date 就推算,不看 manifest 声明,
+    多余变量对 format 无害(8/24 盘前事故与决策见 ADR-0003)。"""
     out = {k: v for k, v in cli.items() if v}
     date = cli.get("date", "")
     if date:
@@ -226,7 +226,7 @@ def _trim_rounds(messages: list[ModelMessage], keep: int = KEEP_ROUNDS) -> list[
 
 def _save_transcript(stage: str, trade_date: str, round_no: int, clock: str,
                      messages: list[ModelMessage], usage) -> None:
-    """思考流落库(轮次= rN;single 阶段 name='',附录 12 已定:统一落)。"""
+    """思考流落库(轮次= rN;single 阶段 name='';统一落库,见 ADR-0005)。"""
     from trader.core.documents import default_documents
 
     try:
@@ -644,105 +644,5 @@ def _prompt_cover(manifest: dict, system_id: int, user_id: int = 0, stage: str =
 
 
 # ── 封场指标(§8:由流水推算,粒度=成交时点)────────────
-
-def compute_metrics(portfolio_id: int, date: str, run_id: int | None = None,
-                    mode: str = "replay") -> dict:
-    """封场自动算:本场收益/净值曲线最大回撤/胜率盈亏比/计数。
-
-    run_id 给定时只归因本场成交——live/paper 写跨日复用的共享组合,不过滤会把
-    整本历史算进本场(run 336 教训:首日买 1 笔却显示整本 -1.39%);回放一场一
-    组合,过滤后与整组合同义。本场盈亏 = 本场卖出的已实现(认组合均价成本,
-    继承的老底也算)+ 本场净买入期末仍持有的浮盈(期末价 − 本场成交均价);
-    期初资产 = 期末资产 − 本场盈亏(单一组合时恰等于钱包初始资金)。
-    mode 决定期末估值行情:live 场传 live(实时价,当日 replay 尚无数据),
-    回放传 replay(当日收盘);行情取不到浮盈记 0,资产退成本。"""
-    from trader.core.market import _fetch_quotes
-    from trader.core.db import _connect
-
-    acct = default_wallet()
-    all_fills = acct.fills(portfolio_id)
-    is_run = (lambda f: True) if run_id is None else (lambda f: f.get("run_id") == run_id)
-    fills = [f for f in all_fills if is_run(f)]
-    with _connect() as conn:
-        wrow = conn.execute(
-            "SELECT cash_cents FROM wallets WHERE portfolio_id=%s", (portfolio_id,)
-        ).fetchone()
-    cash = wrow["cash_cents"] if wrow else 0
-
-    # 期末估值:行情价优先,取不到退持仓成本(期末资产/现金是组合口径,整本持仓)
-    positions = acct.positions(portfolio_id)
-    px_by: dict[str, int] = {}
-    try:
-        if positions:
-            qs = _fetch_quotes(mode, [p["code"] for p in positions], date)
-            px_by = {q["code"]: round(q["price"] * 100) for q in qs if q.get("price")}
-    except Exception:  # noqa: BLE001 —— 行情不可得时按成本
-        px_by = {}
-    cost_by = {p["code"]: round(p["avg_cost"] * 100) for p in positions}
-    market_value = sum(p["quantity"] * (px_by.get(p["code"]) or cost_by.get(p["code"], 0))
-                       for p in positions)
-    asset = cash + market_value
-
-    # 组合级均价台账(按 id 序折全部流水):本场的卖出认组合成本(继承老底),
-    # 非本场成交只推台账不计盈亏;本场买入量/额单独记(浮盈按本场成交均价)
-    book: dict[str, list[int]] = {}      # code -> [qty, total_cost_cents]
-    realized: list[int] = []
-    buys_qty: dict[str, int] = {}
-    buys_cost: dict[str, int] = {}
-    for f in all_fills:
-        code, q, px = f["code"], f["quantity"], f["price_cents"]
-        st = book.setdefault(code, [0, 0])
-        if f["side"] == "BUY":
-            st[0] += q
-            st[1] += q * px
-            if is_run(f):
-                buys_qty[code] = buys_qty.get(code, 0) + q
-                buys_cost[code] = buys_cost.get(code, 0) + q * px
-        else:
-            avg = st[1] // st[0] if st[0] else 0
-            st[0] -= q
-            st[1] -= q * avg
-            if is_run(f):
-                realized.append(q * px - q * avg)
-
-    # 本场浮盈:净买入且期末仍持有 → 净量 × (期末价 − 本场成交均价);无行情记 0
-    net: dict[str, int] = {}
-    for f in fills:
-        sign = 1 if f["side"] == "BUY" else -1
-        net[f["code"]] = net.get(f["code"], 0) + sign * f["quantity"]
-    unrealized = sum(q * (px_by[c] - round(buys_cost[c] / buys_qty[c]))
-                     for c, q in net.items()
-                     if q > 0 and buys_qty.get(c) and px_by.get(c))
-
-    pnl = sum(realized) + unrealized
-    initial = asset - pnl
-    # 净值曲线(本场 fills 折叠,持仓按最近成交价估值,起点=期初资产)
-    equity, curve, pos, last_px = initial, [], {}, {}
-    for f in fills:
-        code, q, px = f["code"], f["quantity"], f["price_cents"]
-        if f["side"] == "BUY":
-            equity -= q * px
-            pos[code] = pos.get(code, 0) + q
-        else:
-            equity += q * px
-            pos[code] = pos.get(code, 0) - q
-        last_px[code] = px
-        curve.append(equity + sum(hq * last_px[c] for c, hq in pos.items() if hq > 0))
-    peak, max_dd = initial, 0.0
-    for v in curve:
-        peak = max(peak, v)
-        if peak > 0:
-            max_dd = max(max_dd, (peak - v) / peak)
-    wins = [r for r in realized if r > 0]
-    losses = [r for r in realized if r <= 0]
-    return {
-        "initial": initial / 100, "cash": cash / 100, "asset": asset / 100,
-        "pnl": pnl / 100,
-        "return_pct": round(pnl / initial * 100, 2) if initial > 0 else 0.0,
-        "max_drawdown_pct": round(max_dd * 100, 2),
-        "win_rate": round(len(wins) / len(realized) * 100, 1) if realized else None,
-        "profit_factor": (round(sum(wins) / -sum(losses), 2)
-                          if losses and sum(losses) < 0 else
-                          (None if not wins else 999.0)),
-        "n_fills": len(fills), "realized_trades": len(realized),
-    }
+# 实现已收拢到 core/valuation.py(估值口径唯一:API 资产页与封场共用);
+# 顶部 re-export 维持 engine.compute_metrics 既有调用点与测试入口不变。

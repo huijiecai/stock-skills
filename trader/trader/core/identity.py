@@ -76,6 +76,11 @@ class Identity:
             return conn.execute("SELECT * FROM users WHERE email=%s",
                                 (email.strip().lower(),)).fetchone()
 
+    def get_user_by_id(self, user_id: int) -> dict | None:
+        with _connect(self.schema) as conn:
+            return conn.execute("SELECT * FROM users WHERE id=%s",
+                                (user_id,)).fetchone()
+
     def verify_login(self, email: str, password: str) -> dict | None:
         """密码登录:成功返回用户行,失败 None(密码错与用户不存在同响应)。"""
         with _connect(self.schema) as conn:

@@ -12,7 +12,8 @@ from pydantic import BaseModel
 
 from trader.api.deps import require_user
 from trader.core.context import set_context, set_execution_mode
-from trader.core.db import _connect
+from trader.core.identity import default_identity
+from trader.core.ledger import default_wallet
 from trader.core.portfolios import default_portfolios
 from trader.core.registry import TOOLS, TOOL_GROUPS, WRITE_TOOLS
 
@@ -66,15 +67,7 @@ def _coerce(pname: str, val, ann: str):
 def _test_portfolios(uid: int) -> list[dict]:
     """测试账号名下组合(+有无持仓,试运行默认挑一个有数据的)。"""
     ports = default_portfolios().list(uid)
-    ids = [p["id"] for p in ports]
-    held: dict[int, int] = {}
-    if ids:
-        with _connect() as conn:
-            rows = conn.execute(
-                "SELECT portfolio_id, count(*) AS n FROM positions"
-                " WHERE quantity > 0 AND portfolio_id = ANY(%s) GROUP BY portfolio_id",
-                (ids,)).fetchall()
-        held = {r["portfolio_id"]: r["n"] for r in rows}
+    held = default_wallet().holding_counts([p["id"] for p in ports])
     for p in ports:
         p["has_positions"] = held.get(p["id"], 0) > 0
     return ports
@@ -99,9 +92,7 @@ def tools_catalog(who: dict = Depends(require_user)):
         })
     tools.sort(key=lambda t: (t["group"], t["name"]))
     uid = _test_user_id()
-    with _connect() as conn:
-        user = conn.execute("SELECT id, display_name FROM users WHERE id=%s",
-                            (uid,)).fetchone()
+    user = default_identity().get_user_by_id(uid)
     return {"tools": tools,
             "portfolios": _test_portfolios(uid),
             "test_user": {"id": uid,

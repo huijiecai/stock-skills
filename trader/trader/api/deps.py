@@ -29,9 +29,7 @@ def require_user(request: Request) -> dict:
         if key is None:
             raise HTTPException(401, "token 无效或已吊销")
         scope = key["scope"]
-        from trader.core.db import _connect
-        with _connect() as conn:
-            user = conn.execute("SELECT * FROM users WHERE id=%s", (key["user_id"],)).fetchone()
+        user = idt.get_user_by_id(key["user_id"])
     # 切上下文到该用户默认实盘组合(下游读写自动带上 user+portfolio)
     set_context(default_portfolios().default_for(user["id"]), None, user["id"])
     return {"user": dict(user), "scope": scope}

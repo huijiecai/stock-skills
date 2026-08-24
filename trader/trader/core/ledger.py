@@ -73,6 +73,24 @@ class Wallet:
                 "SELECT * FROM fills WHERE portfolio_id=%s ORDER BY id",
                 (_eff(portfolio_id),)).fetchall()
 
+    def balance(self, portfolio_id: int | None = None) -> dict | None:
+        """钱包行(cash_cents/initial_cents,分);未开局返回 None。"""
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT cash_cents, initial_cents FROM wallets WHERE portfolio_id=%s",
+                (_eff(portfolio_id),)).fetchone()
+
+    def holding_counts(self, portfolio_ids: list[int]) -> dict[int, int]:
+        """各组合的在持条数(quantity>0);空列表直接返回 {}。"""
+        if not portfolio_ids:
+            return {}
+        with _connect(self.schema) as conn:
+            rows = conn.execute(
+                "SELECT portfolio_id, count(*) AS n FROM positions"
+                " WHERE quantity > 0 AND portfolio_id = ANY(%s) GROUP BY portfolio_id",
+                (portfolio_ids,)).fetchall()
+        return {r["portfolio_id"]: r["n"] for r in rows}
+
     # ── 交易(事务 + fill)───────────────────────────────
 
     def buy(self, code: str, quantity: int, price: float, on: str | None = None,

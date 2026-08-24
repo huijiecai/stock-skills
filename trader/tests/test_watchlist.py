@@ -5,7 +5,6 @@
 docstring 统一格式:<场景>:<验证点>
 """
 from trader.core.db import _connect
-from trader.core.systems import default_systems, ensure_expectation_system
 from trader.core.watchlist import Watchlists
 
 TOOL = "watchlist"
@@ -72,10 +71,13 @@ def test_versions_events(request):
         ("create", None), ("add", "002156"), ("update", "002156"), ("remove", "002156")]
 
 
-def test_systems_manifest():
-    """系统注册表:expectation 行存在,五阶段可解析,工具白名单全部在注册表内。"""
+def test_systems_manifest(request):
+    """系统注册表:expectation 默认 manifest 五阶段可解析,工具白名单全部在注册表内。
+    必须在 t_ schema 里 upsert(8/24 本测试曾写 public 冲掉用户 manifest,见 ADR-0007)。"""
     from trader.core.registry import TOOLS
-    row = ensure_expectation_system()
+    from trader.core.systems import EXPECTATION_MANIFEST, Systems
+    sys = Systems(schema=f"t_{request.node.name[:40]}")
+    row = sys.upsert("expectation", EXPECTATION_MANIFEST, user_id=0, display_name="预期管理")
     manifest = row["manifest"]
     stages = manifest["stages"]
     print(f"  → 系统 {row['slug']}:阶段 {list(stages)},工具 {len(manifest['tools'])} 个")

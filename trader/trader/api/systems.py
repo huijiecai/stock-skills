@@ -1,5 +1,4 @@
 """api·系统端点:manifest 读写 + 指令在线编辑(版本库,按系统命名空间)。"""
-from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -183,26 +182,18 @@ def save_prompt(slug: str, prompt: str, body: dict, who: dict = Depends(require_
 @router.put("/{slug}/restore")
 def restore_system(slug: str, who: dict = Depends(require_user)):
     """恢复归档系统(status → active)。"""
-    from trader.core.db import _connect
     uid = who["user"]["id"]
     _own_system(slug, who)
-    with _connect() as conn:
-        conn.execute("UPDATE systems SET status='active', updated_at=%s"
-                     " WHERE user_id=%s AND slug=%s",
-                     (datetime.now().isoformat(timespec="seconds"), uid, slug))
+    default_systems().set_status(slug, uid, "active")
     return {"restored": slug, "status": "active"}
 
 
 @router.delete("/{slug}")
 def delete_system(slug: str, who: dict = Depends(require_user)):
     """归档系统(软删除,数据保留,状态→archived)。"""
-    from trader.core.db import _connect
     uid = who["user"]["id"]
     _own_system(slug, who)
-    with _connect() as conn:
-        conn.execute("UPDATE systems SET status='archived', updated_at=%s"
-                     " WHERE user_id=%s AND slug=%s",
-                     (datetime.now().isoformat(timespec="seconds"), uid, slug))
+    default_systems().set_status(slug, uid, "archived")
     return {"deleted": slug, "status": "archived",
             "note": "系统已归档(数据保留,场次历史不受影响;恢复改 status=active)"}
 

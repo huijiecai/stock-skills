@@ -8,6 +8,14 @@
 注:try/except 包 yield 捕不到测试失败(pytest 不向 fixture teardown 传播测试异常),
 必须用 pytest_runtest_makereport 钩子记录结果,fixture teardown 再读。
 """
+import os
+
+# 测试默认 schema 重定向:必须在任何 trader import 之前。
+# core/db._resolve 据此把默认 "public" 重定向到 t_api——根治测试直写 public
+# 冲掉真实数据(8/24 事故,见 docs/adr/0007);显式 t_* schema 不受影响;
+# t_api 本身也匹配下面的 t_%% 清理规则,会话自清洁。
+os.environ.setdefault("TRADER_SCHEMA", "t_api")
+
 import pytest
 
 

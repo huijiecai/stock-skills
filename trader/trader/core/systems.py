@@ -160,6 +160,15 @@ class Systems:
                 f" {where} ORDER BY id", args
             ).fetchall()
 
+    def set_status(self, slug: str, user_id: int, status: str) -> None:
+        """状态流转(active/archived;归档=软删除,数据保留)。"""
+        from datetime import datetime as _dt
+        with _connect(self.schema) as conn:
+            conn.execute("UPDATE systems SET status=%s, updated_at=%s"
+                         " WHERE user_id=%s AND slug=%s",
+                         (status, _dt.now().isoformat(timespec="seconds"),
+                          user_id, slug))
+
     def _init_db(self) -> None:
         with _connect(self.schema) as conn:
             conn.execute(
@@ -220,6 +229,10 @@ def default_systems() -> Systems:
 
 
 def ensure_expectation_system(user_id: int = 0) -> dict:
-    """确保 expectation 系统已登记(幂等,manifest 以代码里的初始定义为准)。"""
+    """确保 expectation 系统已登记。真幂等:已存在就直接返回——绝不覆盖用户
+    在设置页编辑过的 manifest(8/24 测试污染事故教训,见 ADR-0007)。"""
+    row = default_systems().get("expectation", user_id=user_id)
+    if row is not None:
+        return row
     return default_systems().upsert("expectation", EXPECTATION_MANIFEST,
                                     user_id=user_id, display_name="预期管理")

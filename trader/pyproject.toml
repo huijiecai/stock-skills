@@ -8,6 +8,7 @@ dependencies = [
     "anthropic>=0.121.0",
     "fastapi>=0.141.1",
     "openai>=3.0.0",
+    "psycopg-pool>=3.3.1",
     "psycopg[binary]>=3.3.4",
     "pydantic-ai>=2.29.0",
     "python-dotenv>=1.2.2",
