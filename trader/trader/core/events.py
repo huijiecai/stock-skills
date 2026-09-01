@@ -1,5 +1,7 @@
 """core·运行事件流(平台通用件):轮内工具调用/返回实时落库,前端轮询近实时展示。
 每事件一行 INSERT 天然增量;进程外(web)随时可读——追盘不再黑盒。"""
+from __future__ import annotations   # 类体 def list 遮蔽内置 list,注解需惰性求值
+
 import json
 from datetime import datetime as _dt
 from functools import wraps
@@ -56,6 +58,15 @@ class RunEvents:
                 "SELECT count(*) FILTER (WHERE kind='round_end') AS ends FROM run_events"
                 " WHERE run_id=%s AND round=%s", (run_id, round_)).fetchone()
         return (r["ends"] or 0) == 0
+
+    def failure_runs(self, run_id: int) -> list[dict]:
+        """轮内失败事件(round_end 以"中断重试"开头):run 486 事故后轮次列表可见。
+        按时间升序返回,连续失败聚成链的活交给 queries(它知道轮次边界)。"""
+        with _connect(self.schema) as conn:
+            return conn.execute(
+                "SELECT round, kind, body, created_at FROM run_events"
+                " WHERE run_id=%s AND kind='round_end' AND body LIKE '中断重试%%'"
+                " ORDER BY id", (run_id,)).fetchall()
 
     def _init_db(self) -> None:
         with _connect(self.schema) as conn:

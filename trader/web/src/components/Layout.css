@@ -1,0 +1,20 @@
+/* 自绘侧栏(暗色):图标列定宽对齐,悬停出 ⋯ */
+.sn-brand { color: #fff; font-weight: 700; font-size: 15px; padding: 16px 16px 10px; }
+.sn-nav { display: flex; flex-direction: column; gap: 2px; padding: 0 8px 16px; }
+.sn-item { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 8px;
+  border-radius: 8px; color: rgba(255,255,255,.68); cursor: pointer; font-size: 13px;
+  user-select: none; }
+.sn-item:hover { background: rgba(255,255,255,.09); color: #fff; }
+.sn-item.sn-active { background: rgba(22,119,255,.30); color: #fff; font-weight: 600; }
+.sn-item.sn-dim .sn-label { color: rgba(255,255,255,.42); }
+.sn-icon { width: 18px; text-align: center; flex-shrink: 0; }
+.sn-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sn-extra { flex-shrink: 0; }
+.sn-extra-btn { opacity: 0; padding: 0 4px; border-radius: 4px; }
+.sn-item:hover .sn-extra-btn { opacity: .75; }
+.sn-group { padding: 12px 10px 4px; font-size: 11px; color: rgba(255,255,255,.35); letter-spacing: .5px; }
+
+/* 固定侧栏在小屏收起时,主区去掉让位边距 */
+@media (max-width: 992px) {
+  .sider-collapsed-margin { margin-left: 0 !important; }
+}

@@ -1,5 +1,6 @@
 /** 指令台·触发式补全浮层(@ 工具 / { 变量,设计 §5.2)。
  * 纯展示:候选列表 + 键盘导航由父组件经 navAutocomplete 驱动。 */
+import './promptide.css'
 export interface AcItem {
   label: string          // 插入产物,如 "{date}" / 工具引导行
   title: string          // 主标题,如 date / get_quotes

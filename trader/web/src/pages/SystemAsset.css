@@ -1,0 +1,47 @@
+/* 资产视图(原型画面一/七:值守状态条/指标带/净值曲线/今日卡片/模拟实验室)
+   顶栏与面板外壳 .ws-top/.ws-panel 等在公共 index.css,与 SystemWorkspace 共用 */
+.ws-statusband { display: flex; align-items: center; gap: 20px; padding: 10px 20px;
+  background: var(--surface); border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+.ws-statusband .live { color: var(--up); font-weight: 800; }
+.ws-statusband b { color: var(--text-1); font-family: var(--font-num); }
+.ws-statusband .next { margin-left: auto; font-size: 12.5px; }
+.ws-main { padding: 16px 20px 18px; }
+.ws-metricrow { display: flex; gap: 12px; margin-bottom: 14px; }
+.ws-mc { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; box-shadow: var(--shadow-card); }
+.ws-mc .l { font-size: 12px; color: var(--text-2); }
+.ws-mc .v { font-size: 22px; font-weight: 800; font-family: var(--font-num);
+  margin-top: 3px; font-variant-numeric: tabular-nums; }
+.ws-mc .s { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+.ws-chartcard { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-card); padding: 14px 16px 6px; }
+.ws-charthead { display: flex; align-items: center; font-size: 13.5px; font-weight: 700; margin-bottom: 4px; }
+.ws-charthead .r { margin-left: auto; font-weight: 400; color: var(--text-3); font-size: 12px; }
+.ws-todaycard { margin-top: 14px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: var(--shadow-card); padding: 12px 16px; font-size: 13px;
+  color: #344054; line-height: 1.7; }
+.ws-todaycard .h { font-weight: 700; color: var(--text-1); margin-right: 8px; }
+.ws-labhead { display: flex; align-items: center; gap: 10px; margin: 18px 0 10px; font-size: 14px; font-weight: 800; }
+.ws-labhead .r { margin-left: auto; font-weight: 400; font-size: 12px; color: var(--text-3); }
+.ws-expgrid { display: flex; gap: 12px; }
+.ws-expcard { flex: 1; background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: var(--shadow-card); padding: 12px 14px; min-width: 200px; }
+.ws-expcard .eh { display: flex; font-size: 13px; font-weight: 700; gap: 8px; align-items: center; }
+.ws-expcard .em { font-size: 11.5px; color: var(--text-3); margin: 3px 0 6px; }
+.ws-expcard .ver { font-size: 11.5px; color: var(--accent); background: var(--accent-bg);
+  border-radius: 5px; padding: 0 6px; font-family: var(--font-num); }
+
+@media (max-width: 760px) {
+  .ws-statusband { padding: 9px 12px; gap: 8px 14px; flex-wrap: wrap; }
+  .ws-statusband .next { margin-left: 0; width: 100%; }
+  .ws-main { padding: 12px; }
+  .ws-metricrow { flex-wrap: wrap; gap: 8px; }
+  .ws-mc { min-width: calc(50% - 38px); padding: 10px 12px; }
+  .ws-mc .v { font-size: 19px; }
+  .ws-charthead { align-items: flex-start; gap: 8px; }
+  .ws-charthead .r { max-width: 45%; text-align: right; }
+  .ws-expgrid { flex-wrap: wrap; }
+  .ws-expcard { flex-basis: 100%; }
+  .ws-labhead { flex-wrap: wrap; }
+  .ws-labhead .r { margin-left: 0; }
+}

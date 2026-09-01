@@ -8,10 +8,13 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
+    "gen:api": "cd .. && uv run python -m scripts.export_openapi && cd web && npx openapi-typescript src/api/openapi.json -o src/api/schema.d.ts",
+    "pretest": "npm run gen:api",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@ant-design/icons": "^6.3.2",
     "@tanstack/react-query": "^5.101.4",
     "antd": "^6.6.1",
     "dayjs": "^1.11.23",
@@ -30,6 +33,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^6.0.4",
     "jsdom": "^30.0.1",
+    "openapi-typescript": "^7.13.0",
     "oxlint": "^1.75.0",
     "typescript": "~6.0.2",
     "vite": "^8.2.0",

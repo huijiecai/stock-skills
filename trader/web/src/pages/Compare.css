@@ -1,0 +1,6 @@
+/* 对比页归因横幅 */
+.verdict-banner { display: flex; align-items: center; gap: 10px; background: var(--surface);
+  border: 1px solid var(--border); border-left: 3px solid var(--accent);
+  border-radius: var(--radius); box-shadow: var(--shadow-card); padding: 12px 16px; font-size: 13.5px; }
+.verdict-tag { flex-shrink: 0; font-size: 12px; font-weight: 600; color: var(--accent);
+  background: var(--accent-bg); border-radius: 999px; padding: 2px 10px; }

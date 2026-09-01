@@ -1,5 +1,6 @@
 /** 零依赖行级 diff(LCS):绿增红删,长段未变行折叠。
  * 用于 prompt 版本对比——一眼看清两版之间改了哪几行。 */
+import './PromptDiff.css'
 
 type RowType = 'same' | 'add' | 'del' | 'gap'
 interface Row { t: RowType; text: string; count?: number }
@@ -61,9 +62,9 @@ export default function PromptDiff({ a, b, aLabel = '旧版', bLabel = '新版' 
   const nDel = rows.filter(r => r.t === 'del').length
   return (
     <div>
-      <div style={{ marginBottom: 8, fontSize: 12, color: '#666' }}>
-        <span style={{ color: '#1a7f37' }}>+{nAdd} 行</span> ·{' '}
-        <span style={{ color: '#cf222e' }}>-{nDel} 行</span>
+      <div style={{ marginBottom: 8, fontSize: 12, color: 'var(--text-2)' }}>
+        <span style={{ color: 'var(--down)' }}>+{nAdd} 行</span> ·{' '}
+        <span style={{ color: 'var(--danger)' }}>-{nDel} 行</span>
         <span style={{ marginLeft: 12 }}>{aLabel} → {bLabel}</span>
       </div>
       <div className="diff-box mono">

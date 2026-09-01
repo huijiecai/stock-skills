@@ -1,0 +1,8 @@
+/* 数据台:左列数据清单 + 右侧成员表 */
+.data-workbench-grid { display: flex; gap: 14px; }
+.data-list-pane { width: 340px; flex-shrink: 0; }
+
+@media (max-width: 760px) {
+  .data-workbench-grid { flex-direction: column; }
+  .data-list-pane { width: 100%; }
+}

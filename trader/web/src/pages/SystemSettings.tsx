@@ -1,18 +1,33 @@
 /** 系统工作台·设置 Tab:阶段契约 / 系统策略 / 归档恢复。 */
-import { Button, Card, Input, InputNumber, message, Modal, Select, Space, Switch, Tag, Typography, Popconfirm } from 'antd'
+import { Button, Card, Input, InputNumber, message, Modal, Select, Space, Switch, Tag, Typography } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { get, put, post, del } from '../api/client'
+import type { SystemRow, ManifestOut, SystemBrief, DeleteOut, RestoreOut, StageDef, Stages } from '../api/types'
 import StageContractEditor from './StageContractEditor'
 import { nextStageId, validateStageContracts } from '../lib/stageContract'
+import { OP, STATUS } from '../lib/icons'
+import { ConfirmAction } from '../lib/ui'
+import './SystemSettings.css'
+
+/** manifest 是自由 JSON(阶段结构由 stageContract 库校验),这里只声明本页消费的键;
+ * 索引签名保证保存时 ...manifest 原样透传其余键。 */
+interface ManifestShape {
+  system_prompt?: string
+  web_search?: boolean   // 旧版平铺键(现归 policy)
+  stages?: Stages
+  policy?: { web_search?: boolean; resource_write?: boolean
+             simulation_trading?: boolean; live_trading?: boolean }
+  [key: string]: unknown
+}
 
 export default function SystemSettings() {
   const { name = '' } = useParams()
   const system = name
   const qc = useQueryClient()
-  const detail = useQuery({ queryKey: ['systemDetail', system], queryFn: () => get(`/systems/${encodeURIComponent(system)}`) })
-  const [stages, setStages] = useState<Record<string, any>>({})
+  const detail = useQuery({ queryKey: ['systemDetail', system], queryFn: () => get<SystemRow>(`/systems/${encodeURIComponent(system)}`) })
+  const [stages, setStages] = useState<Stages>({})
   const [webSearch, setWebSearch] = useState(false)
   const [resourceWrite, setResourceWrite] = useState(false)
   const [simulationTrading, setSimulationTrading] = useState(true)
@@ -24,7 +39,7 @@ export default function SystemSettings() {
   const [newStage, setNewStage] = useState({ label: '', type: 'single', interval: 5 })
   const [selectedStage, setSelectedStage] = useState('')
 
-  const manifest = detail.data?.manifest
+  const manifest = detail.data?.manifest as ManifestShape | undefined
   useEffect(() => {
     if (manifest) {
       setStages(manifest.stages ?? {})
@@ -58,8 +73,8 @@ export default function SystemSettings() {
     setSaving(true)
     try {
       // 显示名是 systems 列(不在 manifest):单独走 upsert
-      await put(`/systems/${encodeURIComponent(system)}/manifest`, { manifest: m })
-      await post('/systems', { slug: system, display_name: displayName.trim() || system,
+      await put<ManifestOut>(`/systems/${encodeURIComponent(system)}/manifest`, { manifest: m })
+      await post<SystemBrief>('/systems', { slug: system, display_name: displayName.trim() || system,
                                manifest: m, status: detail.data?.status ?? 'active' })
       message.success('配置已保存；新场次将冻结这份阶段契约')
       setDirty(false)
@@ -78,7 +93,7 @@ export default function SystemSettings() {
     const { type } = newStage
     if (!label) return
     const stageId = nextStageId(stages, label)
-    const d: any = type === 'single'
+    const d: StageDef = type === 'single'
       ? { label, kind: 'single', prompt: `${system}-${stageId}`, request_limit: 100,
           outputs: { result: { kind: 'artifact',
                                label: '阶段结果' } } }
@@ -104,14 +119,14 @@ export default function SystemSettings() {
   }
 
   async function archive() {
-    await del(`/systems/${encodeURIComponent(system)}`)
+    await del<DeleteOut>(`/systems/${encodeURIComponent(system)}`)
     message.success('已归档(数据保留,可恢复)')
     qc.invalidateQueries({ queryKey: ['systems'] })
     qc.invalidateQueries({ queryKey: ['systemDetail', system] })
   }
 
   async function restore() {
-    await put(`/systems/${encodeURIComponent(system)}/restore`)
+    await put<RestoreOut>(`/systems/${encodeURIComponent(system)}/restore`)
     message.success('已恢复')
     qc.invalidateQueries({ queryKey: ['systems'] })
     qc.invalidateQueries({ queryKey: ['systemDetail', system] })
@@ -152,22 +167,22 @@ export default function SystemSettings() {
           行情、组合、研究和交易工具由 Prompt 按需调用；这里仅配置有副作用或有成本的系统级策略。
         </Typography.Text>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>🌐 联网搜索</Typography.Text>
+          <Typography.Text strong style={{ fontSize: 13 }}><OP.globe /> 联网搜索</Typography.Text>
           <Switch checked={webSearch} onChange={(v) => { setWebSearch(v); setDirty(true) }} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>允许模型主动检索外部信息</Typography.Text>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>⭐ 修改自选组</Typography.Text>
+          <Typography.Text strong style={{ fontSize: 13 }}><OP.star /> 修改自选组</Typography.Text>
           <Switch checked={resourceWrite} onChange={(v) => { setResourceWrite(v); setDirty(true) }} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>允许保存或移除标的集合成员</Typography.Text>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>🧪 模拟交易</Typography.Text>
+          <Typography.Text strong style={{ fontSize: 13 }}><OP.lab /> 模拟交易</Typography.Text>
           <Switch checked={simulationTrading} onChange={(v) => { setSimulationTrading(v); setDirty(true) }} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>允许在模拟组合中执行交易</Typography.Text>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Typography.Text strong style={{ fontSize: 13 }}>⚠ 实盘交易</Typography.Text>
+          <Typography.Text strong style={{ fontSize: 13 }}><STATUS.warn /> 实盘交易</Typography.Text>
           <Switch checked={liveTrading} onChange={(v) => { setLiveTrading(v); setDirty(true) }} />
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>仅在明确授权后开放真实下单</Typography.Text>
         </div>
@@ -180,11 +195,11 @@ export default function SystemSettings() {
         </Space>
         <Space>
           {status === 'archived'
-            ? <Button onClick={restore} style={{ color: '#52c41a', borderColor: '#52c41a' }}>恢复此系统</Button>
-            : <Popconfirm title="归档此系统?" description="数据与场次历史保留,侧栏灰显,可随时恢复"
-                          onConfirm={archive} okText="归档" cancelText="取消">
+            ? <Button onClick={restore} style={{ color: 'var(--down)', borderColor: 'var(--down)' }}>恢复此系统</Button>
+            : <ConfirmAction title="归档此系统?" description="数据与场次历史保留,侧栏灰显,可随时恢复"
+                             danger okText="归档" onConfirm={archive}>
                 <Button danger>归档</Button>
-              </Popconfirm>}
+              </ConfirmAction>}
         </Space>
       </div>
 
@@ -202,8 +217,8 @@ export default function SystemSettings() {
             <Select value={newStage.type} style={{ width: '100%' }}
                     onChange={(v) => setNewStage({ ...newStage, type: v })}
                     options={[
-                      { value: 'single', label: '📄 单次分析' },
-                      { value: 'loop', label: '🔁 循环值守(时钟在运行时选择)' }]} />
+                      { value: 'single', label: '单次分析' },
+                      { value: 'loop', label: '循环值守(时钟在运行时选择)' }]} />
           </label>
           {newStage.type === 'loop' && <div>
             <Typography.Text type="secondary" style={{ display: 'block', marginBottom: 5, fontSize: 12 }}>默认模拟步进（分钟）</Typography.Text>

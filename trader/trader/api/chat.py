@@ -11,6 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from trader.api.deps import require_user
+from trader.api.schemas import (ChatHistory, ChatReplyOut, CoachArchiveOut,
+                                CoachConvRow, CoachHistory, CoachNewOut,
+                                CoachReplyOut, Envelope)
 from trader.core.context import set_context
 from trader.core.documents import default_documents
 from trader.core.portfolios import default_portfolios
@@ -307,7 +310,8 @@ def _next_conversation_seq(docs, system: str, portfolio_id: int) -> int:
 coach_router = APIRouter(prefix="/systems", tags=["coach"])
 
 
-@coach_router.get("/{name}/coach/conversations")
+@coach_router.get("/{name}/coach/conversations",
+                  response_model=Envelope[list[CoachConvRow]])
 def coach_list(name: str, archived: bool = False,
                who: dict = Depends(require_user)):
     """该系统的教练对话列表(新在前的 id/标题/时间)。"""
@@ -329,30 +333,32 @@ def coach_list(name: str, archived: bool = False,
         out.append({"id": seq, "title": meta.get("title") or d["name"],
                     "archived": bool(meta.get("archived")),
                     "updated_at": d.get("updated_at"), "size": d.get("size")})
-    return sorted(out, key=lambda row: row["id"], reverse=True)
+    return Envelope(data=sorted(out, key=lambda row: row["id"], reverse=True))
 
 
-@coach_router.post("/{name}/coach/conversations")
+@coach_router.post("/{name}/coach/conversations", response_model=Envelope[CoachNewOut])
 def coach_new(name: str, who: dict = Depends(require_user)):
     """新开一个隔离的教练对话,返回对话 id。"""
     _, portfolio_id = _coach_scope(name, who)
     docs = default_documents()
     seq = _next_conversation_seq(docs, name, portfolio_id)
     _save_conv(docs, name, seq, [], portfolio_id)
-    return {"id": seq}
+    return Envelope(data={"id": seq})
 
 
-@coach_router.get("/{name}/coach/conversations/{seq}")
+@coach_router.get("/{name}/coach/conversations/{seq}",
+                  response_model=Envelope[CoachHistory])
 def coach_get(name: str, seq: int, who: dict = Depends(require_user)):
     """读取某对话的消息。"""
     _, portfolio_id = _coach_scope(name, who)
     docs = default_documents()
     row = _conversation_doc(docs, name, seq, portfolio_id)
-    return {"messages": _load_conv(docs, name, seq, portfolio_id),
-            "archived": bool((row.get("meta") or {}).get("archived"))}
+    return Envelope(data={"messages": _load_conv(docs, name, seq, portfolio_id),
+                          "archived": bool((row.get("meta") or {}).get("archived"))})
 
 
-@coach_router.post("/{name}/coach/conversations/{seq}/archive")
+@coach_router.post("/{name}/coach/conversations/{seq}/archive",
+                   response_model=Envelope[CoachArchiveOut])
 def coach_archive(name: str, seq: int, body: CoachArchiveIn,
                   who: dict = Depends(require_user)):
     """Archive or restore a conversation without losing its history."""
@@ -360,10 +366,11 @@ def coach_archive(name: str, seq: int, body: CoachArchiveIn,
     docs = default_documents()
     row = _conversation_doc(docs, name, seq, portfolio_id)
     docs.set_meta(row["id"], {"archived": body.archived})
-    return {"id": seq, "archived": body.archived}
+    return Envelope(data={"id": seq, "archived": body.archived})
 
 
-@coach_router.post("/{name}/coach/conversations/{seq}")
+@coach_router.post("/{name}/coach/conversations/{seq}",
+                   response_model=Envelope[CoachReplyOut])
 def coach_send(name: str, seq: int, body: CoachIn, who: dict = Depends(require_user)):
     """对话内发消息:解析 @#场次 / @prompt:名字 引用,新引用的档案注入本轮上下文。"""
     from pydantic_ai import Agent
@@ -446,7 +453,7 @@ def coach_send(name: str, seq: int, body: CoachIn, who: dict = Depends(require_u
                 docs.set_meta(d["id"], {"title": title or body.message[:12], "system": name})
                 break
 
-    return {"id": seq, "reply": reply, "turn": len(history) // 2, "title": title}
+    return Envelope(data={"id": seq, "reply": reply, "turn": len(history) // 2, "title": title})
 
 
 _DISCUSSION_CONTRACT = """
@@ -546,7 +553,7 @@ def _discussion_anchor(run: dict) -> dict:
     }
 
 
-@router.post("/{run_id}/chat")
+@router.post("/{run_id}/chat", response_model=Envelope[ChatReplyOut])
 def chat(run_id: int, body: ChatIn, who: dict = Depends(require_user)):
     """Continue the original Stage conversation against its frozen Run context."""
     from pydantic_ai import Agent
@@ -602,11 +609,11 @@ def chat(run_id: int, body: ChatIn, who: dict = Depends(require_user)):
         ref_id=run_id, portfolio_id=run["portfolio_id"],
         meta={"purpose": "clarify", "context_mode": "frozen"},
     )
-    return {"reply": reply, "turn": len(display_history) // 2,
-            "anchor": _discussion_anchor(run)}
+    return Envelope(data={"reply": reply, "turn": len(display_history) // 2,
+                          "anchor": _discussion_anchor(run)})
 
 
-@router.get("/{run_id}/chat")
+@router.get("/{run_id}/chat", response_model=Envelope[ChatHistory])
 def get_chat(run_id: int, who: dict = Depends(require_user)):
     """Get the Run-scoped clarification history and its immutable anchor."""
     uid = who["user"]["id"]
@@ -614,5 +621,5 @@ def get_chat(run_id: int, who: dict = Depends(require_user)):
     if run is None:
         raise HTTPException(404, "场次不存在")
     set_context(run["portfolio_id"], None, uid)
-    return {"messages": _discussion_payload(run)["messages"],
-            "anchor": _discussion_anchor(run)}
+    return Envelope(data={"messages": _discussion_payload(run)["messages"],
+                          "anchor": _discussion_anchor(run)})

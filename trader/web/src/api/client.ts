@@ -13,14 +13,14 @@ export function clearToken() {
   localStorage.removeItem(TOKEN_KEY)
 }
 
-export interface Envelope<T = any> {
+export interface Envelope<T = unknown> {
   data: T
   status: 'SUCCESS' | 'ERROR'
   message?: string
   traceId?: string
 }
 
-export async function api<T = any>(path: string, opts: RequestInit = {}): Promise<T> {
+export async function api<T = unknown>(path: string, opts: RequestInit = {}): Promise<T> {
   const res = await fetch(path, {
     ...opts,
     headers: {
@@ -42,9 +42,9 @@ export async function api<T = any>(path: string, opts: RequestInit = {}): Promis
   return body.data
 }
 
-export const get = <T = any>(p: string) => api<T>(p)
-export const post = <T = any>(p: string, body?: unknown) =>
+export const get = <T = unknown>(p: string) => api<T>(p)
+export const post = <T = unknown>(p: string, body?: unknown) =>
   api<T>(p, { method: 'POST', body: JSON.stringify(body ?? {}) })
-export const put = <T = any>(p: string, body?: unknown) =>
+export const put = <T = unknown>(p: string, body?: unknown) =>
   api<T>(p, { method: 'PUT', body: JSON.stringify(body ?? {}) })
-export const del = <T = any>(p: string) => api<T>(p, { method: 'DELETE' })
+export const del = <T = unknown>(p: string) => api<T>(p, { method: 'DELETE' })

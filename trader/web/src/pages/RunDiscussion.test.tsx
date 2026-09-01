@@ -3,16 +3,18 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { get, post } from '../api/client'
+import type { RunRow } from '../api/types'
 import RunDiscussion from './RunDiscussion'
 
 vi.mock('../api/client', () => ({ get: vi.fn(), post: vi.fn() }))
 
+// 精简 mock:只提供组件用到的字段,其余不断言(as 断言是 mock 的惯例)
 const RUN = {
   id: 449,
   stage: 'analyze',
   trade_date: '20260824',
   stage_contract: { prompt: 'analyze' },
-}
+} as unknown as RunRow
 const getComputedStyle = window.getComputedStyle.bind(window)
 
 function mount() {

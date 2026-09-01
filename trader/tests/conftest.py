@@ -44,11 +44,17 @@ def _log_test(request):
 
 @pytest.fixture(autouse=True)
 def _reset_bag_context():
-    """袋子上下文是进程环境态:每个测试前后复位到正本,防串袋污染后续测试。"""
+    """袋子/日志上下文都是进程环境态:每个测试前后复位到正本,防串袋污染后续测试。"""
     from trader.core.context import set_context
+    from trader.core.events import set_current_round
+    from trader.core.log import set_trace_id
     set_context(0, None)
+    set_current_round(0)
+    set_trace_id("")
     yield
     set_context(0, None)
+    set_current_round(0)
+    set_trace_id("")
 
 
 # ── PG 测试隔离:会话开始时清掉上轮遗留的 t_* schema ──

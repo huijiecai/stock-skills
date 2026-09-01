@@ -1,13 +1,16 @@
 import { Form, Input, Button, Tabs, message } from 'antd'
 import { useNavigate } from 'react-router-dom'
 import { post, setToken } from '../api/client'
+import { NAV } from '../lib/icons'
+import type { LoginOut, RegisterOut } from '../api/types'
+import './Login.css'
 
 export default function Login() {
   const nav = useNavigate()
 
   async function onLogin(v: { email: string; password: string }) {
     try {
-      const r = await post<{ token: string }>('/auth/login', v)
+      const r = await post<LoginOut>('/auth/login', v)
       setToken(r.token)
       nav('/')
     } catch (e: any) { message.error(e.message) }
@@ -15,7 +18,7 @@ export default function Login() {
 
   async function onRegister(v: { email: string; password: string; display_name?: string }) {
     try {
-      await post('/auth/register', v)
+      await post<RegisterOut>('/auth/register', v)
       message.success('注册成功,自动登录中…')
       await onLogin({ email: v.email, password: v.password })
     } catch (e: any) { message.error(e.message) }
@@ -25,7 +28,7 @@ export default function Login() {
     <div className="login-wrap">
       <div className="login-card">
         <div className="login-brand">
-          <div className="login-logo">📈</div>
+          <div className="login-logo"><NAV.brand /></div>
           <div className="login-title">trader</div>
           <div className="login-sub">AI 交易系统工作台</div>
         </div>

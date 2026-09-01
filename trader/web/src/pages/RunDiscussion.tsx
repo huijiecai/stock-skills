@@ -4,15 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { get, post } from '../api/client'
+import type { ChatHistory, ChatMessage, ChatReplyOut, RunRow } from '../api/types'
 import { stageLabel } from '../lib/system'
+import { StatusBadge } from '../lib/ui'
 
-interface DiscussionMessage {
-  role: 'user' | 'assistant'
-  content: string
-}
+type DiscussionMessage = ChatMessage
 
 export default function RunDiscussion({ run, open, onClose }: {
-  run: any
+  run: RunRow
   open: boolean
   onClose: () => void
 }) {
@@ -23,7 +22,7 @@ export default function RunDiscussion({ run, open, onClose }: {
   const bottomRef = useRef<HTMLDivElement>(null)
   const discussion = useQuery({
     queryKey: ['runDiscussion', run.id],
-    queryFn: () => get(`/runs/${run.id}/chat`),
+    queryFn: () => get<ChatHistory>(`/runs/${run.id}/chat`),
     enabled: open,
   })
 
@@ -43,8 +42,8 @@ export default function RunDiscussion({ run, open, onClose }: {
     setSending(true)
     setPendingMessages([{ role: 'user', content: text }])
     try {
-      const result = await post<{ reply: string }>(`/runs/${run.id}/chat`, { message: text })
-      qc.setQueryData(['runDiscussion', run.id], (current: any) => ({
+      const result = await post<ChatReplyOut>(`/runs/${run.id}/chat`, { message: text })
+      qc.setQueryData(['runDiscussion', run.id], (current: ChatHistory | undefined) => ({
         ...(current ?? {}),
         messages: [...((current?.messages ?? []) as DiscussionMessage[]),
           { role: 'user', content: text }, { role: 'assistant', content: result.reply }],
@@ -69,7 +68,7 @@ export default function RunDiscussion({ run, open, onClose }: {
     <Modal open={open} onCancel={onClose} footer={null} width={760}
            title={`继续讨论 · Run #${run.id}`} destroyOnHidden>
       <div className="run-discussion-anchor">
-        <span className="st-badge st-neutral">冻结上下文</span>
+        <StatusBadge>冻结上下文</StatusBadge>
         <span>{run.trade_date || '-'}</span>
         <span>{stageLabel(run.stage, run.stage_contract)}</span>
         <Typography.Text type="secondary">只澄清本场结论</Typography.Text>

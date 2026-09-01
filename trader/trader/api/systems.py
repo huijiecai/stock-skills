@@ -3,6 +3,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
 from trader.api.deps import require_user
+from trader.api.schemas import (DeleteOut, Envelope, ManifestOut, PromptContent,
+                                PromptRef, PromptSaved, PromptVersionRow, RestoreOut,
+                                RunStarted, StageContext, SystemBrief, SystemRow)
 from trader.core.promptver import default_prompt_versions
 from trader.core.systems import default_systems
 
@@ -53,16 +56,16 @@ def _ensure_manifest_prompts(row: dict, user_id: int) -> None:
                 user_id=user_id, display_name="系统设定")
 
 
-@router.get("")
+@router.get("", response_model=Envelope[list[SystemRow]])
 def list_systems(who: dict = Depends(require_user)):
     rows = default_systems().list(user_id=who["user"]["id"])
     from trader.core.portfolios import default_portfolios
     for row in rows:
         default_portfolios().ensure_main(who["user"]["id"], row["id"])
-    return rows
+    return Envelope(data=rows)
 
 
-@router.post("")
+@router.post("", response_model=Envelope[SystemBrief])
 def upsert_system(body: SystemIn, who: dict = Depends(require_user)):
     _validate_manifest(body.manifest)
     row = default_systems().upsert(body.slug, body.manifest, body.status,
@@ -71,23 +74,23 @@ def upsert_system(body: SystemIn, who: dict = Depends(require_user)):
     _ensure_manifest_prompts(row, who["user"]["id"])
     from trader.core.portfolios import default_portfolios
     default_portfolios().ensure_main(who["user"]["id"], row["id"])
-    return {"slug": row["slug"], "display_name": row["display_name"],
-            "status": row["status"]}
+    return Envelope(data={"slug": row["slug"], "display_name": row["display_name"],
+                          "status": row["status"]})
 
 
-@router.get("/{slug}")
+@router.get("/{slug}", response_model=Envelope[SystemRow])
 def get_system(slug: str, who: dict = Depends(require_user)):
     row = _own_system(slug, who)
     from trader.core.portfolios import default_portfolios
     default_portfolios().ensure_main(who["user"]["id"], row["id"])
-    return row
+    return Envelope(data=row)
 
 
 class ManifestIn(BaseModel):
     manifest: dict
 
 
-@router.put("/{slug}/manifest")
+@router.put("/{slug}/manifest", response_model=Envelope[ManifestOut])
 def update_manifest(slug: str, body: ManifestIn, who: dict = Depends(require_user)):
     """更新 manifest(阶段/系统策略)——编辑器里动态改的一切走这里。
     新增阶段的指令如果不存在,自动创建空模板(挂在系统命名空间)。"""
@@ -110,13 +113,13 @@ def update_manifest(slug: str, body: ManifestIn, who: dict = Depends(require_use
 
     updated = default_systems().upsert(slug, m, row.get("status", "active"), user_id=uid,
                                        display_name=row.get("display_name") or slug)
-    return {"slug": updated["slug"], "stages": list(m.get("stages", {}).keys()),
-            "policy": updated["manifest"].get("policy", {})}
+    return Envelope(data={"slug": updated["slug"], "stages": list(m.get("stages", {}).keys()),
+                          "policy": updated["manifest"].get("policy", {})})
 
 
 # ── 指令在线编辑(命名空间=系统;md 编辑面在此退役)──────
 
-@router.get("/{slug}/stages/{stage}/context")
+@router.get("/{slug}/stages/{stage}/context", response_model=Envelope[StageContext])
 def stage_context(slug: str, stage: str, date: str = "",
                   who: dict = Depends(require_user)):
     """阶段变量契约:该阶段 prompt 可用的占位符(编辑器变量面板/占位符 lint/
@@ -124,16 +127,16 @@ def stage_context(slug: str, stage: str, date: str = "",
     stage=(system) 表示系统设定——不做变量替换。"""
     row = _own_system(slug, who)
     if stage == "(system)":
-        return {"kind": "system", "vars": [],
-                "note": "系统设定不做变量替换,任何 {xxx} 都按字面文本发给模型"}
+        return Envelope(data={"kind": "system", "vars": [],
+                              "note": "系统设定不做变量替换,任何 {xxx} 都按字面文本发给模型"})
     sdef = (row["manifest"].get("stages") or {}).get(stage)
     if sdef is None:
         raise HTTPException(404, f"阶段不存在:{stage}")
     from trader.core.engine import stage_var_schema
-    return stage_var_schema(sdef, date=date or None)
+    return Envelope(data=stage_var_schema(sdef, date=date or None))
 
 
-@router.get("/{slug}/prompts")
+@router.get("/{slug}/prompts", response_model=Envelope[list[PromptRef]])
 def list_prompts(slug: str, who: dict = Depends(require_user)):
     row = _own_system(slug, who)
     pv = default_prompt_versions()
@@ -149,17 +152,18 @@ def list_prompts(slug: str, who: dict = Depends(require_user)):
         vr = pv.versions(row["id"], sp, user_id=who["user"]["id"])
         out.append({"stage": "(system)", "prompt": sp,
                     "latest_version": vr[0]["version"] if vr else None})
-    return out
+    return Envelope(data=out)
 
 
-@router.get("/{slug}/prompts/{prompt}/versions")
+@router.get("/{slug}/prompts/{prompt}/versions", response_model=Envelope[list[PromptVersionRow]])
 def prompt_versions(slug: str, prompt: str, who: dict = Depends(require_user)):
     row = _own_system(slug, who)
-    return default_prompt_versions().versions(row["id"], prompt,
-                                               user_id=who["user"]["id"])
+    return Envelope(data=default_prompt_versions().versions(row["id"], prompt,
+                                                            user_id=who["user"]["id"]))
 
 
-@router.get("/{slug}/prompts/{prompt}/versions/{version}")
+@router.get("/{slug}/prompts/{prompt}/versions/{version}",
+            response_model=Envelope[PromptContent])
 def prompt_content(slug: str, prompt: str, version: int,
                    who: dict = Depends(require_user)):
     row = _own_system(slug, who)
@@ -167,35 +171,35 @@ def prompt_content(slug: str, prompt: str, version: int,
                                       user_id=who["user"]["id"])
     if c is None:
         raise HTTPException(404, "版本不存在")
-    return {"prompt": prompt, "version": version, "content": c}
+    return Envelope(data={"prompt": prompt, "version": version, "content": c})
 
 
-@router.put("/{slug}/prompts/{prompt}")
+@router.put("/{slug}/prompts/{prompt}", response_model=Envelope[PromptSaved])
 def save_prompt(slug: str, prompt: str, body: dict, who: dict = Depends(require_user)):
     """保存新版本(内容变更才入库);返回版本号。"""
     row = _own_system(slug, who)
     r = default_prompt_versions().save(row["id"], prompt, body.get("content", ""),
                                        user_id=who["user"]["id"])
-    return {"prompt": prompt, "version": r["version"], "changed": r["changed"]}
+    return Envelope(data={"prompt": prompt, "version": r["version"], "changed": r["changed"]})
 
 
-@router.put("/{slug}/restore")
+@router.put("/{slug}/restore", response_model=Envelope[RestoreOut])
 def restore_system(slug: str, who: dict = Depends(require_user)):
     """恢复归档系统(status → active)。"""
     uid = who["user"]["id"]
     _own_system(slug, who)
     default_systems().set_status(slug, uid, "active")
-    return {"restored": slug, "status": "active"}
+    return Envelope(data={"restored": slug, "status": "active"})
 
 
-@router.delete("/{slug}")
+@router.delete("/{slug}", response_model=Envelope[DeleteOut])
 def delete_system(slug: str, who: dict = Depends(require_user)):
     """归档系统(软删除,数据保留,状态→archived)。"""
     uid = who["user"]["id"]
     _own_system(slug, who)
     default_systems().set_status(slug, uid, "archived")
-    return {"deleted": slug, "status": "archived",
-            "note": "系统已归档(数据保留,场次历史不受影响;恢复改 status=active)"}
+    return Envelope(data={"deleted": slug, "status": "archived",
+                          "note": "系统已归档(数据保留,场次历史不受影响;恢复改 status=active)"})
 
 
 # ── 运行系统(子进程,每会话一进程)──────────────────────
@@ -212,7 +216,7 @@ class RunIn(BaseModel):
     instruction: str = Field(default="", max_length=4000)  # 本次运行要解决的具体问题
 
 
-@router.post("/{slug}/run")
+@router.post("/{slug}/run", response_model=Envelope[RunStarted])
 def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
     """发起一次运行,子进程执行。阶段类型 × 时钟自动适配:
     - single:跑一次出报告(premarket/close/research/自定义分析)
@@ -292,7 +296,7 @@ def run_system(slug: str, body: RunIn, who: dict = Depends(require_user)):
         subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, start_new_session=True,
                          cwd=Path(__file__).resolve().parent.parent.parent,
                          env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"})
-    return {"started": True, "system": slug, "stage": stage, "date": body.date,
-            "kind": kind, "clock": body.clock,
-            "run_inputs": {"instruction": instruction} if instruction else {},
-            "note": "已发起,到「场次」页看进度和结果"}
+    return Envelope(data={"started": True, "system": slug, "stage": stage, "date": body.date,
+                          "kind": kind, "clock": body.clock,
+                          "run_inputs": {"instruction": instruction} if instruction else {},
+                          "note": "已发起,到「场次」页看进度和结果"})

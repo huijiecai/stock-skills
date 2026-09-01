@@ -1,18 +1,20 @@
-/** 运行弹窗(工作台头部唯一 ▶ 运行):预选当前阶段 + 重复触发预确认
+/** 运行弹窗(工作台头部唯一 ＋ 运行):预选当前阶段 + 重复触发预确认
  *  + 启动检测(轮询发现新场次自动跳详情)。 */
 import { DatePicker, Input, message, Modal, Select, Space, Typography } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import dayjs from 'dayjs'
+import dayjs, { type Dayjs } from 'dayjs'
 import { get, post } from '../api/client'
+import type { PromptVersionRow, RunRow, RunStarted, StageDef, Stages } from '../api/types'
 import { stageIcon, kindLabel, stageLabel, orderedStages } from '../lib/system'
+import { OP } from '../lib/icons'
 
 const POLL_MS = 2000, DETECT_TIMEOUT_MS = 90_000
 
 export default function LaunchModal({ system, stages, presetStage, open, onClose }: {
   system: string
-  stages: Record<string, any>
+  stages: Stages
   presetStage: string        // 从工作台头部打开时预选当前阶段
   open: boolean
   onClose: () => void
@@ -20,7 +22,7 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
   const nav = useNavigate()
   const qc = useQueryClient()
   const [stage, setStage] = useState('')
-  const [date, setDate] = useState<any>(dayjs())
+  const [date, setDate] = useState<Dayjs>(dayjs())
   const [interval, setIntervalMin] = useState(5)        // 重演:模拟时钟 分钟/轮
   const [sleepSec, setSleepSec] = useState(0)           // 实时:轮完成后休息,0=连续
   const [clock, setClock] = useState<'real' | 'simulated'>('real')   // 何时:发起时绑定
@@ -32,7 +34,7 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
   const promptSlug = stages[stage]?.prompt ?? ''
   const versions = useQuery({
     queryKey: ['promptVersions', system, promptSlug],
-    queryFn: () => get(`/systems/${encodeURIComponent(system)}/prompts/${encodeURIComponent(promptSlug)}/versions`),
+    queryFn: () => get<PromptVersionRow[]>(`/systems/${encodeURIComponent(system)}/prompts/${encodeURIComponent(promptSlug)}/versions`),
     enabled: open && !!promptSlug,
   })
 
@@ -62,8 +64,25 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
     if (!stage) return
     const d = (date ?? dayjs()).format('YYYYMMDD')
     const sdef = stages[stage] ?? {}
+    // 盘后复盘防呆:未收盘跑当日 close,复盘会基于不完整数据
+    // (8/25 run 485 事故:09:28 误触发,引用的还是上周五行情)
+    const prematureClose = stage.includes('close') && d === dayjs().format('YYYYMMDD')
+      && clock === 'real' && dayjs().hour() < 15
+    if (prematureClose) {
+      Modal.confirm({
+        title: '今天还没收盘',
+        content: '盘后复盘现在跑会基于不完整数据(缺今日盘中判断与收盘价),产出可能误导。建议收盘后再运行;历史日期复盘不受影响。',
+        okText: '仍要运行', cancelText: '取消',
+        onOk: () => launchConfirmed(d, sdef),
+      })
+      return
+    }
+    await launchConfirmed(d, sdef)
+  }
+
+  async function launchConfirmed(d: string, sdef: StageDef) {
     try {
-      const before: any[] = await get(`/runs?system=${encodeURIComponent(system)}`)
+      const before = await get<RunRow[]>(`/runs?system=${encodeURIComponent(system)}`)
       const ids = new Set(before.map(r => r.id))
       // 前端软确认:已有执行中场次先问一句(后端另有硬拦)
       const alive = before.filter(r => r.status === 'running' || r.status === 'stopping')
@@ -84,10 +103,10 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
     }
   }
 
-  async function doLaunch(d: string, sdef: any, before: any[], ids: Set<number>) {
+  async function doLaunch(d: string, sdef: StageDef, before: RunRow[], ids: Set<number>) {
     try {
       const isReal = clock === 'real'
-      await post(`/systems/${encodeURIComponent(system)}/run`,
+      await post<RunStarted>(`/systems/${encodeURIComponent(system)}/run`,
                  isReal
                    ? { date: d, stage, clock: 'real', sleep_seconds: sleepSec,
                        portfolio_type: portfolioType,
@@ -115,7 +134,7 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
       const deadline = Date.now() + DETECT_TIMEOUT_MS
       timer.current = window.setInterval(async () => {
         try {
-          const list: any[] = await get(`/runs?system=${encodeURIComponent(system)}`)
+          const list = await get<RunRow[]>(`/runs?system=${encodeURIComponent(system)}`)
           const fresh = list.filter(r => !ids.has(r.id))
           if (fresh.length) {
             stopDetect()
@@ -146,7 +165,7 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
           setClock('real'); setPromptVersion('latest')
         }} placeholder="选择要运行的阶段"
                 options={entries.map(([s, d]) => ({
-                  value: s, label: `${stageIcon(s)} ${stageLabel(s, d)}(${kindLabel(s, d)})` }))} />
+                  value: s, label: <>{stageIcon(s)} {stageLabel(s, d)}({kindLabel(s, d)})</> }))} />
         {!!stage && (
           <div>
             <Typography.Text strong style={{ display: 'block', fontSize: 13, marginBottom: 5 }}>
@@ -160,18 +179,18 @@ export default function LaunchModal({ system, stages, presetStage, open, onClose
         {!!stage && (
           <Select style={{ width: '100%' }} value={clock} onChange={setClock}
                   options={[
-                    { value: 'real', label: '⏰ 何时:现在(主组合)' },
-                    { value: 'simulated', label: '⏪ 何时:重演某日(实验组合)' },
+                    { value: 'real', label: <><OP.clock /> 何时:现在(主组合)</> },
+                    { value: 'simulated', label: <><OP.history /> 何时:重演某日(实验组合)</> },
                   ]} />)}
         {(stages[stage]?.kind === 'single' || clock === 'simulated') && (
-          <DatePicker style={{ width: '100%' }} value={date} onChange={setDate} />
+          <DatePicker style={{ width: '100%' }} value={date} onChange={(d) => setDate(d ?? dayjs())} />
         )}
         {!!promptSlug && (
           <Select style={{ width: '100%' }} value={promptVersion} onChange={setPromptVersion}
                   loading={versions.isLoading}
                   options={[
                     { value: 'latest', label: `指令版本:最新${versions.data?.[0]?.version ? ` (v${versions.data[0].version})` : ''}` },
-                    ...(versions.data ?? []).map((v: any) => ({ value: v.version, label: `钉住 v${v.version} · ${(v.created_at ?? '').slice(0, 16)}` })),
+                    ...(versions.data ?? []).map(v => ({ value: v.version, label: `钉住 v${v.version} · ${(v.created_at ?? '').slice(0, 16)}` })),
                   ]} />
         )}
         {versions.isSuccess && !!promptSlug && !(versions.data ?? []).length && (

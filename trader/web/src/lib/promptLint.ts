@@ -21,7 +21,7 @@ export function unknownPlaceholders(text: string, known: string[]): string[] {
 }
 
 /** 把 {name} 替换为值(替换预览用):有值替换,无值保留原样(前端红色高亮)。 */
-export function substitute(text: string, values: Record<string, any>): string {
+export function substitute(text: string, values: Record<string, unknown>): string {
   return text.replace(/\{\{([^}]*)\}\}/g, '␊$1␊').   // 保护转义
     replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (full, name) =>
       values[name] != null ? String(values[name]) : full).

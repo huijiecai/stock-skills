@@ -2,14 +2,15 @@
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { get } from '../api/client'
+import type { SystemRow } from '../api/types'
 
 export default function SystemSwitcher({ current }: { current: string }) {
   const nav = useNavigate()
-  const systems = useQuery({ queryKey: ['systems'], queryFn: () => get('/systems'), staleTime: 60000 })
+  const systems = useQuery({ queryKey: ['systems'], queryFn: () => get<SystemRow[]>('/systems'), staleTime: 60000 })
   return (
     <select className="ws-syswitch" value={current}
             onChange={(e) => nav(`/systems/${encodeURIComponent(e.target.value)}`)}>
-      {(systems.data ?? []).map((s: any) => (
+      {(systems.data ?? []).map(s => (
         <option key={s.slug} value={s.slug}>
           {s.display_name || s.slug}{s.status === 'archived' ? '(归档)' : ''}
         </option>

@@ -1,0 +1,70 @@
+/* 场次详情:英雄头 + 指标带 + 三段(输入/过程/产出) + 轮次列表
+   (含同目录子组件:RunDiscussion 对话区 / TranscriptTimeline+LiveSteps 步骤正文) */
+.run-hero { display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 14px; }
+
+/* 紧凑轮次列表 */
+.rd-rounds { max-height: 68vh; overflow: auto; }
+.rd-round { display: flex; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 6px;
+  font-size: 12.5px; cursor: pointer; color: #595959; user-select: none;
+  transition: background .15s, color .15s; }
+.rd-round:hover { background: #f5f5f5; }
+.rd-round.sel { background: var(--accent-bg); color: var(--accent); font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent); }
+.rd-round.latest::after { content: '最新'; font-size: 10px; color: #52c41a;
+  border: 1px solid #b7eb8f; border-radius: 4px; padding: 0 4px; line-height: 16px; }
+.rd-time { color: #999; font-family: ui-monospace, 'SF Mono', Menlo, monospace; }
+.rd-round.sel .rd-time { color: #1677ff; }
+.rd-note { font-size: 10px; color: #bbb; }
+.rd-round-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.rd-round-main small { display: block; color: var(--text-3); font-weight: 400; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; }
+.rd-round.failed { background: var(--danger-bg); color: var(--danger); }
+.rd-round.failed:hover { background: #ffccc7; }
+.rd-round.failed b { color: var(--danger); }
+.rd-round.failed .rd-time { color: #d46b08; }
+.rd-round.sel.failed { background: #ffccc7; color: #a8071a; box-shadow: inset 3px 0 0 var(--danger); }
+.rd-fail-text { color: var(--danger) !important; }
+.run-doc-content { max-height: 65vh; overflow: auto; padding: 4px 8px 4px 0; }
+
+/* 步骤正文(TranscriptTimeline / LiveSteps 工具返回体) */
+pre.step-body { margin: 4px 0; padding: 8px 10px; background: #f6f8fa; border-radius: 6px;
+  font-size: 12px; max-height: 260px; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+
+/* 三段:输入/产出行 */
+.run-section { margin-top: 16px; }
+.run-section-head { font-size: 12.5px; color: var(--text-2); font-weight: 800;
+  letter-spacing: .5px; margin-bottom: 8px; display: flex; gap: 8px; align-items: center; }
+.run-io-row { display: flex; gap: 10px; align-items: center; padding: 8px 12px;
+  border: 1px solid var(--border); border-radius: 8px; background: var(--surface);
+  font-size: 13px; margin-bottom: 6px; box-shadow: var(--shadow-card); }
+.run-io-row .k { font-family: var(--font-num); font-size: 12.5px; min-width: 170px; }
+.run-io-row .d { color: var(--text-2); font-size: 12.5px; }
+.run-io-row .a { margin-left: auto; display: flex; gap: 6px; flex-shrink: 0; }
+.lbtn { font-size: 11.5px; color: var(--accent); border: 1px solid #b2ddff; background: #fff;
+  border-radius: 6px; padding: 2px 9px; cursor: pointer; }
+
+/* 继续讨论(RunDiscussion Modal) */
+.run-discussion-anchor { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 34px;
+  padding: 0 2px 10px; color: var(--text-2); font-size: 12px; border-bottom: 1px solid var(--border); }
+.run-discussion-messages { height: min(52vh, 480px); min-height: 300px; overflow-y: auto; padding: 16px 4px; }
+.run-discussion-row { display: flex; margin-bottom: 14px; }
+.run-discussion-row.user { justify-content: flex-end; }
+.run-discussion-row.assistant { justify-content: flex-start; }
+.run-discussion-empty, .run-discussion-thinking { min-height: 240px; display: flex; align-items: center;
+  justify-content: center; gap: 8px; color: var(--text-3); font-size: 13px; }
+.run-discussion-thinking { min-height: 42px; }
+.run-discussion-starters { min-height: 260px; display: flex; align-items: center; justify-content: center;
+  flex-wrap: wrap; gap: 8px; }
+.run-discussion-starters button { border: 1px solid var(--border); background: var(--surface); border-radius: 6px;
+  padding: 8px 12px; color: var(--text-2); cursor: pointer; }
+.run-discussion-starters button:hover { color: var(--accent); border-color: #84caff; }
+.run-discussion-input { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 8px;
+  padding-top: 12px; border-top: 1px solid var(--border); }
+
+@media (max-width: 760px) {
+  .run-hero { align-items: flex-start; gap: 10px; flex-wrap: wrap; }
+  .run-io-row { align-items: flex-start; flex-wrap: wrap; }
+  .run-io-row .k { min-width: 0; width: 100%; }
+  .run-io-row .a { margin-left: 0; }
+}

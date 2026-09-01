@@ -5,7 +5,10 @@ import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { get, post, put, del, clearToken } from '../api/client'
+import type { DeleteOut, RestoreOut, SystemBrief, SystemRow, UserOut } from '../api/types'
 import { systemDisplayName } from '../lib/system'
+import { NAV } from '../lib/icons'
+import './Layout.css'
 
 const { Sider, Header, Content } = AntLayout
 
@@ -33,8 +36,8 @@ export default function Layout() {
   const nav = useNavigate()
   const loc = useLocation()
   const qc = useQueryClient()
-  const me = useQuery({ queryKey: ['me'], queryFn: () => get('/auth/me') })
-  const systems = useQuery({ queryKey: ['systems'], queryFn: () => get('/systems') })
+  const me = useQuery({ queryKey: ['me'], queryFn: () => get<UserOut>('/auth/me') })
+  const systems = useQuery({ queryKey: ['systems'], queryFn: () => get<SystemRow[]>('/systems') })
 
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
@@ -65,7 +68,7 @@ export default function Layout() {
     const name = newName.trim()
     if (!name) return
     try {
-      await post('/systems', {
+      await post<SystemBrief>('/systems', {
         slug: name,
         display_name: newLabel.trim() || name,
         manifest: {
@@ -83,7 +86,7 @@ export default function Layout() {
 
   async function archive(name: string) {
     try {
-      await del(`/systems/${encodeURIComponent(name)}`)
+      await del<DeleteOut>(`/systems/${encodeURIComponent(name)}`)
       message.success('已归档')
       qc.invalidateQueries({ queryKey: ['systems'] })
       qc.invalidateQueries({ queryKey: ['systemDetail', name] })
@@ -92,22 +95,22 @@ export default function Layout() {
 
   async function restore(name: string) {
     try {
-      await put(`/systems/${encodeURIComponent(name)}/restore`)
+      await put<RestoreOut>(`/systems/${encodeURIComponent(name)}/restore`)
       message.success('已恢复')
       qc.invalidateQueries({ queryKey: ['systems'] })
       qc.invalidateQueries({ queryKey: ['systemDetail', name] })
     } catch (e: any) { message.error(e.message) }
   }
 
-  const list: any[] = systems.data ?? []
+  const list = systems.data ?? []
   const active = list.filter(s => s.status !== 'archived')
   const archived = list.filter(s => s.status === 'archived')
 
-  const moreMenu = (s: any) => (
+  const moreMenu = (s: SystemRow) => (
     <Dropdown trigger={['click']} menu={{ items: [
       s.status === 'archived'
-        ? { key: 'restore', label: '♻️ 恢复' }
-        : { key: 'archive', label: '🗄️ 归档' },
+        ? { key: 'restore', label: <><NAV.restore /> 恢复</> }
+        : { key: 'archive', label: <><NAV.archive /> 归档</> },
     ], onClick: ({ key }) => key === 'restore' ? restore(s.slug) : archive(s.slug) }}>
       <span className="sn-extra-btn" onClick={e => e.stopPropagation()}>⋯</span>
     </Dropdown>
@@ -131,31 +134,31 @@ export default function Layout() {
     <AntLayout style={{ minHeight: '100vh' }}>
       <Sider width={216} theme="dark" breakpoint="lg" collapsedWidth={0}
              style={{ overflow: 'auto', height: '100vh', position: 'fixed', left: 0, top: 0, bottom: 0 }}>
-        <div className="sn-brand">📈 trader</div>
+        <div className="sn-brand"><NAV.brand /> trader</div>
         <nav className="sn-nav">
-          <NavItem icon="🏠" label="工作台(今日)" active={selected === '/'}
+          <NavItem icon={<NAV.home />} label="工作台(今日)" active={selected === '/'}
                    onClick={() => nav('/')} />
           <div className="sn-group">交易系统 · {active.length}</div>
           {active.map(s => (
-            <NavItem key={s.slug} icon={s.status === 'archived' ? '📦' : '◾'}
+            <NavItem key={s.slug} icon={<NAV.system />}
                      label={systemDisplayName(s)} active={selected === s.slug}
                      onClick={() => nav(`/systems/${encodeURIComponent(s.slug)}`)}
                      extra={moreMenu(s)} />
           ))}
           {archived.length > 0 && <div className="sn-group">已归档</div>}
           {archived.map(s => (
-            <NavItem key={s.slug} icon="📦" dim label={systemDisplayName(s)}
+            <NavItem key={s.slug} icon={<NAV.archived />} dim label={systemDisplayName(s)}
                      active={selected === s.slug}
                      onClick={() => nav(`/systems/${encodeURIComponent(s.slug)}`)}
                      extra={moreMenu(s)} />
           ))}
-          <NavItem icon="＋" label="新建系统" onClick={() => setCreating(true)} />
+          <NavItem icon={<NAV.create />} label="新建系统" onClick={() => setCreating(true)} />
         </nav>
       </Sider>
       <AntLayout style={{ marginLeft: 216 }} className="sider-collapsed-margin">
         <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end',
-                         background: '#fff', padding: '0 20px', height: 48, lineHeight: '48px',
-                         borderBottom: '1px solid #f0f0f0' }}>
+                         background: 'var(--surface)', padding: '0 20px', height: 48, lineHeight: '48px',
+                         borderBottom: '1px solid var(--border)' }}>
           <Space>
             {systems.isLoading && <Spin size="small" />}
             {me.data && <Tag color={me.data.is_admin ? 'gold' : 'blue'}>{me.data.display_name || me.data.email}</Tag>}

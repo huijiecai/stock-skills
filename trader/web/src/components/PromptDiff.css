@@ -1,0 +1,9 @@
+/* 零依赖行级 diff:绿增红删,长段未变行折叠(diff-{add|del} 由组件动态拼) */
+.diff-box { border: 1px solid #d9d9d9; border-radius: 6px; padding: 8px 0; max-height: 560px; overflow: auto; font-size: 12px; }
+.diff-line { padding: 0 10px; white-space: pre-wrap; word-break: break-all; line-height: 1.7; }
+.diff-sign { display: inline-block; width: 14px; user-select: none; }
+.diff-add { background: #e6ffec; }
+.diff-add .diff-sign { color: #1a7f37; }
+.diff-del { background: #ffebe9; }
+.diff-del .diff-sign { color: #cf222e; }
+.diff-gap { text-align: center; color: #999; font-size: 11px; padding: 2px 0; }

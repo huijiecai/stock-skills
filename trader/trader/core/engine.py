@@ -20,6 +20,7 @@ from trader.core.context import (ContextAssembler, RuntimeEnvelope, set_context,
 from trader.core.events import emit, instrument, set_current_round
 from trader.core.ledger import default_wallet
 from trader.core.llm import build_model
+from trader.core.log import get_logger
 from trader.core.registry import TOOLS, WRITE_TOOLS, capability_enabled, capability_tools
 from trader.core.runs import default_runs
 from trader.core.stageio import (
@@ -34,6 +35,8 @@ from trader.prompts import load
 # 进程内存里只留最近 N 轮对话,防止全天看盘把上下文撑爆;
 # 跨重启的记忆不靠对话,靠 documents 里的轮日志
 KEEP_ROUNDS = 8
+
+log = get_logger(__name__)   # 诊断日志;AI 轮输出与分隔横幅是 CLI 界面,保持 print(ADR-0013)
 
 MORNING_START = time(9, 35)   # 回放起点:开盘后 5 分钟
 LUNCH_BREAK = (time(11, 30), time(13, 0))
@@ -64,7 +67,7 @@ def build_agent(system_name: str, user_id: int = 0,
     for name in capability_tools(manifest, stage_name, execution_mode):
         fn = TOOLS.get(name)
         if fn is None:
-            print(f"  ⚠ 工具 {name} 不在注册表,已跳过(manifest 与代码不一致)")
+            log.warning(f"工具 {name} 不在注册表,已跳过(manifest 与代码不一致)")
             continue
         fn = instrument(fn)   # 调用前后落事件 → 前端实时看思考过程
         agent.tool(fn, retries=3) if name in WRITE_TOOLS else agent.tool(fn)
@@ -168,7 +171,7 @@ def _run_round(agent: Agent, prompt: str, history: list[ModelMessage],
                                   usage_limits=usage_limits)
         except Exception as e:  # noqa: BLE001 —— API 网络抖动/限流等各种偶发
             last_err = e
-            print(f"  ⚠ 本轮第 {attempt}/{retries} 次失败:{type(e).__name__}: {str(e)[:120]}")
+            log.warning(f"本轮第 {attempt}/{retries} 次失败:{type(e).__name__}: {str(e)[:120]}")
             time_mod.sleep(2)
     raise RuntimeError(f"连续 {retries} 次失败,停止看盘:{last_err}")
 
@@ -240,7 +243,7 @@ def _save_transcript(stage: str, trade_date: str, round_no: int, clock: str,
                                  name=(f"r{round_no}" if round_no else ""),
                                  trade_date=trade_date or None)
     except Exception as e:  # noqa: BLE001 —— 观测数据,尽力而为
-        print(f"  ⚠ 思考流落盘失败:{type(e).__name__}: {str(e)[:80]}")
+        log.warning(f"思考流落盘失败:{type(e).__name__}: {str(e)[:80]}")
 
 
 def _last_round(doc_type: str, trade_date: str) -> int:
@@ -329,12 +332,12 @@ def run_single(system_name: str, stage_name: str, user_id: int = 0,
         print(result.output)
         emit("round_end", body="完成")
         runs.seal(run["id"])
-        print(f"📦 已封存:{slug}")
+        log.info(f"📦 已封存:{slug}")
     except Exception as e:  # noqa: BLE001 —— 失败不伪装成完成:留错误事件+指标,页面上看得见
         emit("round_end", body=f"✗ 失败:{type(e).__name__}: {str(e)[:300]}")
         runs.seal(run["id"], metrics={"error": f"{type(e).__name__}: {str(e)[:500]}",
                                       "status": "failed"})
-        print(f"✗ {slug} 失败:{type(e).__name__}: {e}")
+        log.error(f"✗ {slug} 失败:{type(e).__name__}: {e}")
         raise
 
 
@@ -394,20 +397,20 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
                           portfolio_id=portfolio_id,
                           stage_contract=stage_contract(stage_name, stage),
                           run_inputs=requested_inputs)
-        print(f"📦 场次已建:{run_slug}(组合 {portfolio_id}=实盘,#run_{run['id']})")
+        log.info(f"📦 场次已建:{run_slug}(组合 {portfolio_id}=实盘,#run_{run['id']})")
     else:
         requested_inputs = _resume_run_inputs(runs, run, requested_inputs)
-        print(f"📦 接续场次:{run_slug}(status={run['status']})")
+        log.info(f"📦 接续场次:{run_slug}(status={run['status']})")
         if run["status"] != "running":
             runs.set_status(run["id"], "running")   # 停止/封存后再续:复活状态
         runs.set_stage_contract_if_empty(run["id"], stage_contract(stage_name, stage))
     open_live(run["id"], portfolio_id, user_id)
     unlocked = default_wallet().settle(datetime.now().date().isoformat())
     if unlocked:
-        print(f"↺ T+1 结算:解锁 {unlocked} 只昨日持仓的可卖状态")
+        log.info(f"↺ T+1 结算:解锁 {unlocked} 只昨日持仓的可卖状态")
     rounds = _last_round(log_type, today)
     if rounds:
-        print(f"↺ 接续今日看盘:已有 {rounds} 轮日志,从第 {rounds + 1} 轮继续")
+        log.info(f"↺ 接续今日看盘:已有 {rounds} 轮日志,从第 {rounds + 1} 轮继续")
     history: list[ModelMessage] = []
     set_current_round(0)
     limits = UsageLimits(request_limit=stage.get("request_limit", 50))
@@ -415,17 +418,17 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
         set_execution_mode(execution_mode)
         while True:
             if _stop_requested(run["id"]):
-                print("\n⏹ 收到停止请求,完成收尾后退出(轮次与留痕完整,重新运行可接续)")
+                log.info("⏹ 收到停止请求,完成收尾后退出(轮次与留痕完整,重新运行可接续)")
                 break
             now_t = datetime.now().time()
             if now_t >= time(15, 5):
-                print("\n已过 15:05 收盘,看盘自动结束。盘后总结:uv run python -m trader.runner close YYYYMMDD")
+                log.info("已过 15:05 收盘,看盘自动结束。盘后总结:uv run python -m trader.runner close YYYYMMDD")
                 break
             if LUNCH_BREAK[0] < now_t < LUNCH_BREAK[1]:
                 wait_min = 13 * 60 - (now_t.hour * 60 + now_t.minute)
-                print(f"午休中,睡 {wait_min} 分钟到 13:00 再继续")
+                log.info(f"午休中,睡 {wait_min} 分钟到 13:00 再继续")
                 if _interruptible_sleep(max(60, wait_min * 60), run["id"]):
-                    print("\n⏹ 午休中收到停止请求,退出")
+                    log.info("⏹ 午休中收到停止请求,退出")
                     break
                 continue
             rounds += 1
@@ -458,31 +461,35 @@ def run_live(system_name: str, stage_name: str = "live", sleep_seconds: int = 0,
                                  result.all_messages(), result.usage)
                 print(result.output)
                 if datetime.now().time() >= time(15, 0):
-                    print("\n已过 15:00 收盘,收盘确认完成,看盘收工(收盘窗口只跑一轮,不再空转)")
+                    log.info("已过 15:00 收盘,收盘确认完成,看盘收工(收盘窗口只跑一轮,不再空转)")
                     break
             except Exception as e:  # 轮级容错:DB/LLM 瞬断不杀进程,重试本轮
                 rounds -= 1
-                emit("round_end", body=f"中断重试: {type(e).__name__}")
-                print(f"⚠ 第 {rounds + 1} 轮中断({type(e).__name__}: {str(e)[:120]});"
-                      f"60 秒后重试本轮,进程不退出")
+                # 事件带异常 message:前端红条只显示类型名(RuntimeError)时无法区分
+                # DeepSeek 断连还是 DB 瞬断(8/25 事故复盘结论)
+                detail = str(e)[:80]
+                emit("round_end", body=f"中断重试: {type(e).__name__}"
+                     + (f": {detail}" if detail else ""))
+                log.warning(f"第 {rounds + 1} 轮中断({type(e).__name__}: {str(e)[:120]});"
+                            f"60 秒后重试本轮,进程不退出")
                 if _interruptible_sleep(60, run["id"]):
                     break
                 continue
             emit("round_end", body="本轮完成")
             if max_rounds and rounds >= max_rounds:
-                print(f"\n(达到 max_rounds={max_rounds},停止)")
+                log.info(f"(达到 max_rounds={max_rounds},停止)")
                 break
             if sleep_seconds > 0:
                 if _interruptible_sleep(sleep_seconds, run["id"]):
-                    print("\n⏹ 轮间隔中收到停止请求,退出")
+                    log.info("⏹ 轮间隔中收到停止请求,退出")
                     break
     finally:
         try:
             runs.seal(run["id"], metrics=compute_metrics(
                 portfolio_id, today, run_id=run["id"], mode="live"))
-            print(f"📦 场次已封存:{run_slug}")
+            log.info(f"📦 场次已封存:{run_slug}")
         except Exception as e:  # noqa: BLE001 —— 封场失败不崩,场留 running 可接续/强封
-            print(f"⚠ 封场失败({type(e).__name__}),场留在 running——重新运行会接续,或 web 强制封存")
+            log.warning(f"封场失败({type(e).__name__}),场留在 running——重新运行会接续,或 web 强制封存")
 
 
 def run_replay(system_name: str, date: str, stage_name: str = "replay",
@@ -503,7 +510,7 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
     if resume:
         cands = runs.list(kind="replay", trade_date=date, user_id=user_id)
         if not cands:
-            print(f"⚠ {date} 没有可接续的回放场,按全新实验开始")
+            log.warning(f"{date} 没有可接续的回放场,按全新实验开始")
         run = cands[0]
         requested_inputs = _resume_run_inputs(runs, run, requested_inputs)
         from trader.core.context import set_context as _sc
@@ -513,7 +520,7 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
         portfolio_id = run.get("portfolio_id") or run["id"]
         _sc(portfolio_id, run["id"], user_id)
         done = _last_round(log_type, date)
-        print(f"📦 接续场次:{run['slug']}(组合 {portfolio_id},已有 {done} 轮,从第 {done + 1} 轮继续)")
+        log.info(f"📦 接续场次:{run['slug']}(组合 {portfolio_id},已有 {done} 轮,从第 {done + 1} 轮继续)")
         rounds, hhmm = done, _resume_clock(log_type, date, done)
         fingerprint = run.get("fingerprint") or ""
     else:
@@ -535,7 +542,7 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
                                       run_id=run["id"])
         runs.set_fingerprint(run["id"], fingerprint)
         warn = ("(⚠ fork 现状回放历史日=带未来持仓)" if opening == "fork" else "")
-        print(f"📦 场次已建:{slug}(实验组合 {portfolio_id},开局 {opening},指纹 {fingerprint}){warn}")
+        log.info(f"📦 场次已建:{slug}(实验组合 {portfolio_id},开局 {opening},指纹 {fingerprint}){warn}")
         rounds, hhmm = 0, MORNING_START
     history: list[ModelMessage] = []
     set_current_round(0)
@@ -544,7 +551,7 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
         set_execution_mode(execution_mode)
         while hhmm <= CLOSE:
             if _stop_requested(run["id"]):
-                print("\n⏹ 收到停止请求,完成收尾后退出(重新运行 --resume 可接续)")
+                log.info("⏹ 收到停止请求,完成收尾后退出(重新运行 --resume 可接续)")
                 break
             if LUNCH_BREAK[0] < hhmm < LUNCH_BREAK[1]:
                 hhmm = LUNCH_BREAK[1]
@@ -579,15 +586,18 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
                 print(result.output)
             except Exception as e:  # 轮级容错:DB/LLM 瞬断不杀进程,重试本轮
                 rounds -= 1
-                emit("round_end", body=f"中断重试: {type(e).__name__}")
-                print(f"⚠ 第 {rounds + 1} 轮中断({type(e).__name__}: {str(e)[:120]});"
-                      f"60 秒后重试本轮,进程不退出")
+                # 同上:事件带异常 message,红条可区分断连/DB 瞬断
+                detail = str(e)[:80]
+                emit("round_end", body=f"中断重试: {type(e).__name__}"
+                     + (f": {detail}" if detail else ""))
+                log.warning(f"第 {rounds + 1} 轮中断({type(e).__name__}: {str(e)[:120]});"
+                            f"60 秒后重试本轮,进程不退出")
                 if _interruptible_sleep(60, run["id"]):
                     break
                 continue
             emit("round_end", body="本轮完成")
             if max_rounds and rounds >= max_rounds:
-                print(f"\n(达到 max_rounds={max_rounds},停止)")
+                log.info(f"(达到 max_rounds={max_rounds},停止)")
                 break
             minutes = hhmm.hour * 60 + hhmm.minute + interval
             hhmm = time(minutes // 60, minutes % 60)
@@ -595,9 +605,9 @@ def run_replay(system_name: str, date: str, stage_name: str = "replay",
         try:
             runs.seal(run["id"], metrics=compute_metrics(
                 portfolio_id, date, run_id=run["id"], mode="replay"))
-            print(f"📦 场次已封存:{run['slug']}(Web 工作台「场次」可查;replay-rm 删除)")
+            log.info(f"📦 场次已封存:{run['slug']}(Web 工作台「场次」可查;replay-rm 删除)")
         except Exception as e:  # noqa: BLE001 —— 封场失败不崩,场留 running 可接续/强封
-            print(f"⚠ 封场失败({type(e).__name__}),场留在 running——重新运行会接续,或 web 强制封存")
+            log.warning(f"封场失败({type(e).__name__}),场留在 running——重新运行会接续,或 web 强制封存")
 
 
 def _resume_clock(doc_type: str, date: str, last_round: int) -> time:

@@ -1,17 +1,21 @@
 /** 工作台(原型画面八/九标记结构移植):顶栏模式切换 + 类型化左栏(履历回链/指令/数据/文档) + 主区。
  * 指令=版本化的身份文件;数据=结构化原语;文档=按类型/按日期浏览。 */
-import { Spin, message } from 'antd'
+import { message } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { Outlet, useLocation, useNavigate, useParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { get, post } from '../api/client'
+import type { SystemRow, RunRow, PromptRef, WatchlistSummary, StopOut, StageDef, Stages } from '../api/types'
 import { stageIcon, stageLabel, systemDisplayName, orderedStages } from '../lib/system'
+import { NAV, OP, STATUS } from '../lib/icons'
+import { PageState, StatusBadge } from '../lib/ui'
 import LaunchModal from '../components/LaunchModal'
 import SystemSwitcher from '../components/SystemSwitcher'
+import './SystemWorkspace.css'
 
 /** 阶段今日状态:single 看场名前缀，loop 看今日实时时钟场。 */
-function stageTodayStatus(system: string, stage: string, def: any, runs: any[], today: string): 'done' | 'running' | null {
+function stageTodayStatus(system: string, stage: string, def: StageDef | undefined, runs: RunRow[], today: string): 'done' | 'running' | null {
   if (def?.kind === 'single')
     return (runs ?? []).some(r => (r.slug ?? '').startsWith(`${system}-${stage}-${today}`)) ? 'done' : null
   if (def?.kind === 'loop') {
@@ -29,28 +33,28 @@ export default function SystemWorkspace() {
   const system = name
   const qc = useQueryClient()
 
-  const detail = useQuery({ queryKey: ['systemDetail', system], queryFn: () => get(`/systems/${encodeURIComponent(system)}`) })
+  const detail = useQuery({ queryKey: ['systemDetail', system], queryFn: () => get<SystemRow>(`/systems/${encodeURIComponent(system)}`) })
   const runs = useQuery({
     queryKey: ['systemRuns', system],
-    queryFn: () => get(`/runs?system=${encodeURIComponent(system)}`),
-    refetchInterval: (query: any) => {
-      const active = (query.state.data ?? []).some((r: any) => r.status === 'running' || r.status === 'stopping')
+    queryFn: () => get<RunRow[]>(`/runs?system=${encodeURIComponent(system)}`),
+    refetchInterval: (query) => {
+      const active = (query.state.data ?? []).some((r) => r.status === 'running' || r.status === 'stopping')
       return active ? 5000 : 30_000
     },
   })
-  const promptsList = useQuery({ queryKey: ['prompts', system], queryFn: () => get(`/systems/${encodeURIComponent(system)}/prompts`) })
+  const promptsList = useQuery({ queryKey: ['prompts', system], queryFn: () => get<PromptRef[]>(`/systems/${encodeURIComponent(system)}/prompts`) })
   const watchlists = useQuery({
     queryKey: ['watchlists', system],
-    queryFn: () => get(`/watchlists?system=${encodeURIComponent(system)}`),
+    queryFn: () => get<WatchlistSummary[]>(`/watchlists?system=${encodeURIComponent(system)}`),
     staleTime: 60000,
   })
 
   const [launchOpen, setLaunchOpen] = useState(false)
   const [presetStage, setPresetStage] = useState('')
 
-  const row: any = detail.data
+  const row = detail.data
   const manifest = row?.manifest
-  const stages: Record<string, any> = manifest?.stages ?? {}
+  const stages = (manifest?.stages ?? {}) as Stages
   const today = dayjs().format('YYYYMMDD')
   const base = `/systems/${encodeURIComponent(system)}`
 
@@ -61,11 +65,11 @@ export default function SystemWorkspace() {
     : loc.pathname.endsWith('/workbench/docs') ? 'docs' : ''
   const onSettings = loc.pathname.endsWith('/settings')
   const onCoach = loc.pathname.includes('/coach')
-  const sysPromptSlug = manifest?.system_prompt ?? ''
+  const sysPromptSlug = String(manifest?.system_prompt ?? '')
   const promptVer: Record<string, number | null> = {}
-  for (const p of (promptsList.data ?? []) as any[]) promptVer[p.prompt] = p.latest_version
-  const watchCount = (watchlists.data as any[] | undefined)?.length
-  const runningRun = (runs.data ?? []).find((r: any) => r.status === 'running' || r.status === 'stopping')
+  for (const p of promptsList.data ?? []) promptVer[p.prompt] = p.latest_version ?? null
+  const watchCount = watchlists.data?.length
+  const runningRun = (runs.data ?? []).find((r) => r.status === 'running' || r.status === 'stopping')
   const coachUrl = activePrompt
     ? `${base}/coach?prompt=${encodeURIComponent(activePrompt)}`
     : `${base}/coach`
@@ -73,14 +77,13 @@ export default function SystemWorkspace() {
   async function stopRunning() {
     if (!runningRun) return
     try {
-      const r = await post(`/runs/${runningRun.id}/stop`)
+      const r = await post<StopOut>(`/runs/${runningRun.id}/stop`)
       message.success(r.note || '已请求停止')
       qc.invalidateQueries({ queryKey: ['systemRuns', system] })
     } catch (e: any) { message.error(e.message) }
   }
 
-  if (detail.isLoading) return <Spin size="large" style={{ display: 'block', margin: '80px auto' }} />
-  if (detail.error) return <div>{(detail.error as any).message}</div>
+  if (detail.isLoading || detail.error) return <PageState query={detail} />
 
   const firstStage = orderedStages(stages)[0]?.[0] ?? ''
 
@@ -89,33 +92,33 @@ export default function SystemWorkspace() {
       {/* ── 顶栏(画面八:与资产页同构)── */}
       <div className="ws-top">
                 <a onClick={() => nav('/')} title="今日工作台"
-           style={{ fontSize: 16, marginRight: -2 }}>🏠</a>
+           style={{ fontSize: 16, marginRight: -2 }}><NAV.home /></a>
         <SystemSwitcher current={system} />
         <span className="ws-sysname">{systemDisplayName(row)}</span>
-        {runningRun && <span className="st-badge st-live"><span className="rd-live">●</span>运行中</span>}
-        {row?.status === 'archived' && <span className="st-badge st-neutral">已归档</span>}
+        {runningRun && <StatusBadge tone="live" pulse>运行中</StatusBadge>}
+        {row?.status === 'archived' && <StatusBadge>已归档</StatusBadge>}
         <div className="ws-modes">
-          <span onClick={() => nav(base)}>📈 资产</span>
-          <span className="on">🔧 工作台</span>
+          <span onClick={() => nav(base)}><NAV.asset /> 资产</span>
+          <span className="on"><OP.tool /> 工作台</span>
         </div>
         <div className="ws-btnrow">
-          <button className="ws-btn" onClick={() => nav(coachUrl)}>💬 教练</button>
-          <button className="ws-btn" onClick={() => nav(`${base}/settings`)}>⚙ 设置</button>
+          <button className="ws-btn" onClick={() => nav(coachUrl)}><OP.chat /> 教练</button>
+          <button className="ws-btn" onClick={() => nav(`${base}/settings`)}><OP.settings /> 设置</button>
           <button className="ws-btn primary" onClick={() => { setPresetStage(firstStage); setLaunchOpen(true) }}
-                  disabled={!firstStage}>▶ 运行</button>
-          {runningRun && <button className="ws-btn danger" onClick={stopRunning}>⏹ 停止</button>}
+                  disabled={!firstStage}><NAV.create style={{ fontSize: 11 }} /> 运行</button>
+          {runningRun && <button className="ws-btn danger" onClick={stopRunning}><STATUS.stop /> 停止</button>}
         </div>
       </div>
 
       <div className="ws-body">
         {/* ── 左栏:类型化(画面八 ws-tree)── */}
         <nav className="ws-tree">
-          <div className="ws-backlink" onClick={() => nav(base)}>📈 履历 · 资产视图 ↗</div>
+          <div className="ws-backlink" onClick={() => nav(base)}><NAV.asset /> 履历 · 资产视图 ↗</div>
 
-          <div className="ws-tg">📜 指令</div>
+          <div className="ws-tg"><OP.doc /> 指令</div>
           <div className={`ws-f${activePrompt === sysPromptSlug ? ' sel' : ''}`}
                onClick={() => sysPromptSlug && nav(`${base}/workbench/prompt/${encodeURIComponent(sysPromptSlug)}`)}>
-            <span>⚙️</span><span>系统设定</span>
+            <span><OP.settings /></span><span>系统设定</span>
             <span className="meta">{promptVer[sysPromptSlug] != null ? `v${promptVer[sysPromptSlug]} ●在用` : ''}</span>
           </div>
           {orderedStages(stages).map(([s, d]) => {
@@ -126,34 +129,34 @@ export default function SystemWorkspace() {
                    onClick={() => pslug && nav(`${base}/workbench/prompt/${encodeURIComponent(pslug)}`)}>
                 <span>{stageIcon(s)}</span><span>{stageLabel(s, d)}</span>
                 <span className="meta">
-                  {st === 'running' ? '●' : st === 'done' ? '✓ ' : ''}
-                  {promptVer[pslug] != null ? `v${promptVer[pslug]}` : ''}
+                  {st === 'running' ? '●' : st === 'done' ? <STATUS.done style={{ fontSize: 11 }} /> : ''}
+                  {pslug != null && promptVer[pslug] != null ? `v${promptVer[pslug]}` : ''}
                 </span>
               </div>
             )
           })}
 
-          <div className="ws-tg">⭐ 数据</div>
+          <div className="ws-tg"><OP.star /> 数据</div>
           <div className={`ws-f${navKey === 'data' ? ' sel' : ''}`}
                onClick={() => nav(`${base}/workbench/data`)}>
-            <span>📊</span><span>自选组</span>
+            <span><OP.db /></span><span>自选组</span>
             <span className="meta">{watchCount != null ? `${watchCount} 组` : ''}</span>
           </div>
 
-          <div className="ws-tg">📚 文档</div>
+          <div className="ws-tg"><OP.lib /> 文档</div>
           <div className={`ws-f${navKey === 'docs' ? ' sel' : ''}`}
                onClick={() => nav(`${base}/workbench/docs`)}>
-            <span>🗂</span><span>按类型 / 按日期</span>
+            <span><OP.folder /></span><span>按类型 / 按日期</span>
             <span className="meta">↗</span>
           </div>
 
           {/* 设置/教练 落在树底部 */}
           <div className="ws-tg">·</div>
           <div className={`ws-f${onCoach ? ' sel' : ''}`} onClick={() => nav(coachUrl)}>
-            <span>💬</span><span>教练对话</span>
+            <span><OP.chat /></span><span>教练对话</span>
           </div>
           <div className={`ws-f${onSettings ? ' sel' : ''}`} onClick={() => nav(`${base}/settings`)}>
-            <span>⚙️</span><span>系统设置</span>
+            <span><OP.settings /></span><span>系统设置</span>
           </div>
         </nav>
 

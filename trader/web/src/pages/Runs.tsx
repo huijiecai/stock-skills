@@ -3,7 +3,8 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { get } from '../api/client'
-import { runStalled, heartbeatAge } from '../lib/ui'
+import type { RunRow } from '../api/types'
+import { runStalled, heartbeatAge, metric } from '../lib/ui'
 
 export default function Runs() {
   const nav = useNavigate()
@@ -14,16 +15,16 @@ export default function Runs() {
   // 有 running 状态的场 → 5 秒轮询刷新;否则 30 秒
   const runs = useQuery({
     queryKey: ['runs'],
-    queryFn: () => get('/runs'),
+    queryFn: () => get<RunRow[]>('/runs'),
     refetchInterval: (query) => {
-      const hasRunning = (query.state.data ?? []).some((r: any) => r.status === 'running')
+      const hasRunning = (query.state.data ?? []).some(r => r.status === 'running')
       return hasRunning ? 5000 : 30000
     },
   })
 
-  const running = (runs.data ?? []).filter((r: any) => r.status === 'running')
-  const stalled = running.filter((r: any) => runStalled(r))
-  const alive = running.filter((r: any) => !runStalled(r))
+  const running = (runs.data ?? []).filter(r => r.status === 'running')
+  const stalled = running.filter(r => runStalled(r))
+  const alive = running.filter(r => !runStalled(r))
   const kindTag = (k: string) => {
     if (k === 'live') return <Tag color="red">实盘</Tag>
     if (k === 'single') return <Tag color="purple">分析</Tag>
@@ -34,11 +35,11 @@ export default function Runs() {
     <div>
       {/* 执行中横幅 */}
       {alive.length > 0 && (
-        <Card size="small" style={{ marginBottom: 12, background: '#fffbe6' }}>
+        <Card size="small" style={{ marginBottom: 12, background: 'var(--warn-bg)' }}>
           <Badge status="processing" text={
             <span>
               <b>{alive.length} 个任务执行中</b>
-              {alive.map((r: any) => (
+              {alive.map(r => (
                 <Tag key={r.id} style={{ marginLeft: 8 }}>
                   {r.system}·{r.trade_date}
                 </Tag>
@@ -52,11 +53,11 @@ export default function Runs() {
       )}
       {/* 疑似僵死横幅:心跳超时(机器睡眠/进程被杀/旧引擎),提示处理 */}
       {stalled.length > 0 && (
-        <Card size="small" style={{ marginBottom: 12, background: '#fff7e6' }}>
+        <Card size="small" style={{ marginBottom: 12, background: 'var(--warn-bg)' }}>
           <Badge status="warning" text={
             <span>
               <b>{stalled.length} 个任务疑似僵死</b>(心跳超 5 分钟:进程可能被系统睡眠冻结或已死)
-              {stalled.map((r: any) => (
+              {stalled.map(r => (
                 <Tag key={r.id} color="warning" style={{ marginLeft: 8 }}>
                   <Link to={`/runs/${r.id}`}>{r.system}·{r.trade_date}</Link>
                 </Tag>
@@ -80,23 +81,29 @@ export default function Runs() {
                dataSource={runs.data ?? []}
                columns={[
                  { title: '#', dataIndex: 'id', width: 50 },
-                 { title: '场次', render: (_: any, r: any) => <Link to={`/runs/${r.id}`}>{r.slug}</Link> },
+                 { title: '场次', render: (_: unknown, r: RunRow) => <Link to={`/runs/${r.id}`}>{r.slug}</Link> },
                  { title: '类型', dataIndex: 'kind', width: 70, render: kindTag },
                  { title: '数据日', dataIndex: 'trade_date', width: 100 },
                  { title: '系统', dataIndex: 'system', width: 110 },
                  { title: '沙盒', width: 90,
-                   render: (_: any, r: any) =>
+                   render: (_: unknown, r: RunRow) =>
                      r.kind === 'live' ? <Tag color="red">主账本</Tag>
                      : r.kind === 'single' ? <Tag color="purple">分析</Tag>
                      : <Tag color="cyan">沙盒 #{r.portfolio_id}</Tag> },
                  { title: '指纹', width: 90,
-                   render: (_: any, r: any) => <span className="mono">{(r.fingerprint ?? '').slice(0, 8) || '-'}</span> },
+                   render: (_: unknown, r: RunRow) => <span className="mono">{(r.fingerprint ?? '').slice(0, 8) || '-'}</span> },
                  { title: '收益', width: 90,
-                   render: (_: any, r: any) => r.metrics ? <Tag color={r.metrics.return_pct >= 0 ? 'green' : 'red'}>{r.metrics.return_pct}%</Tag> : '-' },
+                   render: (_: unknown, r: RunRow) => {
+                     const pct = metric(r, 'return_pct')
+                     return pct == null ? '-' : <Tag color={pct >= 0 ? 'green' : 'red'}>{pct}%</Tag>
+                   } },
                  { title: '回撤', width: 80,
-                   render: (_: any, r: any) => r.metrics ? `${r.metrics.max_drawdown_pct}%` : '-' },
+                   render: (_: unknown, r: RunRow) => {
+                     const dd = metric(r, 'max_drawdown_pct')
+                     return dd == null ? '-' : `${dd}%`
+                   } },
                  { title: '状态', dataIndex: 'status', width: 90,
-                   render: (s: string, r: any) =>
+                   render: (s: string, r: RunRow) =>
                      s === 'running'
                        ? runStalled(r)
                          ? <Tooltip title={`心跳:${heartbeatAge(r)};进程可能被系统睡眠冻结或已死`}>

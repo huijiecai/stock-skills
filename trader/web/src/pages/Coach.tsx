@@ -2,16 +2,20 @@
  * 形态对标 ZCode:对话是工作单元,聊天中途 @#26 / @prompt:xxx 随时加上下文。 */
 import { Button, Input, Modal, Radio, Segmented, Select, Spin, Typography, message } from 'antd'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import Markdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { get, post, put } from '../api/client'
+import type { RunRow, PromptRef, CoachConvRow, CoachHistory, CoachReplyOut,
+             CoachArchiveOut, PromptSaved, PromptVersionRow, PromptContent, ChatMessage } from '../api/types'
+import type { TextAreaRef } from 'antd/es/input/TextArea'
 import { inferRunStage, stageLabel } from '../lib/system'
+import { NAV, OP } from '../lib/icons'
 import { useSystemLabel } from '../lib/useSystems'
-
-interface ChatMessage { role: 'user' | 'assistant', content: string }
+import { metric, StatusBadge } from '../lib/ui'
+import './Coach.css'
 
 /** 用户消息剥离注入前缀(档案/背景),只显示说的话;@引用渲染成 chip */
 function UserText({ content }: { content: string }) {
@@ -40,25 +44,29 @@ function extractSuggestions(text: string): string[] {
 function useRefCandidates(system: string) {
   const runs = useQuery({
     queryKey: ['systemRuns', system],
-    queryFn: () => get(`/runs?system=${encodeURIComponent(system)}`),
+    queryFn: () => get<RunRow[]>(`/runs?system=${encodeURIComponent(system)}`),
     staleTime: 60_000,
   })
   const prompts = useQuery({
     queryKey: ['prompts', system],
-    queryFn: () => get(`/systems/${encodeURIComponent(system)}/prompts`),
+    queryFn: () => get<PromptRef[]>(`/systems/${encodeURIComponent(system)}/prompts`),
     staleTime: 60_000,
   })
   return useMemo(() => {
-    const items: { insert: string, label: string, hint: string }[] = []
-    for (const p of (prompts.data ?? []) as any[])
-      items.push({ insert: `@prompt:${p.prompt} `, label: `📄 ${p.stage === '(system)' ? '系统设定' : p.stage}`,
+    // label 保持纯文本(参与 @ 过滤 toLowerCase);icon 拆开存 ReactNode
+    const items: { insert: string, label: string, icon: ReactNode, hint: string }[] = []
+    for (const p of prompts.data ?? [])
+      items.push({ insert: `@prompt:${p.prompt} `, icon: <OP.doc />,
+                   label: p.stage === '(system)' ? '系统设定' : p.stage,
                    hint: p.prompt })
-    for (const r of (runs.data ?? []) as any[]) {
+    for (const r of runs.data ?? []) {
       const st = inferRunStage(r, system)
+      const ret = metric(r, 'return_pct')
       items.push({
         insert: `@#${r.id} `,
-        label: `#️⃣ #${r.id} ${r.slug}`,
-        hint: `${r.kind} ${r.trade_date}${st ? ' · ' + stageLabel(st) : ''}${r.metrics ? ` · ${r.metrics.return_pct}%` : ''}`,
+        icon: <OP.market />,
+        label: `#${r.id} ${r.slug}`,
+        hint: `${r.kind} ${r.trade_date}${st ? ' · ' + stageLabel(st) : ''}${ret != null ? ` · ${ret}%` : ''}`,
       })
     }
     return items
@@ -84,16 +92,16 @@ export default function Coach() {
   const [showArchived, setShowArchived] = useState(false)
   const [draft, setDraft] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const taRef = useRef<any>(null)
+  const taRef = useRef<TextAreaRef>(null)
   const candidates = useRefCandidates(system)
 
   const convs = useQuery({
     queryKey: ['coachConvs', system, showArchived],
-    queryFn: () => get(`/systems/${encodeURIComponent(system)}/coach/conversations?archived=${showArchived}`),
+    queryFn: () => get<CoachConvRow[]>(`/systems/${encodeURIComponent(system)}/coach/conversations?archived=${showArchived}`),
   })
   const conv = useQuery({
     queryKey: ['coachConv', system, convId],
-    queryFn: () => get(`/systems/${encodeURIComponent(system)}/coach/conversations/${convId}`),
+    queryFn: () => get<CoachHistory>(`/systems/${encodeURIComponent(system)}/coach/conversations/${convId}`),
     enabled: convId != null,
   })
 
@@ -138,7 +146,7 @@ export default function Coach() {
   }, [messages, sending])
 
   /** 输入变化:检测光标前的 @ 触发候选浮层 */
-  function onInput(e: any) {
+  function onInput(e: React.ChangeEvent<HTMLTextAreaElement>) {
     const v = e.target.value
     setInput(v)
     const pos = e.target.selectionStart ?? v.length
@@ -158,7 +166,6 @@ export default function Coach() {
     requestAnimationFrame(() => {
       const p = (before + c.insert).length
       taRef.current?.focus({ cursor: 'start' })
-      taRef.current?.resizeTextarea?.()
       const el = taRef.current?.resizableTextArea?.textArea
       el?.setSelectionRange(p, p)
     })
@@ -180,7 +187,7 @@ export default function Coach() {
     setSending(true)
     setMessages(prev => [...prev, { role: 'user', content: text }])
     try {
-      const r = await post<{ id: number, reply: string, title?: string }>(
+      const r = await post<CoachReplyOut>(
         `/systems/${encodeURIComponent(system)}/coach/conversations/${targetId}`, { message: text })
       if (wasDraft) {
         setConvId(r.id)
@@ -206,7 +213,7 @@ export default function Coach() {
         content = (currentContent.data ?? '').trimEnd()
           + `\n\n<!-- ── 复盘教练建议追加 ${stamp} ──>\n\n` + applyTarget
       }
-      const r = await put(`/systems/${encodeURIComponent(system)}/prompts/${applyPrompt}`, { content })
+      const r = await put<PromptSaved>(`/systems/${encodeURIComponent(system)}/prompts/${applyPrompt}`, { content })
       message.success(`已保存为 v${r.version},下次运行生效`)
       setApplyTarget(null)
       qc.invalidateQueries({ queryKey: ['prompts', system] })
@@ -217,9 +224,9 @@ export default function Coach() {
     queryKey: ['promptContent', system, applyPrompt],
     queryFn: async () => {
       if (!applyPrompt) return ''
-      const vs = await get(`/systems/${encodeURIComponent(system)}/prompts/${applyPrompt}/versions`)
+      const vs = await get<PromptVersionRow[]>(`/systems/${encodeURIComponent(system)}/prompts/${applyPrompt}/versions`)
       if (!vs.length) return ''
-      const r = await get(`/systems/${encodeURIComponent(system)}/prompts/${applyPrompt}/versions/${vs[0].version}`)
+      const r = await get<PromptContent>(`/systems/${encodeURIComponent(system)}/prompts/${applyPrompt}/versions/${vs[0].version}`)
       return r.content
     },
     enabled: !!applyTarget && !!applyPrompt,
@@ -235,8 +242,8 @@ export default function Coach() {
 
   async function setArchived(id: number, archived: boolean) {
     try {
-      await post(`/systems/${encodeURIComponent(system)}/coach/conversations/${id}/archive`, { archived })
-      qc.setQueryData(['coachConv', system, id], (current: any) =>
+      await post<CoachArchiveOut>(`/systems/${encodeURIComponent(system)}/coach/conversations/${id}/archive`, { archived })
+      qc.setQueryData(['coachConv', system, id], (current: CoachHistory | undefined) =>
         current ? { ...current, archived } : current)
       message.success(archived ? '对话已归档' : '对话已恢复')
       await qc.invalidateQueries({ queryKey: ['coachConvs', system] })
@@ -252,7 +259,7 @@ export default function Coach() {
     <div className="coach-layout">
       {/* 左栏:对话列表 + 可点击上下文。 */}
       <aside className="coach-side">
-        <Button type="primary" block onClick={() => startDraft()}>＋ 新开对话</Button>
+        <Button type="primary" block onClick={() => startDraft()}><NAV.create /> 新开对话</Button>
         <div className="stg-group" style={{ marginTop: 10 }}>对话 · {sysLabel(system)}</div>
         <Segmented block size="small" value={showArchived ? 'archived' : 'active'}
           onChange={(value) => {
@@ -260,11 +267,11 @@ export default function Coach() {
           }}
           options={[{ label: '进行中', value: 'active' }, { label: '已归档', value: 'archived' }]} />
         <div className="coach-conv-list">
-          {(convs.data ?? []).map((c: any) => (
+          {(convs.data ?? []).map((c) => (
             <div key={c.id}
                  className={`stg-item${c.id === convId ? ' active' : ''}`}
                  onClick={() => { setDraft(false); setConvId(c.id); setMessages([]) }}>
-              <span className="stg-icon">💬</span>
+              <span className="stg-icon"><OP.chat /></span>
               <span className="stg-label" title={c.title}>{c.title}</span>
               <button className="coach-archive-action"
                       title={c.archived ? '恢复对话' : '归档对话'}
@@ -285,12 +292,12 @@ export default function Coach() {
         <div className="coach-context-list">
           {promptCandidates.slice(0, 5).map(c => (
             <button key={c.insert} className="coach-context-item" onClick={() => addReference(c.insert)}>
-              <span>{c.label}</span><small>{c.hint}</small>
+              <span>{c.icon} {c.label}</span><small>{c.hint}</small>
             </button>
           ))}
           {runCandidates.slice(0, 5).map(c => (
             <button key={c.insert} className="coach-context-item" onClick={() => addReference(c.insert)}>
-              <span>{c.label}</span><small>{c.hint}</small>
+              <span>{c.icon} {c.label}</span><small>{c.hint}</small>
             </button>
           ))}
           {!candidates.length && <Typography.Text type="secondary" style={{ fontSize: 12 }}>暂无可引用内容</Typography.Text>}
@@ -305,9 +312,9 @@ export default function Coach() {
           <>
             <div className="coach-chat-head">
               <div><b>教练</b><span>系统进化讨论</span></div>
-              <span className="st-badge st-neutral">
+              <StatusBadge>
                 {draft ? '新对话' : `${selectedArchived ? '已归档 · ' : ''}对话 #${convId}`}
-              </span>
+              </StatusBadge>
             </div>
             <div className="coach-msgs">
               {!messages.length && !sending && (
@@ -335,7 +342,7 @@ export default function Coach() {
                             {sugg.length > 0 && (
                               <Button size="small" type="primary" ghost style={{ marginTop: 8 }}
                                       onClick={() => setApplyTarget(sugg.join('\n\n---\n\n'))}>
-                                📝 应用建议到 prompt({sugg.length} 条)
+                                <OP.form /> 应用建议到 prompt({sugg.length} 条)
                               </Button>)}
                           </>}
                     </div>
@@ -355,7 +362,7 @@ export default function Coach() {
                 <div className="mention-pop">
                   {filtered.map((c, i) => (
                     <div key={i} className="mention-item" onClick={() => pickCandidate(c)}>
-                      <b>{c.label}</b>
+                      <b>{c.icon} {c.label}</b>
                       <span style={{ color: 'var(--text-3)', marginLeft: 8, fontSize: 11 }}>{c.hint}</span>
                     </div>
                   ))}
@@ -368,7 +375,7 @@ export default function Coach() {
                 placeholder="输入问题，@ 可引用场次或指令"
                 disabled={sending || selectedArchived} />
               <div style={{ marginTop: 8, display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-                <Button onClick={() => nav(`/systems/${encodeURIComponent(system)}`)}>📊 去看履历</Button>
+                <Button onClick={() => nav(`/systems/${encodeURIComponent(system)}`)}><NAV.asset /> 去看履历</Button>
                 <Button type="primary" onClick={send} loading={sending}
                         disabled={!input.trim() || selectedArchived}>发送</Button>
               </div>
@@ -383,24 +390,24 @@ export default function Coach() {
              okButtonProps={{ disabled: !applyPrompt }}>
         <Radio.Group value={applyMode} onChange={(e) => setApplyMode(e.target.value)}
                      optionType="button" size="small" style={{ marginBottom: 12 }}>
-          <Radio.Button value="append">➕ 追加到末尾(片段类建议,安全)</Radio.Button>
-          <Radio.Button value="replace">🔄 完全替换(教练给了完整版时用)</Radio.Button>
+          <Radio.Button value="append"><NAV.create /> 追加到末尾(片段类建议,安全)</Radio.Button>
+          <Radio.Button value="replace"><OP.sync /> 完全替换(教练给了完整版时用)</Radio.Button>
         </Radio.Group>
         <Select style={{ width: '100%', marginBottom: 12 }} value={applyPrompt || undefined}
                 onChange={setApplyPrompt} placeholder="选择要更新的 prompt"
                 options={(candidates ?? [])
-                  .filter((c: any) => c.insert.startsWith('@prompt:'))
-                  .map((c: any) => ({ value: c.hint, label: `${c.label} (${c.hint})` }))} />
+                  .filter((c) => c.insert.startsWith('@prompt:'))
+                  .map((c) => ({ value: c.hint, label: `${c.label} (${c.hint})` }))} />
         <div style={{ display: 'flex', gap: 12 }}>
           <div style={{ flex: 1 }}>
             <Typography.Text type="secondary" style={{ fontSize: 12 }}>当前版本</Typography.Text>
             <pre style={preStyle}>{(currentContent.data ?? '').slice(0, 1500)}</pre>
           </div>
           <div style={{ flex: 1 }}>
-            <Typography.Text type="secondary" style={{ fontSize: 12, color: '#1677ff' }}>
+            <Typography.Text type="secondary" style={{ fontSize: 12, color: 'var(--accent)' }}>
               AI 建议({applyMode === 'append' ? '将追加到末尾' : '将替换全文'})
             </Typography.Text>
-            <pre style={{ ...preStyle, background: '#f0f7ff', borderColor: '#91caff' }}>
+            <pre style={{ ...preStyle, background: 'var(--accent-bg)', borderColor: 'var(--accent-border)' }}>
               {(applyTarget ?? '').slice(0, 1500)}
             </pre>
           </div>
@@ -411,7 +418,7 @@ export default function Coach() {
 }
 
 const preStyle: React.CSSProperties = {
-  padding: 10, borderRadius: 6, border: '1px solid #d9d9d9',
+  padding: 10, borderRadius: 6, border: '1px solid var(--border-strong)',
   fontSize: 11, maxHeight: 300, overflow: 'auto',
   whiteSpace: 'pre-wrap', wordBreak: 'break-all', margin: 0,
   fontFamily: 'ui-monospace, SF Mono, Menlo, monospace',

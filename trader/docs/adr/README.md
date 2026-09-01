@@ -37,6 +37,8 @@
 | [0010](0010-connection-pool.md) | 数据访问层连接池化 | 2026-08-24 |
 | [0011](0011-scan-degradation-not-silent.md) | 快扫分段降级 + 顶部警示,禁止静默降级 | 2026-08-17 |
 | [0012](0012-replay-no-future-data.md) | 回放盘中时点,收盘统计标未来数据警示 | 2026-08-21 |
+| [0013](0013-logging-vs-cli-interface.md) | 诊断走 logging,CLI 界面输出保持 print | 2026-08-24 |
+| [0014](0014-response-model-precision-tiers.md) | 响应模型精度分层:手拼精确/表行核心+透传/组装顶层精确 | 2026-08-25 |
 
 > 注:0004-0006 原注释引用"附录 N 已定",指向早期设计讨论的口头编号,
 > 原始记录未归档;决策内容以 ADR 正文为准。

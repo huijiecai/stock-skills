@@ -1,0 +1,33 @@
+/* 指令台:版本时间线 + markdown 正文 + 执行史 + 双栏布局 */
+.prompt-workbench-grid { display: flex; gap: 14px; align-items: flex-start; }
+.prompt-history-pane { flex: 1; min-width: 240px; position: sticky; top: 8px; }
+
+/* 版本时间线 */
+.vtimeline { display: flex; align-items: center; gap: 6px; font-size: 11.5px; margin: 4px 0 12px; flex-wrap: wrap; }
+.vchip { border: 1px solid var(--border); border-radius: 999px; padding: 2px 11px;
+  font-family: var(--font-num); color: var(--text-2); background: #fff; cursor: pointer; }
+.vchip.on { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 700; }
+.vchip.cur:not(.on) { border-color: var(--accent); color: var(--accent); font-weight: 600; }
+.varr { color: var(--text-3); }
+
+/* markdown 正文(编辑器预览) */
+.md-body { background: var(--surface); border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 20px; font-size: 13.5px; line-height: 1.8; color: #344054; }
+.md-body h1, .md-body h2 { font-size: 16px; margin: 14px 0 6px; }
+.md-body h3 { font-size: 14px; margin: 12px 0 4px; }
+.md-body ul { padding-left: 20px; } .md-body li { margin: 3px 0; }
+.md-body code { background: #f0f2f5; border-radius: 4px; padding: 1px 5px;
+  font-family: var(--font-num); font-size: 12px; }
+
+/* 执行史(该指令跑过哪些场次) */
+.hx-group { font-size: 11.5px; color: var(--accent); font-weight: 800; margin: 10px 0 5px; font-family: var(--font-num); }
+.hx-row { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: 8px; background: var(--surface); font-size: 12.5px; margin-bottom: 5px;
+  box-shadow: var(--shadow-card); cursor: pointer; }
+.hx-row:hover { border-color: var(--accent); }
+.hx-row .d { color: var(--text-3); font-size: 11.5px; margin-left: auto; text-align: right; }
+
+@media (max-width: 760px) {
+  .prompt-workbench-grid { flex-direction: column; }
+  .prompt-history-pane { position: static; width: 100%; min-width: 0; }
+}

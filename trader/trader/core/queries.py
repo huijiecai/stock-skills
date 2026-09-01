@@ -70,11 +70,34 @@ def rounds_overview(run: dict) -> dict:
           and (d["name"] or "").startswith("r") and (d["name"] or "r")[1:].isdigit()}
     rounds = [{"n": n, "time": t, "summary": summary, "has_transcript": n in ts}
               for n, t, summary in logs]
-    # 进行中轮:事件表最新轮无轮日志(round_start 已落,watch 还没写)→ 列表顶部可见
+    # 失败轮可见性:轮日志只在成功时落库,连续失败会像"静默死掉"(8/25 DeepSeek
+    # 断连 74 分钟,前端毫无感知)。把失败事件聚到对应轮次上——正常轮的零星
+    # 失败(偶发重试后成功)不值得展示,只标发生过 2 次以上失败且无轮日志的轮。
+    fails: dict[int, dict] = {}
+    for ev in default_events().failure_runs(run_id):
+        f = fails.setdefault(ev["round"], {"n": ev["round"], "failures": 0,
+                                           "last": "", "last_at": ""})
+        f["failures"] += 1
+        f["last"] = ev["body"]
+        f["last_at"] = (ev["created_at"] or "")[11:16]
+    for n, f in fails.items():
+        if n in ts or any(n == lg[0] for lg in logs):
+            continue   # 该轮最终成功(有轮日志)→ 健康重试,不标
+        if f["failures"] >= 2:
+            rounds.append({"n": n, "time": f["last_at"],
+                           "summary": f"连续失败 {f['failures']} 次,最后于 {f['last_at']}",
+                           "has_transcript": False,
+                           "failed": True, "failures": f["failures"],
+                           "error": f["last"],
+                           "in_progress": run["status"] == "running"
+                           and n == default_events().latest_round(run_id)})
+    rounds.sort(key=lambda x: x["n"])
+    # 进行中轮:事件表最新轮无轮日志(round_start 已落,watch 还没写)→ 列表顶部可见;
+    # 连续失败的最新轮已在上面标过(failed=True),不再重复一条
     if run["status"] == "running":
         ev = default_events()
         rnd = ev.latest_round(run_id)
-        if rnd and not any(n == rnd for n, _, _ in logs):
+        if rnd and not any(x["n"] == rnd for x in rounds):
             start = next((s for s in ev.list(run_id, rnd)
                           if s["kind"] == "round_start"), None)
             rounds.append({"n": rnd,

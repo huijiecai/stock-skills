@@ -1,9 +1,11 @@
-import { Alert, Button, Input, InputNumber, Popconfirm, Segmented, Select, Switch, Tag, Tooltip, Typography, message } from 'antd'
+import { Alert, Button, Input, InputNumber, Segmented, Select, Switch, Tag, Tooltip, Typography, message } from 'antd'
 import { useMemo, useState } from 'react'
 import { kindLabel, orderedStages, stageIcon, stageLabel } from '../lib/system'
+import { NAV } from '../lib/icons'
+import { ConfirmAction } from '../lib/ui'
 import { sourceValue, validateStageContracts } from '../lib/stageContract'
+import type { StageDef, StageInputSpec, StageOutputSpec, Stages } from '../api/types'
 
-type Stages = Record<string, any>
 type Group = 'inputs' | 'outputs'
 
 const SELECTORS = [
@@ -13,7 +15,7 @@ const SELECTORS = [
   { value: 'all', label: '全部' },
 ]
 
-function nextKey(rows: Record<string, any>, prefix: string): string {
+function nextKey(rows: Record<string, unknown>, prefix: string): string {
   let n = 1
   while (rows[`${prefix}_${n}`]) n += 1
   return `${prefix}_${n}`
@@ -53,30 +55,30 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
   const stage = stages[selected]
   const errors = validateStageContracts(stages)
   const selectedErrors = errors.filter(e => e.startsWith(`${selected}:`) || e.startsWith(`${selected}.`))
-  const sourceOptions = useMemo(() => orderedStages(stages).flatMap(([stageName, d]: [string, any]) =>
-    Object.entries(d.outputs ?? {}).map(([outputName, output]: [string, any]) => ({
+  const sourceOptions = useMemo(() => orderedStages(stages).flatMap(([stageName, d]) =>
+    Object.entries(d.outputs ?? {}).map(([outputName, output]) => ({
       value: `${stageName}.${outputName}`,
-      label: `${stageLabel(stageName, d)} / ${(output as any).label || outputName}`,
+      label: `${stageLabel(stageName, d)} / ${output.label || outputName}`,
     }))), [stages])
 
-  function patchStage(patch: Record<string, any>) {
+  function patchStage(patch: Partial<StageDef>) {
     onChange({ ...stages, [selected]: { ...stage, ...patch } })
   }
 
-  function patchEntry(group: Group, key: string, patch: Record<string, any>) {
+  function patchEntry(group: Group, key: string, patch: Partial<StageInputSpec & StageOutputSpec>) {
     patchStage({ [group]: { ...(stage[group] ?? {}), [key]: { ...(stage[group]?.[key] ?? {}), ...patch } } })
   }
 
   function renameEntry(group: Group, oldKey: string, newKey: string): boolean {
     if (stage[group]?.[newKey]) { message.error(`标识 ${newKey} 已存在`); return false }
-    const rows: Record<string, any> = {}
+    const rows: Record<string, StageInputSpec | StageOutputSpec> = {}
     for (const [key, value] of Object.entries(stage[group] ?? {})) rows[key === oldKey ? newKey : key] = value
     const nextStages = { ...stages, [selected]: { ...stage, [group]: rows } }
     if (group === 'outputs') {
       const oldRef = `${selected}.${oldKey}`
       const newRef = `${selected}.${newKey}`
-      for (const [name, d] of Object.entries(nextStages) as [string, any][]) {
-        const inputs = Object.fromEntries(Object.entries(d.inputs ?? {}).map(([slot, spec]: [string, any]) =>
+      for (const [name, d] of Object.entries(nextStages)) {
+        const inputs = Object.fromEntries(Object.entries(d.inputs ?? {}).map(([slot, spec]) =>
           [slot, sourceValue(spec.from) === oldRef ? { ...spec, from: newRef } : spec]))
         nextStages[name] = { ...d, inputs }
       }
@@ -121,9 +123,9 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
       <aside className="stage-config-nav">
         <div className="stage-config-nav-head">
           <span>执行阶段</span>
-          <Tooltip title="添加阶段"><Button size="small" type="text" onClick={onAdd}>＋</Button></Tooltip>
+          <Tooltip title="添加阶段"><Button size="small" type="text" onClick={onAdd}><NAV.create /></Button></Tooltip>
         </div>
-        {orderedStages(stages).map(([name, d]: [string, any]) => (
+        {orderedStages(stages).map(([name, d]) => (
           <button key={name} className={`stage-config-nav-item${selected === name ? ' active' : ''}`}
                   onClick={() => onSelect(name)}>
             <span className="stage-config-icon">{stageIcon(name)}</span>
@@ -142,10 +144,10 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
             <span className="stage-config-eyebrow">阶段定义</span>
             <h3>{stageIcon(selected)} {stageLabel(selected, stage)} <code>{selected}</code></h3>
           </div>
-          <Popconfirm title={`删除阶段 ${selected}?`} description="其 Prompt 版本和历史场次不会删除"
-                      onConfirm={() => onRemove(selected)} okText="删除" cancelText="取消">
+          <ConfirmAction title={`删除阶段 ${selected}?`} description="其 Prompt 版本和历史场次不会删除"
+                         danger okText="删除" onConfirm={() => onRemove(selected)}>
             <Button danger size="small">删除阶段</Button>
-          </Popconfirm>
+          </ConfirmAction>
         </div>
 
         {selectedErrors.length > 0 && <Alert type="error" showIcon style={{ marginBottom: 14 }}
@@ -160,7 +162,7 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
               onChange={e => patchStage({ label: e.target.value })} /></label>
             <label><span>执行方式</span><Segmented block value={stage.kind ?? 'single'}
               options={[{ value: 'single', label: '单次' }, { value: 'loop', label: '循环' }]}
-              onChange={kind => patchStage({ kind })} /></label>
+              onChange={kind => patchStage({ kind: kind as StageDef['kind'] })} /></label>
             <label className="span-2"><span>Prompt 标识</span><Input className="mono" value={stage.prompt ?? ''}
               onChange={e => patchStage({ prompt: e.target.value })} /></label>
             <label><span>最大模型请求数</span><InputNumber min={1} max={1000} style={{ width: '100%' }}
@@ -171,7 +173,7 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
                 <Input value={windowEnd} placeholder="15:05"
                   onChange={e => patchStage({ window: `${windowStart}-${e.target.value}` })} /></div></label>
               <label><span>模拟步进（分钟）</span><InputNumber min={1} max={240} style={{ width: '100%' }}
-                value={stage.interval} placeholder="运行时指定" onChange={v => patchStage({ interval: v })} /></label>
+                value={stage.interval} placeholder="运行时指定" onChange={v => patchStage({ interval: v ?? undefined })} /></label>
               <label className="stage-switch-field"><span>跳过午休</span><Switch checked={stage.skip_lunch ?? false}
                 onChange={skip_lunch => patchStage({ skip_lunch })} /></label>
             </>}
@@ -181,9 +183,9 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
         <div className="stage-config-block">
           <div className="stage-config-block-head">
             <div><b>输入</b><span>运行前由平台读取，并作为明确上下文交给模型</span></div>
-            <Button size="small" onClick={addInput}>＋ 添加输入</Button>
+            <Button size="small" onClick={addInput}><NAV.create /> 添加输入</Button>
           </div>
-          {Object.entries(stage.inputs ?? {}).map(([slot, spec]: [string, any]) => (
+          {Object.entries(stage.inputs ?? {}).map(([slot, spec]) => (
             <div className="stage-contract-row" key={slot}>
               <div className="stage-contract-row-head">
                 <Tag color="blue">输入</Tag><KeyInput value={slot} onCommit={next => renameEntry('inputs', slot, next)} />
@@ -197,7 +199,7 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
                   onChange={from => patchEntry('inputs', slot, { kind: 'artifact', from })} /></label>
                 <label><span>选择策略</span><Select value={spec.selector ?? 'latest'} options={SELECTORS}
                   onChange={selector => patchEntry('inputs', slot, { selector })} /></label>
-                {['previous', 'recent'].includes(spec.selector) && <label><span>最近份数</span>
+                {spec.selector != null && ['previous', 'recent'].includes(spec.selector) && <label><span>最近份数</span>
                   <InputNumber min={1} max={100} style={{ width: '100%' }} value={spec.limit ?? 3}
                     onChange={limit => patchEntry('inputs', slot, { limit: limit ?? 1 })} /></label>}
                 <label><span>最大字符数</span><InputNumber min={1000} step={1000} style={{ width: '100%' }}
@@ -214,9 +216,9 @@ export default function StageContractEditor({ stages, selected, onSelect, onChan
         <div className="stage-config-block">
           <div className="stage-config-block-head">
             <div><b>输出</b><span>模型最终回答由平台自动发布，并可供其他阶段引用</span></div>
-            <Button size="small" onClick={addOutput}>＋ 添加输出</Button>
+            <Button size="small" onClick={addOutput}><NAV.create /> 添加输出</Button>
           </div>
-          {Object.entries(stage.outputs ?? {}).map(([slot, spec]: [string, any]) => (
+          {Object.entries(stage.outputs ?? {}).map(([slot, spec]) => (
             <div className="stage-contract-row" key={slot}>
               <div className="stage-contract-row-head">
                 <Tag color="green">{spec.kind === 'artifact' || !spec.kind ? '阶段产物' : spec.kind}</Tag><KeyInput value={slot} onCommit={next => renameEntry('outputs', slot, next)} />

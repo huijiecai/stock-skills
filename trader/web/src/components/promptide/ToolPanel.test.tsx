@@ -52,7 +52,7 @@ describe('ToolPanel(工具面板)', () => {
     mount(<ToolPanel enabled={['get_quotes']} onInsert={vi.fn()} />)
     await expandGroup(/行情/)
     await expandGroup(/交易/)
-    const btns = screen.getAllByText('▶ 试运行')
+    const btns = screen.getAllByText('试运行')
     expect(btns[0].closest('button')?.disabled).toBe(false)   // 行情工具可试运行
     expect(btns[1].closest('button')?.disabled).toBe(false)   // execute 由系统策略控制
   })
@@ -62,7 +62,7 @@ describe('ToolPanel(工具面板)', () => {
       name: 'get_quotes', output: '【报价】000021 深科技 12.34', truncated: false, write_warning: null })
     mount(<ToolPanel onInsert={vi.fn()} />)
     await expandGroup(/行情/)
-    await userEvent.click(screen.getAllByText('▶ 试运行')[0])
+    await userEvent.click(screen.getAllByText('试运行')[0])
     await waitFor(() => expect(screen.getByText(/000021 深科技/)).toBeTruthy())
     expect(vi.mocked(post)).toHaveBeenCalledWith('/tools/get_quotes/call',
       { args: { codes: '', mode: 'live' }, portfolio_id: 107 })

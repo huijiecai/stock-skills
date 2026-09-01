@@ -1,0 +1,26 @@
+/* 工作台外壳(原型画面八):左列类型化树 + 右侧面板容器
+   (顶栏 .ws-top 与面板 .ws-panel/.ws-phead/.ws-pbody 在公共 index.css) */
+.ws-body { display: flex; min-height: calc(100vh - 140px); }
+.ws-tree { width: 272px; flex-shrink: 0; background: var(--surface);
+  border-right: 1px solid var(--border); padding: 10px; }
+.ws-backlink { display: flex; gap: 8px; align-items: center; font-size: 12.5px; color: var(--accent);
+  background: var(--accent-bg); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px;
+  font-weight: 600; cursor: pointer; }
+.ws-tg { font-size: 11.5px; color: var(--text-3); font-weight: 800; letter-spacing: 1px; margin: 12px 8px 4px; }
+.ws-f { display: flex; gap: 7px; align-items: center; font-size: 12.5px; padding: 5px 8px;
+  border-radius: 6px; cursor: default; }
+.ws-f:hover { background: #f5f5f5; }
+.ws-f.sel { background: var(--accent-bg); color: var(--accent); font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent); }
+.ws-f .meta { color: var(--text-3); font-size: 11px; margin-left: auto; }
+.ws-f.sel .meta { color: var(--accent); }
+
+@media (max-width: 760px) {
+  .ws-body { flex-direction: column; min-height: 0; }
+  .ws-tree { width: auto; border-right: 0; border-bottom: 1px solid var(--border);
+    display: grid; grid-template-columns: 1fr 1fr; gap: 2px 6px; }
+  .ws-tree .ws-backlink, .ws-tree .ws-tg { grid-column: 1 / -1; }
+  .ws-tree .ws-tg { margin-top: 8px; }
+  .ws-f { min-width: 0; }
+  .ws-f > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

@@ -14,6 +14,10 @@ import uuid
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
+from trader.core.log import get_logger, set_trace_id
+
+log = get_logger("api")
+
 # 这些路径不走信封(静态文件/健康检查/Swagger)
 _SKIP_PREFIXES = ("/healthz", "/api-docs", "/api-openapi.json", "/api-redoc", "/web")
 
@@ -22,6 +26,7 @@ class EnvelopeMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request, call_next):
         trace_id = uuid.uuid4().hex[:32]
         request.state.trace_id = trace_id
+        set_trace_id(trace_id)  # 本请求链路上的日志全带同一 trace(与信封/X-Trace-Id 对账)
 
         response = await call_next(request)
 
@@ -30,6 +35,7 @@ class EnvelopeMiddleware(BaseHTTPMiddleware):
         if any(path.startswith(p) for p in _SKIP_PREFIXES):
             response.headers["X-Trace-Id"] = trace_id
             return response
+        log.info(f"{request.method} {path} → {response.status_code}")  # 请求留痕(带 trace)
         ct = response.headers.get("content-type", "")
         if "application/json" not in ct:
             response.headers["X-Trace-Id"] = trace_id
@@ -51,9 +57,12 @@ class EnvelopeMiddleware(BaseHTTPMiddleware):
             message = data.get("detail", str(data)) if isinstance(data, dict) else str(data)
             envelope = {"data": None, "status": "ERROR", "message": message, "traceId": trace_id}
         else:
-            # 成功:包 data;已是信封则不重复包
-            if isinstance(data, dict) and "status" in data and "data" in data and "traceId" in data:
+            # 成功:端点已返回信封(response_model=Envelope,traceId 留空)→ 只补 traceId;
+            # 裸 dict(未迁移端点)照旧包装
+            if isinstance(data, dict) and "status" in data and "data" in data:
                 envelope = data
+                if not envelope.get("traceId"):
+                    envelope["traceId"] = trace_id
             else:
                 envelope = {"data": data, "status": "SUCCESS", "traceId": trace_id}
 

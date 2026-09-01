@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from trader.api.deps import require_user
+from trader.api.schemas import Envelope, ToolCallOut, ToolsCatalog
 from trader.core.context import set_context, set_execution_mode
 from trader.core.identity import default_identity
 from trader.core.ledger import default_wallet
@@ -78,7 +79,7 @@ class CallIn(BaseModel):
     portfolio_id: int | None = None
 
 
-@router.get("")
+@router.get("", response_model=Envelope[ToolsCatalog])
 def tools_catalog(who: dict = Depends(require_user)):
     """工具目录:注册表自省(签名+docstring 即 LLM 看到的工具说明)。"""
     tools = []
@@ -93,13 +94,13 @@ def tools_catalog(who: dict = Depends(require_user)):
     tools.sort(key=lambda t: (t["group"], t["name"]))
     uid = _test_user_id()
     user = default_identity().get_user_by_id(uid)
-    return {"tools": tools,
-            "portfolios": _test_portfolios(uid),
-            "test_user": {"id": uid,
-                          "display_name": (user or {}).get("display_name") or f"#{uid}"}}
+    return Envelope(data={"tools": tools,
+                          "portfolios": _test_portfolios(uid),
+                          "test_user": {"id": uid,
+                                        "display_name": (user or {}).get("display_name") or f"#{uid}"}})
 
 
-@router.post("/{name}/call")
+@router.post("/{name}/call", response_model=Envelope[ToolCallOut])
 def tool_call(name: str, body: CallIn, who: dict = Depends(require_user)):
     """工具试运行:不经 LLM 直调函数,返回就是 LLM 会看到的字符串。
     强制挂测试账号(TOOL_TEST_USER,默认 3);登录用户/owner 的组合不可达。"""
@@ -130,10 +131,10 @@ def tool_call(name: str, body: CallIn, who: dict = Depends(require_user)):
 
     output = fn(ctx=None, **args)
     truncated = len(output) > _OUTPUT_CAP
-    return {
+    return Envelope(data={
         "name": name, "args": args, "portfolio": portfolio_id,
         "output": output[:_OUTPUT_CAP] + ("\n…(截断,共 %d 字)" % len(output) if truncated else ""),
         "truncated": truncated,
         "write_warning": (f"写操作已落在测试账号组合 #{portfolio_id},不影响任何真实账户"
                           if name in WRITE_TOOLS else None),
-    }
+    })

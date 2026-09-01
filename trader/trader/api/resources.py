@@ -6,6 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from trader.api.deps import require_user
+from trader.api.schemas import (AccountOut, CurveOut, DocContent, DocumentBrief,
+                                Envelope, FillRow, LiveSteps, PortfolioRow,
+                                ReplayStarted, RoundDetail, RoundsOverview, RunRow,
+                                RunDocumentContent, RunDocumentRow, RunTrading,
+                                SealOut, StopOut, WatchlistMember, WatchlistSummary)
 from trader.core import queries, valuation
 from trader.core.context import set_context
 from trader.core.documents import default_documents
@@ -22,12 +27,12 @@ class PortfolioIn(BaseModel):
     system: str = "expectation"
 
 
-@router.get("")
+@router.get("", response_model=Envelope[list[PortfolioRow]])
 def list_portfolios(who: dict = Depends(require_user)):
-    return default_portfolios().list(who["user"]["id"])
+    return Envelope(data=default_portfolios().list(who["user"]["id"]))
 
 
-@router.post("")
+@router.post("", response_model=Envelope[PortfolioRow])
 def create_portfolio(body: PortfolioIn, who: dict = Depends(require_user)):
     from trader.core.systems import default_systems
     uid = who["user"]["id"]
@@ -37,16 +42,16 @@ def create_portfolio(body: PortfolioIn, who: dict = Depends(require_user)):
     if body.type == "main" and not who["user"].get("is_admin"):
         raise HTTPException(403, "实盘组合仅管理员可开(内测期)")
     pid = default_portfolios().create(uid, body.type, system_row["id"], body.name)
-    return default_portfolios().get(pid)
+    return Envelope(data=default_portfolios().get(pid))
 
 
-@router.get("/{portfolio_id}/curve")
+@router.get("/{portfolio_id}/curve", response_model=Envelope[CurveOut])
 def portfolio_curve(portfolio_id: int, who: dict = Depends(require_user)):
     """组合净值曲线:估值口径唯一实现在 core/valuation(与封场 metrics 同源)。"""
     row = default_portfolios().get(portfolio_id)
     if row is None or row["owner_user"] != who["user"]["id"]:
         raise HTTPException(404, "组合不存在(或不属于你)")
-    return valuation.portfolio_curve(portfolio_id)
+    return Envelope(data=valuation.portfolio_curve(portfolio_id))
 
 
 
@@ -63,13 +68,13 @@ class ReplayIn(BaseModel):
     max_rounds: int | None = None
 
 
-@runs_router.get("")
+@runs_router.get("", response_model=Envelope[list[RunRow]])
 def list_runs(kind: str = "", date: str = "", system: str = "", who: dict = Depends(require_user)):
-    return default_runs().list(kind=kind or None, trade_date=date or None,
-                               user_id=who["user"]["id"], system=system or None)
+    return Envelope(data=default_runs().list(kind=kind or None, trade_date=date or None,
+                                             user_id=who["user"]["id"], system=system or None))
 
 
-@runs_router.post("/replay")
+@runs_router.post("/replay", response_model=Envelope[ReplayStarted])
 def start_replay(body: ReplayIn, who: dict = Depends(require_user)):
     """发起一场模拟(子进程执行,架构=每会话一进程;多用户设计 §5-M2 的雏形)。"""
     uid = who["user"]["id"]
@@ -82,38 +87,38 @@ def start_replay(body: ReplayIn, who: dict = Depends(require_user)):
     with log.open("ab") as f:
         subprocess.Popen(cmd, stdout=f, stderr=subprocess.STDOUT, start_new_session=True,
                          env={**__import__("os").environ, "PYTHONUNBUFFERED": "1"})
-    return {"started": True, "system": body.system, "date": body.date,
-            "note": "子进程已拉起,轮询 GET /runs 看进度"}
+    return Envelope(data={"started": True, "system": body.system, "date": body.date,
+                          "note": "子进程已拉起,轮询 GET /runs 看进度"})
 
 
-@runs_router.get("/{run_id}")
+@runs_router.get("/{run_id}", response_model=Envelope[RunRow])
 def run_detail(run_id: int, who: dict = Depends(require_user)):
     for r in default_runs().list(user_id=who["user"]["id"]):
         if r["id"] == run_id:
-            return r
+            return Envelope(data=r)
     raise HTTPException(404, "场次不存在(或不属于你)")
 
 
-@runs_router.get("/{run_id}/rounds")
+@runs_router.get("/{run_id}/rounds", response_model=Envelope[RoundsOverview])
 def run_rounds(run_id: int, who: dict = Depends(require_user)):
     """轮次概览:编号列表 + 哪些有思考流。single 场次返回一条"输出"伪轮。"""
-    return queries.rounds_overview(_own_run(run_id, who))
+    return Envelope(data=queries.rounds_overview(_own_run(run_id, who)))
 
 
-@runs_router.get("/{run_id}/rounds/{n}")
+@runs_router.get("/{run_id}/rounds/{n}", response_model=Envelope[RoundDetail])
 def run_round_detail(run_id: int, n: int, who: dict = Depends(require_user)):
     """单轮详情:轮日志(md)+ 思考流(拍平步骤)+ usage。
     single 场次:n=1 → 找 transcript_{stage} + 产出文档。"""
-    return queries.round_detail(_own_run(run_id, who), n)
+    return Envelope(data=queries.round_detail(_own_run(run_id, who), n))
 
 
-@runs_router.get("/{run_id}/live")
+@runs_router.get("/{run_id}/live", response_model=Envelope[LiveSteps])
 def run_live_steps(run_id: int, who: dict = Depends(require_user)):
     """实时思考流:当前(最新)轮的事件步骤 + 进行中标记。前端 2 秒轮询。"""
-    return queries.live_steps(_own_run(run_id, who))
+    return Envelope(data=queries.live_steps(_own_run(run_id, who)))
 
 
-@runs_router.post("/{run_id}/stop")
+@runs_router.post("/{run_id}/stop", response_model=Envelope[StopOut])
 def run_stop(run_id: int, who: dict = Depends(require_user)):
     """优雅停止:置 stopping,engine 完成当前轮后封场退出。
     僵尸场(进程已死)停在 stopping,由 seal 强制收尾。"""
@@ -121,18 +126,18 @@ def run_stop(run_id: int, who: dict = Depends(require_user)):
     if run["status"] not in ("running", "stopping"):
         raise HTTPException(409, f"场次状态为 {run['status']},无需停止")
     default_runs().set_status(run_id, "stopping")
-    return {"stopped": run_id, "status": "stopping",
-            "note": "已请求停止;当前轮完成后自动封场(进程已死则需强制封存)"}
+    return Envelope(data={"stopped": run_id, "status": "stopping",
+                          "note": "已请求停止;当前轮完成后自动封场(进程已死则需强制封存)"})
 
 
-@runs_router.post("/{run_id}/seal")
+@runs_router.post("/{run_id}/seal", response_model=Envelope[SealOut])
 def run_seal(run_id: int, who: dict = Depends(require_user)):
     """强制封存:清僵尸场(stopping 卡住/进程已死)。"""
     run = _own_run(run_id, who)
     if run["status"] == "sealed":
         raise HTTPException(409, "场次已封存")
     default_runs().seal(run_id)
-    return {"sealed": run_id, "status": "sealed"}
+    return Envelope(data={"sealed": run_id, "status": "sealed"})
 
 
 def _own_run(run_id: int, who: dict) -> dict:
@@ -143,7 +148,7 @@ def _own_run(run_id: int, who: dict) -> dict:
     return run
 
 
-@runs_router.get("/{run_id}/trading")
+@runs_router.get("/{run_id}/trading", response_model=Envelope[RunTrading])
 def run_trading(run_id: int, who: dict = Depends(require_user)):
     """场次交易证据:钱包/持仓是组合当前状态，成交严格按 run_id 隔离。"""
     run = _own_run(run_id, who)
@@ -152,23 +157,24 @@ def run_trading(run_id: int, who: dict = Depends(require_user)):
     positions = acct.positions(portfolio)
     fills = [fill for fill in acct.fills(portfolio) if fill.get("run_id") == run_id]
     w = acct.balance(portfolio)
-    return {
+    return Envelope(data={
         "portfolio": portfolio,
         "cash": (w["cash_cents"] / 100) if w else None,
         "initial": (w["initial_cents"] / 100) if w else None,
         "positions": positions,
         "fills": fills,
-    }
+    })
 
 
-@runs_router.get("/{run_id}/documents")
+@runs_router.get("/{run_id}/documents", response_model=Envelope[list[RunDocumentRow]])
 def run_documents(run_id: int, who: dict = Depends(require_user)):
     """场次证据链中的文档输入/产出。老场无显式关联时返回空列表。"""
     _own_run(run_id, who)
-    return default_documents().for_run(run_id)
+    return Envelope(data=default_documents().for_run(run_id))
 
 
-@runs_router.get("/{run_id}/documents/{document_id}")
+@runs_router.get("/{run_id}/documents/{document_id}",
+                   response_model=Envelope[RunDocumentContent])
 def run_document_content(run_id: int, document_id: int,
                          who: dict = Depends(require_user)):
     """Read evidence content in the run's bound portfolio, including experiments."""
@@ -176,7 +182,7 @@ def run_document_content(run_id: int, document_id: int,
     row = default_documents().get_for_run(run_id, document_id)
     if row is None:
         raise HTTPException(404, "文档不属于该场次")
-    return row
+    return Envelope(data=row)
 
 
 # ── 交易视图(当前账本)──────────────────────────────────
@@ -184,7 +190,7 @@ def run_document_content(run_id: int, document_id: int,
 trading_router = APIRouter(prefix="/trading", tags=["trading"])
 
 
-@trading_router.get("/account")
+@trading_router.get("/account", response_model=Envelope[AccountOut])
 def account(who: dict = Depends(require_user)):
     acct = Wallet()
     portfolio = default_portfolios().default_for(who["user"]["id"])
@@ -198,14 +204,14 @@ def account(who: dict = Depends(require_user)):
     except Exception:  # noqa: BLE001
         px = {}
     mv = sum(p["quantity"] * px.get(p["code"], p["avg_cost"]) for p in positions)
-    return {"cash": cash / 100, "market_value": mv,
-            "asset": (cash / 100) + mv, "positions": positions}
+    return Envelope(data={"cash": cash / 100, "market_value": mv,
+                          "asset": (cash / 100) + mv, "positions": positions})
 
 
-@trading_router.get("/trades")
+@trading_router.get("/trades", response_model=Envelope[list[FillRow]])
 def trades(who: dict = Depends(require_user)):
     portfolio = default_portfolios().default_for(who["user"]["id"])
-    return Wallet().fills(portfolio)
+    return Envelope(data=Wallet().fills(portfolio))
 
 
 # ── 文档 ────────────────────────────────────────────────
@@ -229,14 +235,14 @@ def _system_portfolio(system: str, who: dict) -> int:
     return port["id"]
 
 
-@docs_router.get("")
+@docs_router.get("", response_model=Envelope[list[DocumentBrief]])
 def list_docs(doc_type: str = "", date: str = "", system: str = "",
               who: dict = Depends(require_user)):
     portfolio = _system_portfolio(system, who)
-    return default_documents().list(doc_type or None, date or None, portfolio_id=portfolio)
+    return Envelope(data=default_documents().list(doc_type or None, date or None, portfolio_id=portfolio))
 
 
-@docs_router.get("/content")
+@docs_router.get("/content", response_model=Envelope[DocContent])
 def doc_content(doc_type: str, name: str = "", date: str = "",
                 system: str = "",
                 who: dict = Depends(require_user)):
@@ -245,7 +251,7 @@ def doc_content(doc_type: str, name: str = "", date: str = "",
                                 portfolio_id=portfolio)
     if c is None:
         raise HTTPException(404, "文档不存在")
-    return {"content": c}
+    return Envelope(data={"content": c})
 
 
 # ── 自选组 ──────────────────────────────────────────────
@@ -253,16 +259,16 @@ def doc_content(doc_type: str, name: str = "", date: str = "",
 watch_router = APIRouter(prefix="/watchlists", tags=["watchlists"])
 
 
-@watch_router.get("")
+@watch_router.get("", response_model=Envelope[list[WatchlistSummary]])
 def list_watchlists(system: str = "", who: dict = Depends(require_user)):
     from trader.core.watchlist import default_watchlists
     portfolio = _system_portfolio(system, who)
-    return default_watchlists().list_all(portfolio_id=portfolio)
+    return Envelope(data=default_watchlists().list_all(portfolio_id=portfolio))
 
 
-@watch_router.get("/{name}")
+@watch_router.get("/{name}", response_model=Envelope[list[WatchlistMember]])
 def watchlist_detail(name: str, as_of: str = "", system: str = "",
                      who: dict = Depends(require_user)):
     from trader.core.watchlist import default_watchlists
     portfolio = _system_portfolio(system, who)
-    return default_watchlists().get(name, as_of=as_of, portfolio_id=portfolio)
+    return Envelope(data=default_watchlists().get(name, as_of=as_of, portfolio_id=portfolio))
